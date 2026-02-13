@@ -14,6 +14,7 @@ import {
     EMBED_HANDLE_CLASS,
 } from '../core/selectors';
 import { GRAB_HIDDEN_LINE_NUMBER_CLASS } from '../core/constants';
+import { getMainContentLineElementForLine } from './line-dom';
 
 const RANGE_SELECTED_LINE_NUMBER_HIDDEN_CLASS = GRAB_HIDDEN_LINE_NUMBER_CLASS;
 
@@ -163,19 +164,7 @@ export class RangeSelectionVisualManager {
     }
 
     getLineElementForLine(lineNumber: number): HTMLElement | null {
-        if (lineNumber < 1 || lineNumber > this.view.state.doc.lines) return null;
-        if (typeof this.view.domAtPos !== 'function') return null;
-        try {
-            const line = this.view.state.doc.line(lineNumber);
-            const domAtPos = this.view.domAtPos(line.from);
-            const base = domAtPos.node.nodeType === Node.TEXT_NODE
-                ? domAtPos.node.parentElement
-                : domAtPos.node;
-            if (!(base instanceof Element)) return null;
-            return base.closest<HTMLElement>('.cm-line') ?? null;
-        } catch {
-            return null;
-        }
+        return getMainContentLineElementForLine(this.view, lineNumber);
     }
 
     destroy(): void {

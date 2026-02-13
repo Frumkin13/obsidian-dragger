@@ -17,6 +17,10 @@ const zh = {
     optionHover: '悬停显示',
     optionAlways: '始终显示',
     optionHidden: '隐藏',
+    dragSourceVisualStyle: '拖拽源视觉样式',
+    dragSourceVisualStyleDesc: '控制拖拽时源块的视觉强调效果',
+    optionDragSourceVisualNone: '关闭',
+    optionDragSourceVisualSubtle: '简约高亮',
 
     // Handle icon
     handleIcon: '手柄图标',
@@ -63,6 +67,10 @@ const en: typeof zh = {
     optionHover: 'Hover',
     optionAlways: 'Always',
     optionHidden: 'Hidden',
+    dragSourceVisualStyle: 'Drag source visual style',
+    dragSourceVisualStyleDesc: 'Control the visual emphasis applied to source blocks during drag',
+    optionDragSourceVisualNone: 'Off',
+    optionDragSourceVisualSubtle: 'Subtle highlight',
 
     handleIcon: 'Handle icon',
     handleIconDesc: 'Choose the icon style for drag handles',

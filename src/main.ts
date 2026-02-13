@@ -2,7 +2,13 @@ import { Plugin } from 'obsidian';
 import { dragHandleExtension } from './editor/drag-handle';
 import { setHandleHorizontalOffsetPx } from './editor/core/handle-position';
 import { setHandleSizePx, setAlignToLineNumber } from './editor/core/constants';
-import { DragNDropSettings, DEFAULT_SETTINGS, DragNDropSettingTab, HandleVisibilityMode } from './settings';
+import {
+    DragNDropSettings,
+    DEFAULT_SETTINGS,
+    DragNDropSettingTab,
+    HandleVisibilityMode,
+    DragSourceVisualStyle,
+} from './settings';
 import { DragLifecycleEvent, DragLifecycleListener } from './types';
 
 export default class DragNDropPlugin extends Plugin {
@@ -48,6 +54,11 @@ export default class DragNDropPlugin extends Plugin {
         const visibility: HandleVisibilityMode = this.settings.handleVisibility ?? 'hover';
         body.classList.toggle('dnd-handles-always', visibility === 'always');
         body.classList.toggle('dnd-handles-hidden', visibility === 'hidden');
+
+        const dragSourceVisualStyle = normalizeDragSourceVisualStyle(this.settings.dragSourceVisualStyle);
+        this.settings.dragSourceVisualStyle = dragSourceVisualStyle;
+        body.setAttribute('data-dnd-drag-source-style', dragSourceVisualStyle);
+
         const rawHandleOffset = Number(this.settings.handleHorizontalOffsetPx);
         const handleOffset = Number.isFinite(rawHandleOffset)
             ? Math.max(-80, Math.min(80, Math.round(rawHandleOffset)))
@@ -110,4 +121,8 @@ export default class DragNDropPlugin extends Plugin {
             }
         }
     }
+}
+
+function normalizeDragSourceVisualStyle(value: unknown): DragSourceVisualStyle {
+    return value === 'none' ? 'none' : 'subtle';
 }

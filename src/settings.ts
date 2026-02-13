@@ -4,6 +4,7 @@ import { t } from './i18n';
 
 export type HandleVisibilityMode = 'always' | 'hover' | 'hidden';
 export type HandleIconStyle = 'dot' | 'grip-dots' | 'grip-lines' | 'square';
+export type DragSourceVisualStyle = 'none' | 'subtle';
 
 export interface DragNDropSettings {
     // 抓取手柄颜色模式
@@ -26,6 +27,8 @@ export interface DragNDropSettings {
     enableMultiLineSelection: boolean;
     // 是否启用移动端长按文本直接拖拽
     enableMobileTextLongPressDrag: boolean;
+    // 拖拽源视觉样式
+    dragSourceVisualStyle: DragSourceVisualStyle;
     // 手柄横向偏移量（像素）
     handleHorizontalOffsetPx: number;
     // 手柄是否与行号对齐
@@ -43,6 +46,7 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     enableCrossFileDrag: false,
     enableMultiLineSelection: true,
     enableMobileTextLongPressDrag: true,
+    dragSourceVisualStyle: 'subtle',
     handleHorizontalOffsetPx: 0,
     alignHandleToLineNumber: true,
 };
@@ -92,6 +96,18 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.handleVisibility)
                 .onChange(async (value: HandleVisibilityMode) => {
                     this.plugin.settings.handleVisibility = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName(i.dragSourceVisualStyle)
+            .setDesc(i.dragSourceVisualStyleDesc)
+            .addDropdown(dropdown => dropdown
+                .addOption('subtle', i.optionDragSourceVisualSubtle)
+                .addOption('none', i.optionDragSourceVisualNone)
+                .setValue(this.plugin.settings.dragSourceVisualStyle)
+                .onChange(async (value: DragSourceVisualStyle) => {
+                    this.plugin.settings.dragSourceVisualStyle = value;
                     await this.plugin.saveSettings();
                 }));
 

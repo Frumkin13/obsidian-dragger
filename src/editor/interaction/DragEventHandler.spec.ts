@@ -413,6 +413,105 @@ describe('DragEventHandler', () => {
         handler.destroy();
     });
 
+    it('emits press/drag/idle lifecycle states on mobile text long-press drag path', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const lifecycleStates: string[] = [];
+
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+            onDragLifecycleEvent: (event) => lifecycleStates.push(event.state),
+        });
+
+        handler.attach();
+        dispatchPointer(line!, 'pointerdown', {
+            pointerId: 94,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(120);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 94,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 94,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+
+        expect(lifecycleStates).toContain('press_pending');
+        expect(lifecycleStates).toContain('drag_active');
+        expect(lifecycleStates).toContain('idle');
+        handler.destroy();
+    });
+
+    it('emits press/drag/idle lifecycle states on handle touch drag path', () => {
+        const view = createViewStub(6);
+        const handle = document.createElement('div');
+        handle.className = 'dnd-drag-handle';
+        handle.setAttribute('draggable', 'true');
+        view.dom.appendChild(handle);
+
+        const sourceBlock = createBlock('- item', 1, 1);
+        const lifecycleStates: string[] = [];
+
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMultiLineSelectionEnabled: () => false,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+            onDragLifecycleEvent: (event) => lifecycleStates.push(event.state),
+        });
+
+        handler.attach();
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 95,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(120);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 95,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 80,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 95,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 80,
+        });
+
+        expect(lifecycleStates).toContain('press_pending');
+        expect(lifecycleStates).toContain('drag_active');
+        expect(lifecycleStates).toContain('idle');
+        handler.destroy();
+    });
+
     it('supports mouse two-stage flow: first select range, then long-press selected bar to drag', () => {
         const view = createViewStub(8);
         const handle = document.createElement('div');

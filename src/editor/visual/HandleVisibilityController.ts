@@ -4,22 +4,33 @@ import {
     getLineNumberElementForLine,
     hasVisibleLineNumberGutter,
 } from '../core/handle-position';
-import { DRAG_HANDLE_CLASS } from '../core/selectors';
+import {
+    DRAG_HANDLE_CLASS,
+    DRAG_SOURCE_LINE_CLASS,
+} from '../core/selectors';
 import {
     HANDLE_INTERACTION_ZONE_PX,
     HOVER_HIDDEN_LINE_NUMBER_CLASS,
     GRAB_HIDDEN_LINE_NUMBER_CLASS,
 } from '../core/constants';
+import { getMainContentLineElementForLine } from './line-dom';
 
 export interface HandleVisibilityDeps {
     getBlockInfoForHandle: (handle: HTMLElement) => BlockInfo | null;
     getDraggableBlockAtPoint: (clientX: number, clientY: number) => BlockInfo | null;
 }
 
+type GrabLineRange = {
+    startLineNumber: number;
+    endLineNumber: number;
+};
+
 export class HandleVisibilityController {
     private hiddenHoveredLineNumberEl: HTMLElement | null = null;
     private currentHoveredLineNumber: number | null = null;
     private readonly hiddenGrabbedLineNumberEls = new Set<HTMLElement>();
+    private readonly grabbedLineEls = new Set<HTMLElement>();
+    private grabbedLineRanges: GrabLineRange[] = [];
     private activeHandle: HTMLElement | null = null;
 
     constructor(
@@ -40,25 +51,30 @@ export class HandleVisibilityController {
     }
 
     clearGrabbedLineNumbers(): void {
-        for (const lineNumberEl of this.hiddenGrabbedLineNumberEls) {
-            lineNumberEl.classList.remove(GRAB_HIDDEN_LINE_NUMBER_CLASS);
-        }
-        this.hiddenGrabbedLineNumberEls.clear();
+        this.clearGrabbedLineVisualClasses();
+        this.grabbedLineRanges = [];
+    }
+
+    refreshGrabVisualState(): void {
+        if (this.grabbedLineRanges.length === 0) return;
+        this.clearGrabbedLineVisualClasses();
+        this.applyGrabbedLineVisualState();
     }
 
     setGrabbedLineNumberRange(startLineNumber: number, endLineNumber: number): void {
-        this.clearGrabbedLineNumbers();
-        if (!hasVisibleLineNumberGutter(this.view)) return;
-        const safeStart = Math.max(1, Math.min(this.view.state.doc.lines, startLineNumber));
-        const safeEnd = Math.max(1, Math.min(this.view.state.doc.lines, endLineNumber));
-        const from = Math.min(safeStart, safeEnd);
-        const to = Math.max(safeStart, safeEnd);
-        for (let lineNumber = from; lineNumber <= to; lineNumber++) {
-            const lineNumberEl = getLineNumberElementForLine(this.view, lineNumber);
-            if (!lineNumberEl) continue;
-            lineNumberEl.classList.add(GRAB_HIDDEN_LINE_NUMBER_CLASS);
-            this.hiddenGrabbedLineNumberEls.add(lineNumberEl);
-        }
+        this.setGrabbedLineRanges([{ startLineNumber, endLineNumber }]);
+    }
+
+    enterGrabVisualStateForBlock(
+        blockInfo: BlockInfo,
+        handle: HTMLElement | null
+    ): void {
+        this.setActiveVisibleHandle(
+            handle,
+            { preserveHoveredLineNumber: true }
+        );
+        this.clearHoveredLineNumber();
+        this.setGrabbedLineRanges(this.resolveGrabLineRanges(blockInfo));
     }
 
     setActiveVisibleHandle(
@@ -159,6 +175,81 @@ export class HandleVisibilityController {
             return null;
         }
         return lineNumber;
+    }
+
+    private clearGrabbedLineVisualClasses(): void {
+        for (const lineNumberEl of this.hiddenGrabbedLineNumberEls) {
+            lineNumberEl.classList.remove(GRAB_HIDDEN_LINE_NUMBER_CLASS);
+        }
+        this.hiddenGrabbedLineNumberEls.clear();
+        for (const lineEl of this.grabbedLineEls) {
+            lineEl.classList.remove(DRAG_SOURCE_LINE_CLASS);
+        }
+        this.grabbedLineEls.clear();
+    }
+
+    private setGrabbedLineRanges(ranges: GrabLineRange[]): void {
+        this.clearGrabbedLineVisualClasses();
+        this.grabbedLineRanges = this.normalizeGrabLineRanges(ranges);
+        this.applyGrabbedLineVisualState();
+    }
+
+    private applyGrabbedLineVisualState(): void {
+        if (this.grabbedLineRanges.length === 0) return;
+        const hasGutter = hasVisibleLineNumberGutter(this.view);
+        for (const range of this.grabbedLineRanges) {
+            const safeStart = Math.max(1, Math.min(this.view.state.doc.lines, range.startLineNumber));
+            const safeEnd = Math.max(1, Math.min(this.view.state.doc.lines, range.endLineNumber));
+            const from = Math.min(safeStart, safeEnd);
+            const to = Math.max(safeStart, safeEnd);
+            for (let lineNumber = from; lineNumber <= to; lineNumber++) {
+                if (hasGutter) {
+                    const lineNumberEl = getLineNumberElementForLine(this.view, lineNumber);
+                    if (lineNumberEl) {
+                        lineNumberEl.classList.add(GRAB_HIDDEN_LINE_NUMBER_CLASS);
+                        this.hiddenGrabbedLineNumberEls.add(lineNumberEl);
+                    }
+                }
+                const lineEl = getMainContentLineElementForLine(this.view, lineNumber);
+                if (!lineEl) continue;
+                lineEl.classList.add(DRAG_SOURCE_LINE_CLASS);
+                this.grabbedLineEls.add(lineEl);
+            }
+        }
+    }
+
+    private resolveGrabLineRanges(blockInfo: BlockInfo): GrabLineRange[] {
+        const composite = blockInfo.compositeSelection?.ranges ?? [];
+        if (composite.length === 0) {
+            return [{
+                startLineNumber: blockInfo.startLine + 1,
+                endLineNumber: blockInfo.endLine + 1,
+            }];
+        }
+        return composite.map((range) => ({
+            startLineNumber: range.startLine + 1,
+            endLineNumber: range.endLine + 1,
+        }));
+    }
+
+    private normalizeGrabLineRanges(ranges: GrabLineRange[]): GrabLineRange[] {
+        const docLines = this.view.state.doc.lines;
+        const normalized = ranges
+            .map((range) => ({
+                startLineNumber: Math.max(1, Math.min(docLines, Math.min(range.startLineNumber, range.endLineNumber))),
+                endLineNumber: Math.max(1, Math.min(docLines, Math.max(range.startLineNumber, range.endLineNumber))),
+            }))
+            .sort((a, b) => a.startLineNumber - b.startLineNumber);
+        const merged: GrabLineRange[] = [];
+        for (const range of normalized) {
+            const last = merged[merged.length - 1];
+            if (!last || range.startLineNumber > last.endLineNumber + 1) {
+                merged.push(range);
+                continue;
+            }
+            last.endLineNumber = Math.max(last.endLineNumber, range.endLineNumber);
+        }
+        return merged;
     }
 
     private resolveVisibleHandleForBlock(blockInfo: BlockInfo): HTMLElement | null {

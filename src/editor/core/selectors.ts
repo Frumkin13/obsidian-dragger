@@ -12,6 +12,7 @@ export const DROP_HIGHLIGHT_CLASS = 'dnd-drop-highlight';
 export const DRAG_GHOST_CLASS = 'dnd-drag-ghost';
 export const DRAGGING_BODY_CLASS = 'dnd-dragging';
 export const DRAG_SOURCE_LINE_NUMBER_CLASS = 'dnd-drag-source-line-number';
+export const DRAG_SOURCE_LINE_CLASS = 'dnd-drag-source-line';
 export const RANGE_SELECTED_LINE_CLASS = 'dnd-range-selected-line';
 export const RANGE_SELECTED_HANDLE_CLASS = 'dnd-range-selected-handle';
 export const RANGE_SELECTION_LINK_CLASS = 'dnd-range-selection-link';

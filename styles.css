@@ -118,6 +118,25 @@
     border-radius: 4px;
 }
 
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line {
+    border-radius: 4px;
+}
+
+body[data-dnd-drag-source-style="subtle"] .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line {
+    background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 28%, transparent);
+}
+
+body[data-dnd-drag-source-style="subtle"] .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line {
+    background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 36%, transparent);
+}
+
+body[data-dnd-drag-source-style="none"] .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line {
+    background: transparent;
+    box-shadow: none;
+}
+
 .dnd-range-selection-link {
     position: absolute;
     width: 4px;

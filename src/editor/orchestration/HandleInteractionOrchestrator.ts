@@ -67,9 +67,8 @@ export class HandleInteractionOrchestrator {
                 });
                 const sourceBlock = resolveCurrentBlock();
                 if (sourceBlock) {
-                    this.handleVisibility.enterGrabVisualState(
-                        sourceBlock.startLine + 1,
-                        sourceBlock.endLine + 1,
+                    this.handleVisibility.enterGrabVisualStateForBlock(
+                        sourceBlock,
                         el
                     );
                 } else {
@@ -139,9 +138,8 @@ export class HandleInteractionOrchestrator {
             if (shouldPrimePointerVisual) {
                 const blockInfo = resolveCurrentBlock();
                 if (blockInfo) {
-                    this.handleVisibility.enterGrabVisualState(
-                        blockInfo.startLine + 1,
-                        blockInfo.endLine + 1,
+                    this.handleVisibility.enterGrabVisualStateForBlock(
+                        blockInfo,
                         handle
                     );
                 } else {

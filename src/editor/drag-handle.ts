@@ -38,6 +38,7 @@ import {
     DragLifecycleEmitter,
 } from './core/DragLifecycleEmitter';
 import { HandleInteractionOrchestrator } from './orchestration/HandleInteractionOrchestrator';
+import { DragLifecycleEvent } from '../types';
 
 /**
  * 创建拖拽手柄ViewPlugin
@@ -160,9 +161,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                     isMobileTextLongPressDragEnabled: () => _plugin.settings.enableMobileTextLongPressDrag,
                     beginPointerDragSession: (blockInfo) => {
                         this.orchestrator.ensureDragPerfSession();
-                        const startLineNumber = blockInfo.startLine + 1;
-                        const endLineNumber = blockInfo.endLine + 1;
-                        this.handleVisibility.enterGrabVisualState(startLineNumber, endLineNumber, null);
+                        this.handleVisibility.enterGrabVisualStateForBlock(blockInfo, null);
                         beginDragSession(blockInfo, this.view);
                     },
                     finishDragSession: () => {
@@ -177,7 +176,10 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                     hideDropIndicator: () => this.dropIndicator.hide(),
                     performDropAtPoint: (sourceBlock, clientX, clientY, pointerType) =>
                         this.orchestrator.performDropAtPoint(sourceBlock, clientX, clientY, pointerType ?? null),
-                    onDragLifecycleEvent: (event) => this.orchestrator.emitDragLifecycle(event),
+                    onDragLifecycleEvent: (event) => {
+                        this.handleSourceVisualByLifecycle(event);
+                        this.orchestrator.emitDragLifecycle(event);
+                    },
                 });
 
                 this.semanticRefreshScheduler = new SemanticRefreshScheduler(this.view, {
@@ -209,6 +211,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                 if (update.viewportChanged) {
                     this.refreshDecorationsAndEmbeds();
                     this.dragEventHandler.refreshSelectionVisual();
+                    this.handleVisibility.refreshGrabVisualState();
                     // Deferred rescan to catch layout shifts after viewport/file switch
                     this.lineHandleManager.scheduleScan();
                     // Still schedule line-map prewarm if doc changed
@@ -233,6 +236,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
 
                 if (update.docChanged || update.geometryChanged) {
                     this.dragEventHandler.refreshSelectionVisual();
+                    this.handleVisibility.refreshGrabVisualState();
                 }
                 const activeHandle2 = this.handleVisibility.getActiveHandle();
                 if (activeHandle2 && !activeHandle2.isConnected) {
@@ -328,6 +332,19 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
             private handleSettingsUpdated(): void {
                 this.refreshDecorationsAndEmbeds();
                 this.dragEventHandler.refreshSelectionVisual();
+                this.handleVisibility.refreshGrabVisualState();
+            }
+
+            private handleSourceVisualByLifecycle(event: DragLifecycleEvent): void {
+                if (event.state === 'press_pending' || event.state === 'drag_active') {
+                    if (event.sourceBlock) {
+                        this.handleVisibility.enterGrabVisualStateForBlock(event.sourceBlock, null);
+                    }
+                    return;
+                }
+                if (event.state === 'cancelled' || event.state === 'idle' || event.state === 'drop_commit') {
+                    this.handleVisibility.clearGrabbedLineNumbers();
+                }
             }
         }
         // No decorations config - LineHandleManager uses independent DOM elements

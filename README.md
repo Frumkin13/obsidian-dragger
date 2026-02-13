@@ -68,6 +68,7 @@ Restart Obsidian and enable the plugin.
 | **Indicator color** | Follow theme accent or pick a custom color | Theme |
 | **Multi-line selection** | Enable range-select-then-drag workflow | On |
 | **Mobile text long-press drag** | On mobile, long-press text glyphs to drag a single block directly | On |
+| **Drag source visual style** | Visual style for selected source blocks during drag (Off / Subtle highlight) | Subtle highlight |
 
 ## Compatibility
 
