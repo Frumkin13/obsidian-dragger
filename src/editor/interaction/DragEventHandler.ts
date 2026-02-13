@@ -67,6 +67,7 @@ export interface DragEventHandlerDeps {
     getBlockInfoAtPoint: (clientX: number, clientY: number) => BlockInfo | null;
     isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
     isMultiLineSelectionEnabled?: () => boolean;
+    isMobileTextLongPressDragEnabled?: () => boolean;
     beginPointerDragSession: (blockInfo: BlockInfo) => void;
     finishDragSession: () => void;
     scheduleDropIndicatorUpdate: (clientX: number, clientY: number, dragSource: BlockInfo | null, pointerType: string | null) => void;
@@ -117,19 +118,31 @@ export class DragEventHandler {
         }
 
         if (!this.shouldStartMobilePressDrag(e)) return;
-        if (!this.mobile.isWithinMobileDragHotzoneBand(e.clientX)) return;
+        const inMobileHotzoneBand = this.mobile.isWithinMobileDragHotzoneBand(e.clientX);
+        const inTextGlyphArea = this.isMobileTextLongPressDragEnabled()
+            && this.mobile.isWithinMobileTextGlyphArea(target, e.clientX, e.clientY);
+        if (!inMobileHotzoneBand && !inTextGlyphArea) return;
 
-        // Mobile hotzone hit should be consumed first to avoid editor focus/keyboard side effects.
+        // Mobile interaction hit should be consumed first to avoid editor focus/keyboard side effects.
         e.preventDefault();
         e.stopPropagation();
 
         const blockInfo = this.deps.getBlockInfoAtPoint(e.clientX, e.clientY);
         if (!blockInfo) return;
         if (this.deps.isBlockInsideRenderedTableCell(blockInfo)) return;
-        if (!this.mobile.isWithinMobileDragHotzone(blockInfo, e.clientX)) return;
-        if (multiLineSelectionEnabled) {
-            this.startRangeSelect(blockInfo, e, null);
-        } else {
+
+        const useHotzonePath = inMobileHotzoneBand
+            && this.mobile.isWithinMobileDragHotzone(blockInfo, e.clientX);
+        if (useHotzonePath) {
+            if (multiLineSelectionEnabled) {
+                this.startRangeSelect(blockInfo, e, null);
+            } else {
+                this.startPointerPressDrag(blockInfo, e);
+            }
+            return;
+        }
+
+        if (inTextGlyphArea) {
             this.startPointerPressDrag(blockInfo, e);
         }
     };
@@ -984,5 +997,10 @@ export class DragEventHandler {
     private isMultiLineSelectionEnabled(): boolean {
         if (!this.deps.isMultiLineSelectionEnabled) return true;
         return this.deps.isMultiLineSelectionEnabled();
+    }
+
+    private isMobileTextLongPressDragEnabled(): boolean {
+        if (!this.deps.isMobileTextLongPressDragEnabled) return true;
+        return this.deps.isMobileTextLongPressDragEnabled();
     }
 }

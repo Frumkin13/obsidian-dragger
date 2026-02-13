@@ -157,6 +157,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                     isBlockInsideRenderedTableCell: (blockInfo) =>
                         isPosInsideRenderedTableCell(this.view, blockInfo.from, { skipLayoutRead: true }),
                     isMultiLineSelectionEnabled: () => _plugin.settings.enableMultiLineSelection,
+                    isMobileTextLongPressDragEnabled: () => _plugin.settings.enableMobileTextLongPressDrag,
                     beginPointerDragSession: (blockInfo) => {
                         this.orchestrator.ensureDragPerfSession();
                         const startLineNumber = blockInfo.startLine + 1;

@@ -5,6 +5,8 @@ import { MOBILE_GESTURE_LOCK_CLASS } from '../core/selectors';
 const MOBILE_DRAG_HOTZONE_LEFT_PX = 24;
 const MOBILE_DRAG_HOTZONE_RIGHT_PX = 8;
 const MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX = 16;
+const MOBILE_TEXT_GLYPH_HIT_X_TOLERANCE_PX = 8;
+const MOBILE_TEXT_GLYPH_HIT_Y_TOLERANCE_PX = 6;
 const MOBILE_GESTURE_LOCK_COUNT_ATTR = 'data-dnd-mobile-lock-count';
 
 export class MobileGestureController {
@@ -65,6 +67,45 @@ export class MobileGestureController {
         );
         const hotzoneRight = lineStart.left + MOBILE_DRAG_HOTZONE_RIGHT_PX;
         return clientX >= hotzoneLeft && clientX <= hotzoneRight;
+    }
+
+    isWithinMobileTextGlyphArea(target: HTMLElement | null, clientX: number, clientY: number): boolean {
+        if (!target) return false;
+        const lineEl = target.closest<HTMLElement>('.cm-line');
+        if (!lineEl || !this.view.contentDOM.contains(lineEl)) return false;
+
+        const lineNumber = this.resolveLineNumberFromTarget(target, lineEl);
+        if (lineNumber === null) return false;
+
+        const line = this.view.state.doc.line(lineNumber);
+        const text = line.text;
+        const firstNonWhitespaceIndex = text.search(/\S/);
+        if (firstNonWhitespaceIndex < 0) return false;
+
+        let lastNonWhitespaceIndex = text.length - 1;
+        while (lastNonWhitespaceIndex >= firstNonWhitespaceIndex && /\s/.test(text.charAt(lastNonWhitespaceIndex))) {
+            lastNonWhitespaceIndex -= 1;
+        }
+        if (lastNonWhitespaceIndex < firstNonWhitespaceIndex) return false;
+
+        const startPos = line.from + firstNonWhitespaceIndex;
+        const endPosExclusive = Math.min(line.to, line.from + lastNonWhitespaceIndex + 1);
+        const startCoords = this.safeCoordsAtPos(startPos, 1);
+        const endCoords = this.safeCoordsAtPos(endPosExclusive, -1);
+        if (!startCoords || !endCoords) return false;
+
+        const glyphLeft = Math.min(startCoords.left, startCoords.right, endCoords.left, endCoords.right);
+        const glyphRight = Math.max(startCoords.left, startCoords.right, endCoords.left, endCoords.right);
+        const glyphTop = Math.min(startCoords.top, startCoords.bottom, endCoords.top, endCoords.bottom);
+        const glyphBottom = Math.max(startCoords.top, startCoords.bottom, endCoords.top, endCoords.bottom);
+        if (!Number.isFinite(glyphLeft) || !Number.isFinite(glyphRight) || glyphRight <= glyphLeft) return false;
+
+        const withinX = clientX >= glyphLeft - MOBILE_TEXT_GLYPH_HIT_X_TOLERANCE_PX
+            && clientX <= glyphRight + MOBILE_TEXT_GLYPH_HIT_X_TOLERANCE_PX;
+        if (!withinX) return false;
+        const withinY = clientY >= glyphTop - MOBILE_TEXT_GLYPH_HIT_Y_TOLERANCE_PX
+            && clientY <= glyphBottom + MOBILE_TEXT_GLYPH_HIT_Y_TOLERANCE_PX;
+        return withinY;
     }
 
     lockMobileInteraction(): void {
@@ -143,6 +184,35 @@ export class MobileGestureController {
             nav.vibrate(10);
         } catch {
             // ignore unsupported vibration errors
+        }
+    }
+
+    private resolveLineNumberFromTarget(target: HTMLElement, lineEl: HTMLElement): number | null {
+        const doc = this.view.state.doc;
+        const probes: Node[] = [target, lineEl];
+        if (target.firstChild) probes.push(target.firstChild);
+        if (lineEl.firstChild) probes.push(lineEl.firstChild);
+
+        for (const probe of probes) {
+            try {
+                const pos = this.view.posAtDOM(probe, 0);
+                const lineNumber = doc.lineAt(pos).number;
+                if (lineNumber >= 1 && lineNumber <= doc.lines) {
+                    return lineNumber;
+                }
+            } catch {
+                // Try next probe node.
+            }
+        }
+
+        return null;
+    }
+
+    private safeCoordsAtPos(pos: number, side: -1 | 1): ReturnType<EditorView['coordsAtPos']> | null {
+        try {
+            return this.view.coordsAtPos(pos, side);
+        } catch {
+            return null;
         }
     }
 }

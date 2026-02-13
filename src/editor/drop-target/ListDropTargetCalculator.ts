@@ -338,7 +338,7 @@ export class ListDropTargetCalculator {
             }
         }
 
-        const ancestors = this.getListAncestorLineNumbers(doc, lineNumber, lineMap, memo);
+        const ancestors = this.getListAncestorLineNumbers(doc, lineNumber, lineMap);
         for (const ancestorLine of ancestors) {
             if (ancestorLine === lineNumber) continue;
             const indentWidth = this.getListIndentWidthAtLine(doc, ancestorLine, lineMap, memo);
@@ -430,8 +430,7 @@ export class ListDropTargetCalculator {
     private getListAncestorLineNumbers(
         doc: { line: (n: number) => { text: string }; lines: number },
         lineNumber: number,
-        lineMap?: LineMap,
-        _memo?: ListCalcMemo
+        lineMap?: LineMap
     ): number[] {
         const result: number[] = [];
 

@@ -52,6 +52,8 @@ Restart Obsidian and enable the plugin.
 
 **Multi-line selection:** long-press (touch) or click multiple handles to select a range, then drag the entire selection.
 
+**Mobile text long-press drag:** when enabled, long-press text glyphs to drag a single block directly without reaching for the left handle.
+
 > 💡 **Tip:** Enable line numbers in Obsidian settings for a better experience — the handle appears right at the line-number gutter.
 
 ## Settings
@@ -65,6 +67,7 @@ Restart Obsidian and enable the plugin.
 | **Handle horizontal offset** | Shift handle left (−80) or right (+80) px | 0 px |
 | **Indicator color** | Follow theme accent or pick a custom color | Theme |
 | **Multi-line selection** | Enable range-select-then-drag workflow | On |
+| **Mobile text long-press drag** | On mobile, long-press text glyphs to drag a single block directly | On |
 
 ## Compatibility
 

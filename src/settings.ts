@@ -24,6 +24,8 @@ export interface DragNDropSettings {
     enableCrossFileDrag: boolean;
     // 是否启用多行选取拖拽
     enableMultiLineSelection: boolean;
+    // 是否启用移动端长按文本直接拖拽
+    enableMobileTextLongPressDrag: boolean;
     // 手柄横向偏移量（像素）
     handleHorizontalOffsetPx: number;
     // 手柄是否与行号对齐
@@ -40,6 +42,7 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     indicatorColor: '#7a7a7a',
     enableCrossFileDrag: false,
     enableMultiLineSelection: true,
+    enableMobileTextLongPressDrag: true,
     handleHorizontalOffsetPx: 0,
     alignHandleToLineNumber: true,
 };
@@ -168,6 +171,16 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.enableMultiLineSelection)
                 .onChange(async (value) => {
                     this.plugin.settings.enableMultiLineSelection = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName(i.mobileTextLongPressDrag)
+            .setDesc(i.mobileTextLongPressDragDesc)
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableMobileTextLongPressDrag)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableMobileTextLongPressDrag = value;
                     await this.plugin.saveSettings();
                 }));
 

@@ -262,6 +262,157 @@ describe('DragEventHandler', () => {
         handler.destroy();
     });
 
+    it('starts single-block touch drag from text glyph area when mobile text long-press drag is enabled', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        const scheduleDropIndicatorUpdate = vi.fn();
+        const performDropAtPoint = vi.fn();
+        const finishDragSession = vi.fn();
+
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession,
+            scheduleDropIndicatorUpdate,
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint,
+        });
+
+        handler.attach();
+        dispatchPointer(line!, 'pointerdown', {
+            pointerId: 91,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(120);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 91,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 91,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 10, expect.objectContaining({
+            startLine: 0,
+            endLine: 0,
+        }), 'touch');
+        expect(performDropAtPoint).toHaveBeenCalledTimes(1);
+        expect(finishDragSession).toHaveBeenCalledTimes(1);
+        expect(view.dom.querySelector('.dnd-range-selection-link')).toBeNull();
+        handler.destroy();
+    });
+
+    it('does not start text-glyph touch drag when mobile text long-press drag is disabled', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        const scheduleDropIndicatorUpdate = vi.fn();
+        const performDropAtPoint = vi.fn();
+
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => false,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate,
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint,
+        });
+
+        handler.attach();
+        dispatchPointer(line!, 'pointerdown', {
+            pointerId: 92,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(300);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 92,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 92,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(scheduleDropIndicatorUpdate).not.toHaveBeenCalled();
+        expect(performDropAtPoint).not.toHaveBeenCalled();
+        handler.destroy();
+    });
+
+    it('does not start text-glyph touch drag when pressing non-glyph area on line', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        const performDropAtPoint = vi.fn();
+
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint,
+        });
+
+        handler.attach();
+        dispatchPointer(line!, 'pointerdown', {
+            pointerId: 93,
+            pointerType: 'touch',
+            clientX: 200,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(300);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 93,
+            pointerType: 'touch',
+            clientX: 240,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 93,
+            pointerType: 'touch',
+            clientX: 240,
+            clientY: 10,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(performDropAtPoint).not.toHaveBeenCalled();
+        handler.destroy();
+    });
+
     it('supports mouse two-stage flow: first select range, then long-press selected bar to drag', () => {
         const view = createViewStub(8);
         const handle = document.createElement('div');
