@@ -44,6 +44,9 @@ import { DragLifecycleEvent } from '../types';
  * 创建拖拽手柄ViewPlugin
  */
 function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
+    const normalizeDragSourceVisualStyle = (value: unknown): 'none' | 'subtle' =>
+        value === 'none' ? 'none' : 'subtle';
+
     return ViewPlugin.fromClass(
         class {
             // decorations removed - now using LineHandleManager with independent DOM elements
@@ -68,8 +71,8 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
 
             constructor(view: EditorView) {
                 this.view = view;
-                this.view.dom.classList.add(ROOT_EDITOR_CLASS);
-                this.view.contentDOM.classList.add(MAIN_EDITOR_CONTENT_CLASS);
+                this.ensureEditorRootClasses();
+                this.syncDragSourceVisualStyleAttr();
                 this.syncGutterClass();
                 this.services = new ServiceContainer(this.view);
                 this.handleVisibility = new HandleVisibilityController(this.view, {
@@ -134,7 +137,6 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                     lifecycleEmitter: this.lifecycleEmitter,
                     getSemanticRefreshScheduler: () => this.semanticRefreshScheduler,
                     refreshDecorationsAndEmbeds: () => this.refreshDecorationsAndEmbeds(),
-                    isMultiLineSelectionEnabled: () => _plugin.settings.enableMultiLineSelection,
                     getDragEventHandler: () => this.dragEventHandler,
                 });
                 this.lineHandleManager = new LineHandleManager(this.view, {
@@ -207,6 +209,8 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
             }
 
             update(update: ViewUpdate) {
+                this.ensureEditorRootClasses();
+                this.syncDragSourceVisualStyleAttr();
                 // Viewport changes have highest priority - refresh visible decorations immediately
                 if (update.viewportChanged) {
                     this.refreshDecorationsAndEmbeds();
@@ -257,6 +261,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                 this.dragEventHandler.destroy();
                 this.lineHandleManager.destroy();
                 this.view.dom.classList.remove(ROOT_EDITOR_CLASS);
+                this.view.dom.removeAttribute('data-dnd-drag-source-style');
                 this.view.contentDOM.classList.remove(MAIN_EDITOR_CONTENT_CLASS);
                 this.dropIndicator.destroy();
                 this.orchestrator.emitDragLifecycle({
@@ -323,26 +328,57 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                 this.view.dom.classList.toggle('dnd-no-gutter', !hasGutter);
             }
 
+            private ensureEditorRootClasses(): void {
+                this.view.dom.classList.add(ROOT_EDITOR_CLASS);
+                this.view.contentDOM.classList.add(MAIN_EDITOR_CONTENT_CLASS);
+            }
+
+            private syncDragSourceVisualStyleAttr(): void {
+                const style = normalizeDragSourceVisualStyle(_plugin.settings.dragSourceVisualStyle);
+                this.view.dom.setAttribute('data-dnd-drag-source-style', style);
+            }
+
             private refreshDecorationsAndEmbeds(): void {
+                this.ensureEditorRootClasses();
                 this.syncGutterClass();
                 this.semanticRefreshScheduler.clearPendingSemanticRefresh();
                 this.lineHandleManager.scheduleScan();
             }
 
             private handleSettingsUpdated(): void {
+                this.ensureEditorRootClasses();
+                this.syncDragSourceVisualStyleAttr();
                 this.refreshDecorationsAndEmbeds();
                 this.dragEventHandler.refreshSelectionVisual();
                 this.handleVisibility.refreshGrabVisualState();
             }
 
             private handleSourceVisualByLifecycle(event: DragLifecycleEvent): void {
-                if (event.state === 'press_pending' || event.state === 'drag_active') {
+                if (event.state === 'press_pending') {
+                    if (event.pressReady && event.sourceBlock) {
+                        this.handleVisibility.enterGrabVisualStateForBlock(event.sourceBlock, null);
+                    } else {
+                        // Pressing should not show drag-source highlight before long-press is ready.
+                        this.handleVisibility.clearGrabbedLineNumbers();
+                    }
+                    return;
+                }
+                if (event.state === 'drag_active') {
                     if (event.sourceBlock) {
                         this.handleVisibility.enterGrabVisualStateForBlock(event.sourceBlock, null);
                     }
                     return;
                 }
-                if (event.state === 'cancelled' || event.state === 'idle' || event.state === 'drop_commit') {
+                if (event.state === 'cancelled' || event.state === 'idle') {
+                    // Desktop native drag can coexist with pointer-range session cancellation.
+                    // While a drag session is active, keep source visual instead of clearing.
+                    const hasActiveNativeDrag = document.body.classList.contains(DRAGGING_BODY_CLASS)
+                        || !!getActiveDragSourceBlock(this.view);
+                    if (hasActiveNativeDrag) return;
+                    this.handleVisibility.clearGrabbedLineNumbers();
+                    return;
+                }
+                if (event.state === 'drop_commit') {
                     this.handleVisibility.clearGrabbedLineNumbers();
                 }
             }

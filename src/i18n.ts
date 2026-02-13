@@ -46,7 +46,7 @@ const zh = {
     multiLineSelection: '多行选取',
     multiLineSelectionDesc: '关闭后仅保留单块拖拽，不进入多行选取流程',
     mobileTextLongPressDrag: '移动端文本长按拖拽',
-    mobileTextLongPressDragDesc: '移动端在文本字符区域长按可直接拖拽当前块，无需左侧手柄',
+    mobileTextLongPressDragDesc: '移动端在文本整行或块内容区域长按可直接拖拽当前块，无需左侧手柄',
 
     // Align handle to line number
     alignHandleToLineNumber: '手柄对齐行号',
@@ -91,7 +91,7 @@ const en: typeof zh = {
     multiLineSelection: 'Multi-line selection',
     multiLineSelectionDesc: 'Disable to keep single-block drag only',
     mobileTextLongPressDrag: 'Mobile text long-press drag',
-    mobileTextLongPressDragDesc: 'On mobile, long-press text glyphs to drag the current block directly without using the left handle',
+    mobileTextLongPressDragDesc: 'On mobile, long-press a text line or rendered block content to drag the current block directly without using the left handle',
 
     alignHandleToLineNumber: 'Align handle to line numbers',
     alignHandleToLineNumberDesc: 'When off, handles are positioned at the editor edge even if line numbers are visible',

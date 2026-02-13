@@ -66,6 +66,8 @@ export interface DragLifecycleEvent {
     listIntent: DragListIntent | null;
     rejectReason: string | null;
     pointerType: string | null;
+    // For press_pending: false means waiting long-press, true means drag-ready.
+    pressReady?: boolean;
 }
 
 export type DragLifecycleListener = (event: DragLifecycleEvent) => void;

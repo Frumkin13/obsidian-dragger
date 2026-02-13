@@ -1,6 +1,9 @@
 import { EditorView } from '@codemirror/view';
 import { detectBlock, getHeadingSectionRange } from '../block-detector';
 import { BlockInfo, BlockType } from '../../../types';
+import { EMBED_BLOCK_SELECTOR } from '../selectors';
+
+const EMBED_HIT_FALLBACK_PADDING_PX = 8;
 
 export class DragSourceResolver {
     constructor(private readonly view: EditorView) { }
@@ -34,6 +37,12 @@ export class DragSourceResolver {
     }
 
     getDraggableBlockAtPoint(clientX: number, clientY: number): BlockInfo | null {
+        const embedAtPoint = this.getEmbedElementAtPoint(clientX, clientY);
+        if (embedAtPoint) {
+            const embedBlock = this.getBlockInfoForEmbed(embedAtPoint);
+            if (embedBlock) return embedBlock;
+        }
+
         const contentRect = this.view.contentDOM.getBoundingClientRect();
         if (clientY < contentRect.top || clientY > contentRect.bottom) return null;
 
@@ -51,18 +60,82 @@ export class DragSourceResolver {
     }
 
     getBlockInfoForEmbed(embedEl: HTMLElement): BlockInfo | null {
-        const candidates = [embedEl, embedEl.parentElement].filter((el): el is HTMLElement => !!el);
+        const candidates = this.collectEmbedProbeCandidates(embedEl);
         for (const candidate of candidates) {
             try {
                 const pos = this.view.posAtDOM(candidate);
                 const line = this.view.state.doc.lineAt(pos);
                 const block = detectBlock(this.view.state, line.number);
-                if (block) return block;
+                if (block) return this.expandHeadingBlockIfCollapsed(block);
             } catch {
                 // try next candidate
             }
         }
         return null;
+    }
+
+    private collectEmbedProbeCandidates(embedEl: HTMLElement): HTMLElement[] {
+        const seen = new Set<HTMLElement>();
+        const candidates: HTMLElement[] = [];
+        const push = (el: HTMLElement | null | undefined) => {
+            if (!el) return;
+            if (seen.has(el)) return;
+            seen.add(el);
+            candidates.push(el);
+        };
+
+        push(embedEl.closest<HTMLElement>('.cm-embed-block'));
+        push(embedEl.closest<HTMLElement>('.cm-line'));
+        push(embedEl);
+
+        let current: HTMLElement | null = embedEl.parentElement;
+        while (current) {
+            push(current);
+            if (current === this.view.dom) break;
+            current = current.parentElement;
+        }
+
+        return candidates;
+    }
+
+    private getEmbedElementAtPoint(clientX: number, clientY: number): HTMLElement | null {
+        const root = this.view.dom;
+        if (!(root instanceof HTMLElement)) return null;
+
+        if (typeof document.elementFromPoint === 'function') {
+            const rawEl = document.elementFromPoint(clientX, clientY);
+            const el = rawEl instanceof HTMLElement ? rawEl : null;
+            if (el) {
+                const direct = el.closest<HTMLElement>(EMBED_BLOCK_SELECTOR);
+                if (direct && root.contains(direct)) {
+                    return direct.closest<HTMLElement>('.cm-embed-block') ?? direct;
+                }
+            }
+        }
+
+        const editorRect = root.getBoundingClientRect();
+        if (clientY < editorRect.top || clientY > editorRect.bottom) return null;
+        if (clientX < editorRect.left || clientX > editorRect.right) return null;
+
+        const embeds = Array.from(root.querySelectorAll<HTMLElement>(EMBED_BLOCK_SELECTOR));
+        let best: HTMLElement | null = null;
+        let bestDist = Number.POSITIVE_INFINITY;
+        for (const raw of embeds) {
+            const embed = raw.closest<HTMLElement>('.cm-embed-block') ?? raw;
+            const rect = embed.getBoundingClientRect();
+            const withinX = clientX >= rect.left - EMBED_HIT_FALLBACK_PADDING_PX
+                && clientX <= rect.right + EMBED_HIT_FALLBACK_PADDING_PX;
+            const withinY = clientY >= rect.top && clientY <= rect.bottom;
+            if (!withinX || !withinY) continue;
+            const centerY = (rect.top + rect.bottom) / 2;
+            const dist = Math.abs(centerY - clientY);
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = embed;
+            }
+        }
+
+        return best;
     }
 
     private expandHeadingBlockIfCollapsed(block: BlockInfo): BlockInfo {

@@ -1,13 +1,14 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../types';
-import { MOBILE_GESTURE_LOCK_CLASS } from '../core/selectors';
+import { EMBED_BLOCK_SELECTOR, MOBILE_GESTURE_LOCK_CLASS } from '../core/selectors';
 
 const MOBILE_DRAG_HOTZONE_LEFT_PX = 24;
 const MOBILE_DRAG_HOTZONE_RIGHT_PX = 8;
 const MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX = 16;
-const MOBILE_TEXT_GLYPH_HIT_X_TOLERANCE_PX = 8;
-const MOBILE_TEXT_GLYPH_HIT_Y_TOLERANCE_PX = 6;
+const MOBILE_LINE_HIT_Y_TOLERANCE_PX = 8;
+const MOBILE_EMBED_HIT_PADDING_PX = 6;
 const MOBILE_GESTURE_LOCK_COUNT_ATTR = 'data-dnd-mobile-lock-count';
+const MOBILE_LONG_PRESS_EMBED_SELECTOR = EMBED_BLOCK_SELECTOR;
 
 export class MobileGestureController {
     private mobileInteractionLocked = false;
@@ -34,6 +35,13 @@ export class MobileGestureController {
         const contentRect = this.view.contentDOM.getBoundingClientRect();
         const left = contentRect.left - MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX;
         const right = contentRect.right + MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX;
+        return clientX >= left && clientX <= right;
+    }
+
+    isWithinEditorTolerance(clientX: number): boolean {
+        const editorRect = this.view.dom.getBoundingClientRect();
+        const left = editorRect.left - MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX;
+        const right = editorRect.right + MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX;
         return clientX >= left && clientX <= right;
     }
 
@@ -69,43 +77,28 @@ export class MobileGestureController {
         return clientX >= hotzoneLeft && clientX <= hotzoneRight;
     }
 
-    isWithinMobileTextGlyphArea(target: HTMLElement | null, clientX: number, clientY: number): boolean {
+    isWithinMobileTextLineOrEmbedArea(target: HTMLElement | null, clientX: number, clientY: number): boolean {
+        const embedEl = this.resolveEmbedElement(target, clientX, clientY);
+        if (embedEl) {
+            return this.isWithinEmbedDragArea(embedEl, clientX, clientY);
+        }
+
         if (!target) return false;
         const lineEl = target.closest<HTMLElement>('.cm-line');
-        if (!lineEl || !this.view.contentDOM.contains(lineEl)) return false;
-
-        const lineNumber = this.resolveLineNumberFromTarget(target, lineEl);
-        if (lineNumber === null) return false;
-
-        const line = this.view.state.doc.line(lineNumber);
-        const text = line.text;
-        const firstNonWhitespaceIndex = text.search(/\S/);
-        if (firstNonWhitespaceIndex < 0) return false;
-
-        let lastNonWhitespaceIndex = text.length - 1;
-        while (lastNonWhitespaceIndex >= firstNonWhitespaceIndex && /\s/.test(text.charAt(lastNonWhitespaceIndex))) {
-            lastNonWhitespaceIndex -= 1;
+        if (lineEl && this.view.contentDOM.contains(lineEl)) {
+            const lineNumber = this.resolveLineNumberFromTarget(target, lineEl);
+            if (lineNumber !== null) {
+                return this.isWithinLineDragArea(lineNumber, clientX, clientY);
+            }
         }
-        if (lastNonWhitespaceIndex < firstNonWhitespaceIndex) return false;
 
-        const startPos = line.from + firstNonWhitespaceIndex;
-        const endPosExclusive = Math.min(line.to, line.from + lastNonWhitespaceIndex + 1);
-        const startCoords = this.safeCoordsAtPos(startPos, 1);
-        const endCoords = this.safeCoordsAtPos(endPosExclusive, -1);
-        if (!startCoords || !endCoords) return false;
+        if (!this.view.contentDOM.contains(target)) return false;
+        const fallbackLineNumber = this.resolveLineNumberFromTarget(target, null);
+        if (fallbackLineNumber !== null) {
+            return this.isWithinLineDragArea(fallbackLineNumber, clientX, clientY);
+        }
 
-        const glyphLeft = Math.min(startCoords.left, startCoords.right, endCoords.left, endCoords.right);
-        const glyphRight = Math.max(startCoords.left, startCoords.right, endCoords.left, endCoords.right);
-        const glyphTop = Math.min(startCoords.top, startCoords.bottom, endCoords.top, endCoords.bottom);
-        const glyphBottom = Math.max(startCoords.top, startCoords.bottom, endCoords.top, endCoords.bottom);
-        if (!Number.isFinite(glyphLeft) || !Number.isFinite(glyphRight) || glyphRight <= glyphLeft) return false;
-
-        const withinX = clientX >= glyphLeft - MOBILE_TEXT_GLYPH_HIT_X_TOLERANCE_PX
-            && clientX <= glyphRight + MOBILE_TEXT_GLYPH_HIT_X_TOLERANCE_PX;
-        if (!withinX) return false;
-        const withinY = clientY >= glyphTop - MOBILE_TEXT_GLYPH_HIT_Y_TOLERANCE_PX
-            && clientY <= glyphBottom + MOBILE_TEXT_GLYPH_HIT_Y_TOLERANCE_PX;
-        return withinY;
+        return false;
     }
 
     lockMobileInteraction(): void {
@@ -187,11 +180,12 @@ export class MobileGestureController {
         }
     }
 
-    private resolveLineNumberFromTarget(target: HTMLElement, lineEl: HTMLElement): number | null {
+    private resolveLineNumberFromTarget(target: HTMLElement, lineEl: HTMLElement | null): number | null {
         const doc = this.view.state.doc;
-        const probes: Node[] = [target, lineEl];
+        const probes: Node[] = [target];
+        if (lineEl) probes.push(lineEl);
         if (target.firstChild) probes.push(target.firstChild);
-        if (lineEl.firstChild) probes.push(lineEl.firstChild);
+        if (lineEl?.firstChild) probes.push(lineEl.firstChild);
 
         for (const probe of probes) {
             try {
@@ -206,6 +200,51 @@ export class MobileGestureController {
         }
 
         return null;
+    }
+
+    private isWithinLineDragArea(lineNumber: number, clientX: number, clientY: number): boolean {
+        if (!this.isWithinContentTolerance(clientX)) return false;
+        const lineRect = this.resolveLineRect(lineNumber);
+        if (!lineRect) return false;
+        return clientY >= lineRect.top - MOBILE_LINE_HIT_Y_TOLERANCE_PX
+            && clientY <= lineRect.bottom + MOBILE_LINE_HIT_Y_TOLERANCE_PX;
+    }
+
+    private isWithinEmbedDragArea(embedEl: HTMLElement, clientX: number, clientY: number): boolean {
+        if (!this.isWithinEditorTolerance(clientX)) return false;
+        const rect = embedEl.getBoundingClientRect();
+        return clientX >= rect.left - MOBILE_EMBED_HIT_PADDING_PX
+            && clientX <= rect.right + MOBILE_EMBED_HIT_PADDING_PX
+            && clientY >= rect.top - MOBILE_EMBED_HIT_PADDING_PX
+            && clientY <= rect.bottom + MOBILE_EMBED_HIT_PADDING_PX;
+    }
+
+    private resolveEmbedElement(target: HTMLElement | null, clientX: number, clientY: number): HTMLElement | null {
+        if (target) {
+            const fromTarget = target.closest<HTMLElement>(MOBILE_LONG_PRESS_EMBED_SELECTOR);
+            if (fromTarget && this.view.dom.contains(fromTarget)) {
+                return fromTarget;
+            }
+        }
+
+        if (typeof document.elementFromPoint !== 'function') return null;
+        const hit = document.elementFromPoint(clientX, clientY);
+        if (!(hit instanceof HTMLElement)) return null;
+        const fromPoint = hit.closest<HTMLElement>(MOBILE_LONG_PRESS_EMBED_SELECTOR);
+        if (!fromPoint || !this.view.dom.contains(fromPoint)) return null;
+        return fromPoint;
+    }
+
+    private resolveLineRect(lineNumber: number): { top: number; bottom: number } | null {
+        if (lineNumber < 1 || lineNumber > this.view.state.doc.lines) return null;
+        const line = this.view.state.doc.line(lineNumber);
+        const startCoords = this.safeCoordsAtPos(line.from, 1);
+        const endCoords = this.safeCoordsAtPos(line.to, -1) ?? startCoords;
+        if (!startCoords || !endCoords) return null;
+        const top = Math.min(startCoords.top, endCoords.top);
+        const bottom = Math.max(startCoords.bottom, endCoords.bottom);
+        if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom <= top) return null;
+        return { top, bottom };
     }
 
     private safeCoordsAtPos(pos: number, side: -1 | 1): ReturnType<EditorView['coordsAtPos']> | null {

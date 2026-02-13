@@ -262,7 +262,7 @@ describe('DragEventHandler', () => {
         handler.destroy();
     });
 
-    it('starts single-block touch drag from text glyph area when mobile text long-press drag is enabled', () => {
+    it('starts single-block touch drag from full line area when mobile text long-press drag is enabled', () => {
         const view = createViewStub(6);
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
         expect(line).not.toBeNull();
@@ -292,7 +292,7 @@ describe('DragEventHandler', () => {
             clientX: 60,
             clientY: 10,
         });
-        vi.advanceTimersByTime(120);
+        vi.advanceTimersByTime(220);
         dispatchPointer(window, 'pointermove', {
             pointerId: 91,
             pointerType: 'touch',
@@ -317,7 +317,7 @@ describe('DragEventHandler', () => {
         handler.destroy();
     });
 
-    it('does not start text-glyph touch drag when mobile text long-press drag is disabled', () => {
+    it('does not start touch drag from line area when mobile text long-press drag is disabled', () => {
         const view = createViewStub(6);
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
         expect(line).not.toBeNull();
@@ -366,7 +366,7 @@ describe('DragEventHandler', () => {
         handler.destroy();
     });
 
-    it('does not start text-glyph touch drag when pressing non-glyph area on line', () => {
+    it('starts touch drag when pressing trailing whitespace on the same line', () => {
         const view = createViewStub(6);
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
         expect(line).not.toBeNull();
@@ -408,8 +408,131 @@ describe('DragEventHandler', () => {
             clientY: 10,
         });
 
-        expect(beginPointerDragSession).not.toHaveBeenCalled();
-        expect(performDropAtPoint).not.toHaveBeenCalled();
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(performDropAtPoint).toHaveBeenCalledTimes(1);
+        handler.destroy();
+    });
+
+    it('starts touch drag from rendered callout area when mobile text long-press drag is enabled', () => {
+        const view = createViewStub(6);
+        const sourceBlock = createBlock('> [!note] title', 2, 3);
+        const beginPointerDragSession = vi.fn();
+        const scheduleDropIndicatorUpdate = vi.fn();
+
+        const callout = document.createElement('div');
+        callout.className = 'cm-callout';
+        const calloutContent = document.createElement('div');
+        callout.appendChild(calloutContent);
+        view.dom.appendChild(callout);
+
+        Object.defineProperty(callout, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(40, 40, 200, 60),
+        });
+
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate,
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        dispatchPointer(calloutContent, 'pointerdown', {
+            pointerId: 931,
+            pointerType: 'touch',
+            clientX: 80,
+            clientY: 70,
+        });
+        vi.advanceTimersByTime(220);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 931,
+            pointerType: 'touch',
+            clientX: 110,
+            clientY: 70,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 931,
+            pointerType: 'touch',
+            clientX: 110,
+            clientY: 70,
+        });
+
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(110, 70, expect.objectContaining({
+            startLine: 2,
+            endLine: 3,
+        }), 'touch');
+        handler.destroy();
+    });
+
+    it('starts touch drag from rendered latex area when mobile text long-press drag is enabled', () => {
+        const view = createViewStub(6);
+        const sourceBlock = createBlock('$$ x^2 $$', 4, 4);
+        const beginPointerDragSession = vi.fn();
+        const scheduleDropIndicatorUpdate = vi.fn();
+
+        const mathDisplay = document.createElement('div');
+        mathDisplay.className = 'MathJax';
+        const mathContainer = document.createElement('div');
+        mathContainer.className = 'mjx-container';
+        mathDisplay.appendChild(mathContainer);
+        view.dom.appendChild(mathDisplay);
+
+        Object.defineProperty(mathDisplay, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(36, 88, 220, 52),
+        });
+        Object.defineProperty(mathContainer, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(36, 88, 220, 52),
+        });
+
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate,
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        dispatchPointer(mathContainer, 'pointerdown', {
+            pointerId: 932,
+            pointerType: 'touch',
+            clientX: 84,
+            clientY: 110,
+        });
+        vi.advanceTimersByTime(220);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 932,
+            pointerType: 'touch',
+            clientX: 118,
+            clientY: 110,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 932,
+            pointerType: 'touch',
+            clientX: 118,
+            clientY: 110,
+        });
+
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(118, 110, expect.objectContaining({
+            startLine: 4,
+            endLine: 4,
+        }), 'touch');
         handler.destroy();
     });
 
@@ -418,7 +541,7 @@ describe('DragEventHandler', () => {
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
         expect(line).not.toBeNull();
         const sourceBlock = createBlock('- item', 0, 0);
-        const lifecycleStates: string[] = [];
+        const lifecycleEvents: Array<{ state: string; pressReady?: boolean }> = [];
 
         const handler = new DragEventHandler(view, {
             getDragSourceBlock: () => null,
@@ -431,7 +554,10 @@ describe('DragEventHandler', () => {
             scheduleDropIndicatorUpdate: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
-            onDragLifecycleEvent: (event) => lifecycleStates.push(event.state),
+            onDragLifecycleEvent: (event) => lifecycleEvents.push({
+                state: event.state,
+                pressReady: event.pressReady,
+            }),
         });
 
         handler.attach();
@@ -441,7 +567,7 @@ describe('DragEventHandler', () => {
             clientX: 60,
             clientY: 10,
         });
-        vi.advanceTimersByTime(120);
+        vi.advanceTimersByTime(220);
         dispatchPointer(window, 'pointermove', {
             pointerId: 94,
             pointerType: 'touch',
@@ -455,9 +581,12 @@ describe('DragEventHandler', () => {
             clientY: 10,
         });
 
-        expect(lifecycleStates).toContain('press_pending');
-        expect(lifecycleStates).toContain('drag_active');
-        expect(lifecycleStates).toContain('idle');
+        const pressPendingWaiting = lifecycleEvents.find((event) => event.state === 'press_pending' && event.pressReady === false);
+        const pressPendingReady = lifecycleEvents.find((event) => event.state === 'press_pending' && event.pressReady === true);
+        expect(pressPendingWaiting).toBeDefined();
+        expect(pressPendingReady).toBeDefined();
+        expect(lifecycleEvents.some((event) => event.state === 'drag_active')).toBe(true);
+        expect(lifecycleEvents.some((event) => event.state === 'idle')).toBe(true);
         handler.destroy();
     });
 
@@ -469,7 +598,7 @@ describe('DragEventHandler', () => {
         view.dom.appendChild(handle);
 
         const sourceBlock = createBlock('- item', 1, 1);
-        const lifecycleStates: string[] = [];
+        const lifecycleEvents: Array<{ state: string; pressReady?: boolean }> = [];
 
         const handler = new DragEventHandler(view, {
             getDragSourceBlock: () => null,
@@ -482,7 +611,10 @@ describe('DragEventHandler', () => {
             scheduleDropIndicatorUpdate: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
-            onDragLifecycleEvent: (event) => lifecycleStates.push(event.state),
+            onDragLifecycleEvent: (event) => lifecycleEvents.push({
+                state: event.state,
+                pressReady: event.pressReady,
+            }),
         });
 
         handler.attach();
@@ -492,7 +624,7 @@ describe('DragEventHandler', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(120);
+        vi.advanceTimersByTime(220);
         dispatchPointer(window, 'pointermove', {
             pointerId: 95,
             pointerType: 'touch',
@@ -506,9 +638,12 @@ describe('DragEventHandler', () => {
             clientY: 80,
         });
 
-        expect(lifecycleStates).toContain('press_pending');
-        expect(lifecycleStates).toContain('drag_active');
-        expect(lifecycleStates).toContain('idle');
+        const pressPendingWaiting = lifecycleEvents.find((event) => event.state === 'press_pending' && event.pressReady === false);
+        const pressPendingReady = lifecycleEvents.find((event) => event.state === 'press_pending' && event.pressReady === true);
+        expect(pressPendingWaiting).toBeDefined();
+        expect(pressPendingReady).toBeDefined();
+        expect(lifecycleEvents.some((event) => event.state === 'drag_active')).toBe(true);
+        expect(lifecycleEvents.some((event) => event.state === 'idle')).toBe(true);
         handler.destroy();
     });
 
@@ -798,7 +933,7 @@ describe('DragEventHandler', () => {
             clientX: 12,
             clientY: 80,
         });
-        vi.advanceTimersByTime(120);
+        vi.advanceTimersByTime(220);
         dispatchPointer(window, 'pointermove', {
             pointerId: 19,
             pointerType: 'touch',
@@ -1460,7 +1595,7 @@ describe('DragEventHandler', () => {
             clientX: 32,
             clientY: 12,
         });
-        vi.advanceTimersByTime(120);
+        vi.advanceTimersByTime(220);
         dispatchPointer(window, 'pointermove', {
             pointerId: 3,
             pointerType: 'touch',
@@ -1526,7 +1661,7 @@ describe('DragEventHandler', () => {
             clientX: 32,
             clientY: 80,
         });
-        vi.advanceTimersByTime(120);
+        vi.advanceTimersByTime(220);
         dispatchPointer(window, 'pointermove', {
             pointerId: 52,
             pointerType: 'touch',

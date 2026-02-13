@@ -24,7 +24,6 @@ export interface HandleInteractionOrchestratorDeps {
     lifecycleEmitter: DragLifecycleEmitter;
     getSemanticRefreshScheduler: () => SemanticRefreshScheduler;
     refreshDecorationsAndEmbeds: () => void;
-    isMultiLineSelectionEnabled: () => boolean;
     getDragEventHandler: () => DragEventHandler;
 }
 
@@ -38,7 +37,6 @@ export class HandleInteractionOrchestrator {
     private readonly lifecycleEmitter: DragLifecycleEmitter;
     private readonly getSemanticRefreshScheduler: () => SemanticRefreshScheduler;
     private readonly refreshDecorationsAndEmbeds: () => void;
-    private readonly isMultiLineSelectionEnabled: () => boolean;
     private readonly getDragEventHandler: () => DragEventHandler;
 
     constructor(deps: HandleInteractionOrchestratorDeps) {
@@ -51,7 +49,6 @@ export class HandleInteractionOrchestrator {
         this.lifecycleEmitter = deps.lifecycleEmitter;
         this.getSemanticRefreshScheduler = deps.getSemanticRefreshScheduler;
         this.refreshDecorationsAndEmbeds = deps.refreshDecorationsAndEmbeds;
-        this.isMultiLineSelectionEnabled = deps.isMultiLineSelectionEnabled;
         this.getDragEventHandler = deps.getDragEventHandler;
     }
 
@@ -131,21 +128,7 @@ export class HandleInteractionOrchestrator {
                 clientY: e.clientY,
                 fallback: getBlockInfo,
             });
-            const shouldPrimePointerVisual = !(
-                e.pointerType === 'mouse'
-                && !this.isMultiLineSelectionEnabled()
-            );
-            if (shouldPrimePointerVisual) {
-                const blockInfo = resolveCurrentBlock();
-                if (blockInfo) {
-                    this.handleVisibility.enterGrabVisualStateForBlock(
-                        blockInfo,
-                        handle
-                    );
-                } else {
-                    this.handleVisibility.setActiveVisibleHandle(handle);
-                }
-            }
+            this.handleVisibility.setActiveVisibleHandle(handle, { preserveHoveredLineNumber: true });
             this.getDragEventHandler().startPointerDragFromHandle(handle, e, () => resolveCurrentBlock());
         });
         return handle;

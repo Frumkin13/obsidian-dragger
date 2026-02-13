@@ -13,7 +13,8 @@ export function createIdleEvent(): DragLifecycleEvent {
 
 export function createPressPendingEvent(
     sourceBlock: BlockInfo,
-    pointerType: string | null
+    pointerType: string | null,
+    pressReady = false
 ): DragLifecycleEvent {
     return {
         state: 'press_pending',
@@ -22,6 +23,7 @@ export function createPressPendingEvent(
         listIntent: null,
         rejectReason: null,
         pointerType,
+        pressReady,
     };
 }
 
@@ -125,6 +127,7 @@ function normalizeEvent(event: DragLifecycleEvent): DragLifecycleEvent {
         listIntent: event.listIntent ?? null,
         rejectReason: event.rejectReason ?? null,
         pointerType: event.pointerType ?? null,
+        pressReady: event.pressReady === true,
     };
 }
 
@@ -137,5 +140,6 @@ function buildSignature(event: DragLifecycleEvent): string {
         listIntent: event.listIntent,
         rejectReason: event.rejectReason,
         pointerType: event.pointerType,
+        pressReady: event.pressReady === true,
     });
 }

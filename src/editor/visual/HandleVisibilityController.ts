@@ -6,7 +6,13 @@ import {
 } from '../core/handle-position';
 import {
     DRAG_HANDLE_CLASS,
+    EMBED_BLOCK_SELECTOR,
     DRAG_SOURCE_LINE_CLASS,
+    DRAG_SOURCE_LINE_SINGLE_CLASS,
+    DRAG_SOURCE_LINE_FIRST_CLASS,
+    DRAG_SOURCE_LINE_MIDDLE_CLASS,
+    DRAG_SOURCE_LINE_LAST_CLASS,
+    DRAG_SOURCE_EMBED_CLASS,
 } from '../core/selectors';
 import {
     HANDLE_INTERACTION_ZONE_PX,
@@ -25,11 +31,19 @@ type GrabLineRange = {
     endLineNumber: number;
 };
 
+const DRAG_SOURCE_LINE_VARIANT_CLASSES = [
+    DRAG_SOURCE_LINE_SINGLE_CLASS,
+    DRAG_SOURCE_LINE_FIRST_CLASS,
+    DRAG_SOURCE_LINE_MIDDLE_CLASS,
+    DRAG_SOURCE_LINE_LAST_CLASS,
+] as const;
+
 export class HandleVisibilityController {
     private hiddenHoveredLineNumberEl: HTMLElement | null = null;
     private currentHoveredLineNumber: number | null = null;
     private readonly hiddenGrabbedLineNumberEls = new Set<HTMLElement>();
     private readonly grabbedLineEls = new Set<HTMLElement>();
+    private readonly grabbedEmbedEls = new Set<HTMLElement>();
     private grabbedLineRanges: GrabLineRange[] = [];
     private activeHandle: HTMLElement | null = null;
 
@@ -184,8 +198,13 @@ export class HandleVisibilityController {
         this.hiddenGrabbedLineNumberEls.clear();
         for (const lineEl of this.grabbedLineEls) {
             lineEl.classList.remove(DRAG_SOURCE_LINE_CLASS);
+            lineEl.classList.remove(...DRAG_SOURCE_LINE_VARIANT_CLASSES);
         }
         this.grabbedLineEls.clear();
+        for (const embedEl of this.grabbedEmbedEls) {
+            embedEl.classList.remove(DRAG_SOURCE_EMBED_CLASS);
+        }
+        this.grabbedEmbedEls.clear();
     }
 
     private setGrabbedLineRanges(ranges: GrabLineRange[]): void {
@@ -212,10 +231,21 @@ export class HandleVisibilityController {
                 }
                 const lineEl = getMainContentLineElementForLine(this.view, lineNumber);
                 if (!lineEl) continue;
-                lineEl.classList.add(DRAG_SOURCE_LINE_CLASS);
+                lineEl.classList.add(
+                    DRAG_SOURCE_LINE_CLASS,
+                    this.getDragSourceLineVariantClass(lineNumber, from, to)
+                );
                 this.grabbedLineEls.add(lineEl);
             }
         }
+        this.applyGrabbedEmbedVisualState();
+    }
+
+    private getDragSourceLineVariantClass(lineNumber: number, from: number, to: number): string {
+        if (from === to) return DRAG_SOURCE_LINE_SINGLE_CLASS;
+        if (lineNumber === from) return DRAG_SOURCE_LINE_FIRST_CLASS;
+        if (lineNumber === to) return DRAG_SOURCE_LINE_LAST_CLASS;
+        return DRAG_SOURCE_LINE_MIDDLE_CLASS;
     }
 
     private resolveGrabLineRanges(blockInfo: BlockInfo): GrabLineRange[] {
@@ -230,6 +260,57 @@ export class HandleVisibilityController {
             startLineNumber: range.startLine + 1,
             endLineNumber: range.endLine + 1,
         }));
+    }
+
+    private applyGrabbedEmbedVisualState(): void {
+        const root = this.view.dom;
+        if (!(root instanceof HTMLElement)) return;
+        const rawEmbeds = Array.from(root.querySelectorAll<HTMLElement>(EMBED_BLOCK_SELECTOR));
+        const embedRoots = new Set<HTMLElement>();
+        for (const raw of rawEmbeds) {
+            const embed = raw.closest<HTMLElement>('.cm-embed-block') ?? raw;
+            if (!root.contains(embed)) continue;
+            embedRoots.add(embed);
+        }
+
+        for (const embed of embedRoots) {
+            const lineNumber = this.resolveEmbedLineNumber(embed);
+            if (lineNumber === null) continue;
+            if (!this.isLineNumberInGrabRanges(lineNumber)) continue;
+            embed.classList.add(DRAG_SOURCE_EMBED_CLASS);
+            this.grabbedEmbedEls.add(embed);
+        }
+    }
+
+    private resolveEmbedLineNumber(embed: HTMLElement): number | null {
+        const doc = this.view.state.doc;
+        const probes: Node[] = [embed];
+        if (embed.firstChild) probes.push(embed.firstChild);
+        if (embed.parentElement) probes.push(embed.parentElement);
+        if (embed.parentElement?.firstChild) probes.push(embed.parentElement.firstChild);
+
+        for (const probe of probes) {
+            try {
+                const pos = this.view.posAtDOM(probe, 0);
+                const lineNumber = doc.lineAt(pos).number;
+                if (lineNumber >= 1 && lineNumber <= doc.lines) {
+                    return lineNumber;
+                }
+            } catch {
+                // Try next probe node.
+            }
+        }
+
+        return null;
+    }
+
+    private isLineNumberInGrabRanges(lineNumber: number): boolean {
+        for (const range of this.grabbedLineRanges) {
+            if (lineNumber >= range.startLineNumber && lineNumber <= range.endLineNumber) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private normalizeGrabLineRanges(ranges: GrabLineRange[]): GrabLineRange[] {

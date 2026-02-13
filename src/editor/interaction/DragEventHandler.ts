@@ -27,7 +27,7 @@ import {
     resolveBlockBoundaryAtLine,
 } from './RangeSelectionLogic';
 
-const MOBILE_DRAG_LONG_PRESS_MS = 100;
+const MOBILE_DRAG_LONG_PRESS_MS = 200;
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
 const MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX = 12;
 const TOUCH_RANGE_SELECT_LONG_PRESS_MS = 900;
@@ -119,9 +119,9 @@ export class DragEventHandler {
 
         if (!this.shouldStartMobilePressDrag(e)) return;
         const inMobileHotzoneBand = this.mobile.isWithinMobileDragHotzoneBand(e.clientX);
-        const inTextGlyphArea = this.isMobileTextLongPressDragEnabled()
-            && this.mobile.isWithinMobileTextGlyphArea(target, e.clientX, e.clientY);
-        if (!inMobileHotzoneBand && !inTextGlyphArea) return;
+        const inTextLineOrEmbedArea = this.isMobileTextLongPressDragEnabled()
+            && this.mobile.isWithinMobileTextLineOrEmbedArea(target, e.clientX, e.clientY);
+        if (!inMobileHotzoneBand && !inTextLineOrEmbedArea) return;
 
         // Mobile interaction hit should be consumed first to avoid editor focus/keyboard side effects.
         e.preventDefault();
@@ -142,7 +142,7 @@ export class DragEventHandler {
             return;
         }
 
-        if (inTextGlyphArea) {
+        if (inTextLineOrEmbedArea) {
             this.startPointerPressDrag(blockInfo, e);
         }
     };
@@ -337,6 +337,15 @@ export class DragEventHandler {
                 const state = this.gesture.rangeSelect;
                 if (state.pointerId !== e.pointerId) return;
                 state.dragReady = true;
+                this.emitLifecycle({
+                    state: 'press_pending',
+                    sourceBlock: state.dragSourceBlock,
+                    targetLine: null,
+                    listIntent: null,
+                    rejectReason: null,
+                    pointerType: state.pointerType,
+                    pressReady: true,
+                });
             }, MOBILE_DRAG_LONG_PRESS_MS);
         }
         if (!shouldDeferInterception) {
@@ -353,6 +362,15 @@ export class DragEventHandler {
             const state = this.gesture.rangeSelect;
             if (state.pointerId !== e.pointerId) return;
             state.longPressReady = true;
+            this.emitLifecycle({
+                state: 'press_pending',
+                sourceBlock: state.selectedBlock,
+                targetLine: null,
+                listIntent: null,
+                rejectReason: null,
+                pointerType: state.pointerType,
+                pressReady: true,
+            });
             this.activateMouseRangeSelectInterception(state);
             this.updateMouseRangeSelectionFromLine(state, state.currentLineNumber);
         }, config.longPressMs);
@@ -388,6 +406,7 @@ export class DragEventHandler {
             listIntent: null,
             rejectReason: null,
             pointerType,
+            pressReady: false,
         });
     }
 
@@ -425,6 +444,15 @@ export class DragEventHandler {
                 const state = this.gesture.press;
                 if (state.pointerId !== e.pointerId) return;
                 state.longPressReady = true;
+                this.emitLifecycle({
+                    state: 'press_pending',
+                    sourceBlock: state.sourceBlock,
+                    targetLine: null,
+                    listIntent: null,
+                    rejectReason: null,
+                    pointerType: state.pointerType,
+                    pressReady: true,
+                });
             }, longPressMs);
         const startMoveThresholdPx = skipLongPress
             ? 2
@@ -451,6 +479,7 @@ export class DragEventHandler {
             listIntent: null,
             rejectReason: null,
             pointerType,
+            pressReady: skipLongPress,
         });
     }
 
