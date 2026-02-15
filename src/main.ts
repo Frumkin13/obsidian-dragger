@@ -1,7 +1,7 @@
 import { Plugin } from 'obsidian';
-import { dragHandleExtension } from './editor/drag-handle';
-import { setHandleHorizontalOffsetPx } from './editor/core/handle-position';
-import { setHandleSizePx, setAlignToLineNumber } from './editor/core/constants';
+import { dragHandleExtension } from './features/editor-plugin/ExtensionFactory';
+import { setHandleHorizontalOffsetPx } from './infra/dom/handle/handle-positioner';
+import { setHandleSizePx, setAlignToLineNumber } from './shared/constants';
 import {
     DragNDropSettings,
     DEFAULT_SETTINGS,
@@ -9,7 +9,7 @@ import {
     HandleVisibilityMode,
     normalizeDragSourceVisualStyle,
 } from './settings';
-import { DragLifecycleEvent, DragLifecycleListener } from './types';
+import { DragLifecycleEvent, DragLifecycleListener } from './shared/types/drag-events';
 
 export default class DragNDropPlugin extends Plugin {
     settings: DragNDropSettings;

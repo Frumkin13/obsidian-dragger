@@ -1,43 +1,19 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import DragNDropPlugin from './main';
 import { t } from './i18n';
+import type {
+    DragNDropSettings,
+    DragSourceVisualStyle,
+    HandleIconStyle,
+    HandleVisibilityMode,
+} from './shared/types/settings-types';
 
-export type HandleVisibilityMode = 'always' | 'hover' | 'hidden';
-export type HandleIconStyle = 'dot' | 'grip-dots' | 'grip-lines' | 'square';
-export type DragSourceVisualStyle = 'outline' | 'subtle' | 'filled';
-
-export interface DragNDropSettings {
-    // 抓取手柄颜色模式
-    handleColorMode: 'theme' | 'custom';
-    // 抓取手柄颜色（自定义时生效）
-    handleColor: string;
-    // 手柄显示模式
-    handleVisibility: HandleVisibilityMode;
-    // 手柄图标样式
-    handleIcon: HandleIconStyle;
-    // 手柄大小（像素）
-    handleSize: number;
-    // 定位栏颜色模式
-    indicatorColorMode: 'theme' | 'custom';
-    // 定位栏颜色（自定义时生效）
-    indicatorColor: string;
-    // 是否启用跨文件拖拽
-    enableCrossFileDrag: boolean;
-    // 是否启用多行选取拖拽
-    enableMultiLineSelection: boolean;
-    // 是否启用移动端长按文本直接拖拽
-    enableMobileTextLongPressDrag: boolean;
-    // 是否启用拖拽源高亮
-    enableDragSourceHighlight: boolean;
-    // 是否启用列表落点高亮
-    enableListDropHighlight: boolean;
-    // 拖拽源视觉样式
-    dragSourceVisualStyle: DragSourceVisualStyle;
-    // 手柄横向偏移量（像素）
-    handleHorizontalOffsetPx: number;
-    // 手柄是否与行号对齐
-    alignHandleToLineNumber: boolean;
-}
+export type {
+    DragNDropSettings,
+    DragSourceVisualStyle,
+    HandleIconStyle,
+    HandleVisibilityMode,
+} from './shared/types/settings-types';
 
 export const DEFAULT_SETTINGS: DragNDropSettings = {
     handleColorMode: 'theme',
