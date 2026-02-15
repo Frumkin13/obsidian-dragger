@@ -80,31 +80,6 @@ describe('DragSourceResolver', () => {
         expect(block?.content).toContain('second');
     });
 
-    it('prefers bound handle line for horizontal rule when DOM resolves to an adjacent line', () => {
-        const state = EditorState.create({
-            doc: 'alpha\n---\nbeta',
-        });
-        const handle = document.createElement('span');
-        handle.setAttribute('data-block-start', '1');
-
-        const view = {
-            state,
-            posAtDOM: (node: Node) => {
-                if (node === handle) {
-                    return state.doc.line(3).from;
-                }
-                throw new Error('unexpected node');
-            },
-        } as unknown as EditorView;
-
-        const resolver = new DragSourceResolver(view);
-        const block = resolver.getBlockInfoForHandle(handle);
-        expect(block).not.toBeNull();
-        expect(block?.type).toBe(BlockType.HorizontalRule);
-        expect(block?.startLine).toBe(1);
-        expect(block?.content).toBe('---');
-    });
-
     it('returns null when point lookup hits transient layout-read guard', () => {
         const state = EditorState.create({
             doc: 'alpha\nbeta\ngamma',

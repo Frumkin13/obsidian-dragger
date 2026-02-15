@@ -9,19 +9,6 @@ export class DragSourceResolver {
     constructor(private readonly view: EditorView) { }
 
     getBlockInfoForHandle(handle: HTMLElement): BlockInfo | null {
-        const startAttr = handle.getAttribute('data-block-start');
-        const startLine = startAttr !== null ? Number(startAttr) + 1 : NaN;
-        const blockFromHandleAttr = Number.isInteger(startLine) && startLine >= 1 && startLine <= this.view.state.doc.lines
-            ? this.getDraggableBlockAtLine(startLine)
-            : null;
-
-        // Horizontal rule lines are often rendered with wide inline overlays.
-        // In that case posAtDOM(handle) may resolve to an adjacent line; prefer
-        // the explicit line binding on the handle for this block type.
-        if (blockFromHandleAttr?.type === BlockType.HorizontalRule) {
-            return blockFromHandleAttr;
-        }
-
         // First, try DOM position for most accurate resolution
         try {
             const pos = this.view.posAtDOM(handle);
@@ -32,7 +19,13 @@ export class DragSourceResolver {
             // DOM lookup failed, fall through to attribute-based resolution
         }
 
-        if (blockFromHandleAttr) return blockFromHandleAttr;
+        // Fallback to attribute-based resolution when DOM lookup fails (e.g., after scrolling)
+        const startAttr = handle.getAttribute('data-block-start');
+        const startLine = startAttr !== null ? Number(startAttr) + 1 : NaN;
+        if (Number.isInteger(startLine) && startLine >= 1 && startLine <= this.view.state.doc.lines) {
+            const block = this.getDraggableBlockAtLine(startLine);
+            if (block) return block;
+        }
 
         return null;
     }

@@ -20,7 +20,7 @@
     transition: none;
     color: var(--dnd-handle-color, var(--interactive-accent));
     border-radius: 999px;
-    z-index: 1;
+    z-index: 3;
 }
 
 .dnd-drag-handle:hover {
