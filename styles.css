@@ -257,11 +257,6 @@ body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-edi
     background-color: var(--dnd-handle-color, var(--interactive-accent));
     box-shadow: 0 0 6px color-mix(in srgb, var(--dnd-handle-color, var(--interactive-accent)) 36%, transparent);
     will-change: left, top, height, opacity;
-    transition:
-        left 45ms linear,
-        top 45ms linear,
-        height 45ms linear,
-        opacity 36ms linear;
     opacity: 0;
     pointer-events: none;
     cursor: grab;
