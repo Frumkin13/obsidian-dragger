@@ -18,7 +18,7 @@ const zh = {
     optionAlways: '始终显示',
     optionHidden: '隐藏',
     dragSourceVisualStyle: '拖拽源视觉样式',
-    dragSourceVisualStyleDesc: '控制拖拽时源块的视觉强调效果',
+    dragSourceVisualStyleDesc: '统一控制拖拽时源块与列表落点高亮的视觉强调效果',
     optionDragSourceVisualNone: '关闭',
     optionDragSourceVisualSubtle: '简约高亮',
 
@@ -68,7 +68,7 @@ const en: typeof zh = {
     optionAlways: 'Always',
     optionHidden: 'Hidden',
     dragSourceVisualStyle: 'Drag source visual style',
-    dragSourceVisualStyleDesc: 'Control the visual emphasis applied to source blocks during drag',
+    dragSourceVisualStyleDesc: 'Control the shared visual emphasis for dragged source blocks and list drop highlights',
     optionDragSourceVisualNone: 'Off',
     optionDragSourceVisualSubtle: 'Subtle highlight',
 

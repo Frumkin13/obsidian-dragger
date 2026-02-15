@@ -51,6 +51,14 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     alignHandleToLineNumber: true,
 };
 
+export function normalizeDragSourceVisualStyle(value: unknown): DragSourceVisualStyle {
+    return value === 'none' ? 'none' : 'subtle';
+}
+
+export function isDragSourceVisualStyleEnabled(value: unknown): boolean {
+    return normalizeDragSourceVisualStyle(value) !== 'none';
+}
+
 export class DragNDropSettingTab extends PluginSettingTab {
     plugin: DragNDropPlugin;
 

@@ -11,6 +11,7 @@ type DropTargetResolver = (info: {
 }) => DropTargetInfo | null;
 
 interface DropIndicatorManagerOptions {
+    isDropHighlightEnabled?: () => boolean;
     onFrameMetrics?: (metrics: {
         evaluated: boolean;
         skipped: boolean;
@@ -130,7 +131,7 @@ export class DropIndicatorManager {
             width: `${indicatorWidth}px`,
         });
 
-        if (targetInfo.highlightRect) {
+        if (targetInfo.highlightRect && this.options?.isDropHighlightEnabled?.() !== false) {
             this.highlightEl.classList.remove('dnd-hidden');
             this.highlightEl.setCssStyles({
                 top: `${targetInfo.highlightRect.top}px`,

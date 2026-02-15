@@ -74,4 +74,36 @@ describe('DropIndicatorManager', () => {
 
         manager.destroy();
     });
+
+    it('hides list drop highlight when shared drag visual style is disabled', () => {
+        const view = createViewStub();
+        const resolveDropTarget = vi.fn(() => ({
+            lineNumber: 2,
+            indicatorY: 24,
+            lineRect: { left: 8, width: 140 },
+            highlightRect: { top: 16, left: 10, width: 180, height: 30 },
+        }));
+        const queuedFrames: FrameRequestCallback[] = [];
+        vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+            queuedFrames.push(cb);
+            return queuedFrames.length;
+        });
+        vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => { });
+        vi.spyOn(window, 'getComputedStyle').mockReturnValue({ paddingRight: '0' } as CSSStyleDeclaration);
+
+        const manager = new DropIndicatorManager(view, resolveDropTarget, {
+            isDropHighlightEnabled: () => false,
+        });
+
+        manager.scheduleFromPoint(12, 18, null, 'mouse');
+        queuedFrames.shift()?.(0);
+
+        const indicatorEl = document.querySelector('.dnd-drop-indicator');
+        const highlightEl = document.querySelector('.dnd-drop-highlight');
+
+        expect(indicatorEl?.classList.contains('dnd-hidden')).toBe(false);
+        expect(highlightEl?.classList.contains('dnd-hidden')).toBe(true);
+
+        manager.destroy();
+    });
 });

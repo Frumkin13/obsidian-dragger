@@ -39,14 +39,12 @@ import {
 } from './core/DragLifecycleEmitter';
 import { HandleInteractionOrchestrator } from './orchestration/HandleInteractionOrchestrator';
 import { DragLifecycleEvent } from '../types';
+import { isDragSourceVisualStyleEnabled, normalizeDragSourceVisualStyle } from '../settings';
 
 /**
  * 创建拖拽手柄ViewPlugin
  */
 function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
-    const normalizeDragSourceVisualStyle = (value: unknown): 'none' | 'subtle' =>
-        value === 'none' ? 'none' : 'subtle';
-
     return ViewPlugin.fromClass(
         class {
             // decorations removed - now using LineHandleManager with independent DOM elements
@@ -109,6 +107,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                         pointerType: info.pointerType ?? null,
                     })
                     , {
+                        isDropHighlightEnabled: () => isDragSourceVisualStyleEnabled(_plugin.settings.dragSourceVisualStyle),
                         recordPerfDuration: (key, durationMs) => {
                             this.dragPerfManager.recordDuration(key, durationMs);
                         },

@@ -7,7 +7,7 @@ import {
     DEFAULT_SETTINGS,
     DragNDropSettingTab,
     HandleVisibilityMode,
-    DragSourceVisualStyle,
+    normalizeDragSourceVisualStyle,
 } from './settings';
 import { DragLifecycleEvent, DragLifecycleListener } from './types';
 
@@ -121,8 +121,4 @@ export default class DragNDropPlugin extends Plugin {
             }
         }
     }
-}
-
-function normalizeDragSourceVisualStyle(value: unknown): DragSourceVisualStyle {
-    return value === 'none' ? 'none' : 'subtle';
 }
