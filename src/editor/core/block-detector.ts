@@ -481,24 +481,3 @@ export function getListItemOwnRangeForHandle(state: EditorState, lineNumber: num
     }
     return null;
 }
-
-/**
- * 获取文档中所有块的信息
- */
-export function getAllBlocks(state: EditorState): BlockInfo[] {
-    const blocks: BlockInfo[] = [];
-    const doc = state.doc;
-    let currentLine = 1;
-
-    while (currentLine <= doc.lines) {
-        const block = detectBlock(state, currentLine);
-        if (block) {
-            blocks.push(block);
-            currentLine = block.endLine + 2; // 跳过已处理的行（转回1-indexed）
-        } else {
-            currentLine++;
-        }
-    }
-
-    return blocks;
-}

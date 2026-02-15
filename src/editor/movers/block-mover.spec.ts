@@ -2,7 +2,7 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../types';
-import { BlockMover } from './BlockMover';
+import { BlockMover } from './block-mover';
 import { parseLineWithQuote } from '../core/line-parsing';
 
 function createBlockFromLine(doc: EditorState['doc'], lineNumber: number): BlockInfo {

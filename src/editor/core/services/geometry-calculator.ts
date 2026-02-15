@@ -8,9 +8,9 @@ import {
     getInsertionAnchorY as getInsertionAnchorYByLineNumber,
     getLineIndentPosByWidth as getLineIndentPosByWidthWithTabSize,
     getBlockRect as getBlockRectByRange,
-} from '../drop-target';
+} from '../drop-target-geometry';
 import { clampTargetLineNumber } from '../../utils/coordinate-utils';
-import { LineParsingService } from './LineParsingService';
+import { LineParsingService } from './line-parsing-service';
 
 export class GeometryCalculator {
     constructor(

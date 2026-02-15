@@ -5,7 +5,7 @@ import type { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../types';
 import { parseLineWithQuote } from '../core/line-parsing';
-import { DropTargetCalculator, type DropTargetCalculatorDeps } from './DropTargetCalculator';
+import { DropTargetCalculator, type DropTargetCalculatorDeps } from './drop-target-calculator';
 
 function originalElementFromPoint(this: void, x: number, y: number): Element | null {
     return document.elementFromPoint(x, y);

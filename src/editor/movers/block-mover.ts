@@ -4,7 +4,7 @@ import { validateInPlaceDrop } from '../core/drop-validation';
 import { getLineMap, LineMap } from '../core/line-map';
 import { InsertionSlotContext } from '../core/insertion-rule-matrix';
 import { DocLike, DocLikeWithRange, ListContext, ParsedLine } from '../core/protocol-types';
-import { ListRenumberer } from './ListRenumberer';
+import { ListRenumberer } from './list-renumberer';
 import { clampTargetLineNumber } from '../utils/coordinate-utils';
 
 export interface BlockMoverDeps {

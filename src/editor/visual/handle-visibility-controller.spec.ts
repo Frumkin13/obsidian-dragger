@@ -12,7 +12,7 @@ import {
     DRAG_SOURCE_LINE_LAST_CLASS,
     DRAG_SOURCE_EMBED_CLASS,
 } from '../core/selectors';
-import { HandleVisibilityController } from './HandleVisibilityController';
+import { HandleVisibilityController } from './handle-visibility-controller';
 
 function createBlock(startLine: number, endLine: number, composite?: Array<{ startLine: number; endLine: number }>): BlockInfo {
     return {

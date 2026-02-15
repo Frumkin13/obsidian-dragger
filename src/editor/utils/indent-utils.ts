@@ -3,7 +3,7 @@ import { parseLineWithQuote as parseLineWithQuoteByTabSize } from '../core/line-
 import {
     buildIndentStringFromSample as buildIndentStringFromSampleText,
     getIndentUnitWidth as getIndentUnitWidthFromSample,
-} from '../core/block-mutation';
+} from '../core/indent-helpers';
 
 const indentUnitWidthCache = new WeakMap<object, number>();
 

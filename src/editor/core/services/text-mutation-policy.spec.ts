@@ -2,8 +2,8 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import { BlockInfo, BlockType } from '../../../types';
-import { LineParsingService } from './LineParsingService';
-import { TextMutationPolicy } from './TextMutationPolicy';
+import { LineParsingService } from './line-parsing-service';
+import { TextMutationPolicy } from './text-mutation-policy';
 
 function createPolicy(docText: string): { policy: TextMutationPolicy; doc: EditorState['doc'] } {
     const state = EditorState.create({ doc: docText });

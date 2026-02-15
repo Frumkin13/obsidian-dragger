@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { ListDropTargetInfo } from './ListDropTargetCalculator';
+import { ListDropTargetInfo } from './list-drop-target-calculator';
 
 type MarkerBounds = { markerStartX: number; contentStartX: number } | null;
 

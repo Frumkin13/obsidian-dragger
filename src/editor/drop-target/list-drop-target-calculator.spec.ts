@@ -3,7 +3,7 @@ import type { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockType } from '../../types';
 import { parseLineWithQuote } from '../core/line-parsing';
-import { ListDropTargetCalculator } from './ListDropTargetCalculator';
+import { ListDropTargetCalculator } from './list-drop-target-calculator';
 
 function createViewStub(docText: string): EditorView {
     const state = EditorState.create({ doc: docText });

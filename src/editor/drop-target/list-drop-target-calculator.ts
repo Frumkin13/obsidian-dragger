@@ -6,9 +6,9 @@ import {
     getNearestListLineAtOrBefore,
     LineMap,
 } from '../core/line-map';
-import { GeometryFrameCache, getCoordsAtPos } from '../core/drop-target';
+import { GeometryFrameCache, getCoordsAtPos } from '../core/drop-target-geometry';
 import { DocLike, ParsedLine } from '../core/protocol-types';
-import { ListTargetSessionCache } from './ListTargetSessionCache';
+import { ListTargetSessionCache } from './list-target-session-cache';
 
 export type ListDropTargetInfo = {
     listContextLineNumber?: number;

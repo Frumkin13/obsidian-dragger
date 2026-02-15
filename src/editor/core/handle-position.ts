@@ -1,5 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { getHandleSizePx, getHandleHorizontalOffsetPx, getAlignToLineNumber } from './constants';
+import { safeCoordsAtPos } from './dom-probe';
+import { getMainContentLineRectForLine } from './line-dom';
 
 type RectLike = {
     left: number;
@@ -10,20 +12,17 @@ type RectLike = {
     height?: number;
 };
 
+type VerticalRange = {
+    top: number;
+    bottom: number;
+};
+
 function rectWidth(rect: RectLike): number {
     return typeof rect.width === 'number' ? rect.width : (rect.right - rect.left);
 }
 
 function rectHeight(rect: RectLike): number {
     return typeof rect.height === 'number' ? rect.height : (rect.bottom - rect.top);
-}
-
-function safeCoordsAtPos(view: EditorView, pos: number): ReturnType<EditorView['coordsAtPos']> | null {
-    try {
-        return view.coordsAtPos(pos);
-    } catch {
-        return null;
-    }
 }
 
 function isUsableRect(rect: RectLike | null | undefined): rect is RectLike {
@@ -149,38 +148,16 @@ function resolveLineNumberFromGutterElement(
     return parsed;
 }
 
-function getMainContentLineElementByLineNumber(view: EditorView, lineNumber: number): HTMLElement | null {
-    const selector = ':scope > .cm-line';
-    const lineEls = Array.from(view.contentDOM.querySelectorAll<HTMLElement>(selector));
-    for (const lineEl of lineEls) {
-        try {
-            const pos = view.posAtDOM(lineEl, 0);
-            const resolvedLineNumber = view.state.doc.lineAt(pos).number;
-            if (resolvedLineNumber === lineNumber) {
-                return lineEl;
-            }
-        } catch {
-            // skip invalid candidates
-        }
-    }
-    return null;
+function getLineProbePositions(view: EditorView, lineNumber: number): number[] {
+    const line = view.state.doc.line(lineNumber);
+    return [line.from, Math.max(line.from, line.to - 1), line.to];
 }
 
-function getViewportMidYForLine(view: EditorView, lineNumber: number): number | null {
-    const lineEl = getMainContentLineElementByLineNumber(view, lineNumber);
-    if (lineEl) {
-        const rect = lineEl.getBoundingClientRect();
-        if (rect.height > 0) {
-            return (rect.top + rect.bottom) / 2;
-        }
-    }
-
-    const line = view.state.doc.line(lineNumber);
-    const probePositions = [line.from, Math.max(line.from, line.to - 1), line.to];
+function getCoordsVerticalRangeForLine(view: EditorView, lineNumber: number): VerticalRange | null {
     let top = Number.POSITIVE_INFINITY;
     let bottom = Number.NEGATIVE_INFINITY;
     let hasRect = false;
-    for (const pos of probePositions) {
+    for (const pos of getLineProbePositions(view, lineNumber)) {
         const rect = safeCoordsAtPos(view, pos);
         if (!isLineNumberRowRect(rect)) continue;
         top = Math.min(top, rect.top);
@@ -188,7 +165,16 @@ function getViewportMidYForLine(view: EditorView, lineNumber: number): number | 
         hasRect = true;
     }
     if (!hasRect) return null;
-    return (top + bottom) / 2;
+    return { top, bottom };
+}
+
+function getViewportMidYForLine(view: EditorView, lineNumber: number): number | null {
+    const lineRect = getMainContentLineRectForLine(view, lineNumber);
+    if (lineRect) return (lineRect.top + lineRect.bottom) / 2;
+
+    const range = getCoordsVerticalRangeForLine(view, lineNumber);
+    if (!range) return null;
+    return (range.top + range.bottom) / 2;
 }
 
 function getClosestLineNumberElementByY(view: EditorView, lineNumber: number): HTMLElement | null {
@@ -271,31 +257,17 @@ function getHandleCenterForLine(view: EditorView, lineNumber: number): { x: numb
     }
 
     if (lineNumber >= 1 && lineNumber <= view.state.doc.lines) {
-        const lineEl = getMainContentLineElementByLineNumber(view, lineNumber);
-        if (lineEl) {
-            const rect = lineEl.getBoundingClientRect();
-            if (rect.height > 0) {
-                return {
-                    x: getHandleColumnCenterX(view),
-                    y: (rect.top + rect.bottom) / 2,
-                };
-            }
+        const lineRect = getMainContentLineRectForLine(view, lineNumber);
+        if (lineRect) {
+            return {
+                x: getHandleColumnCenterX(view),
+                y: (lineRect.top + lineRect.bottom) / 2,
+            };
         }
 
-        const line = view.state.doc.line(lineNumber);
-        const probePositions = [line.from, Math.max(line.from, line.to - 1), line.to];
-        let top = Number.POSITIVE_INFINITY;
-        let bottom = Number.NEGATIVE_INFINITY;
-        let hasRect = false;
-        for (const pos of probePositions) {
-            const rect = safeCoordsAtPos(view, pos);
-            if (!isLineNumberRowRect(rect)) continue;
-            top = Math.min(top, rect.top);
-            bottom = Math.max(bottom, rect.bottom);
-            hasRect = true;
-        }
-        if (hasRect) {
-            const height = bottom - top;
+        const range = getCoordsVerticalRangeForLine(view, lineNumber);
+        if (range) {
+            const height = range.bottom - range.top;
             const defaultLineHeight = view.defaultLineHeight || 20;
             const offsetY = height > defaultLineHeight * 1.5
                 ? defaultLineHeight / 2
@@ -303,7 +275,7 @@ function getHandleCenterForLine(view: EditorView, lineNumber: number): { x: numb
 
             return {
                 x: getHandleColumnCenterX(view),
-                y: top + Math.max(0, offsetY),
+                y: range.top + Math.max(0, offsetY),
             };
         }
     }
@@ -339,43 +311,6 @@ export function getHandleLeftPxForLine(view: EditorView, lineNumber: number): nu
     const center = getHandleCenterForLine(view, lineNumber);
     if (!center) return null;
     return Math.round(center.x - getHandleSizePx() / 2);
-}
-
-export function getInlineHandleLeftPx(view: EditorView, lineLeftPx: number, lineNumber?: number): number {
-    const lineSpecificLeft = typeof lineNumber === 'number'
-        ? getHandleLeftPxForLine(view, lineNumber)
-        : null;
-    const viewportLeft = lineSpecificLeft ?? getHandleColumnLeftPx(view);
-    return Math.round(viewportLeft - lineLeftPx);
-}
-
-export function alignInlineHandleToHandleColumn(view: EditorView, handle: HTMLElement, lineNumber?: number): void {
-    const lineEl = handle.closest<HTMLElement>('.cm-line');
-    if (lineEl) {
-        const lineRect = lineEl.getBoundingClientRect();
-        handle.setCssStyles({
-            left: `${getInlineHandleLeftPx(view, lineRect.left, lineNumber)}px`,
-        });
-        const topPx = typeof lineNumber === 'number' ? getHandleTopPxForLine(view, lineNumber) : null;
-        if (topPx !== null) {
-            handle.setCssStyles({
-                top: `${Math.round(topPx - lineRect.top)}px`,
-            });
-        }
-        return;
-    }
-
-    const offsetParentEl = (handle.offsetParent instanceof HTMLElement ? handle.offsetParent : view.dom);
-    const parentRect = offsetParentEl.getBoundingClientRect();
-    handle.setCssStyles({
-        left: `${getInlineHandleLeftPx(view, parentRect.left, lineNumber)}px`,
-    });
-    const topPx = typeof lineNumber === 'number' ? getHandleTopPxForLine(view, lineNumber) : null;
-    if (topPx !== null) {
-        handle.setCssStyles({
-            top: `${Math.round(topPx - parentRect.top)}px`,
-        });
-    }
 }
 
 export function getHandleTopPxForLine(view: EditorView, lineNumber: number): number | null {

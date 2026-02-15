@@ -6,7 +6,7 @@ import {
     getListContext,
 } from '../block-mutation';
 import { DocLike, ListContext, ParsedLine } from '../protocol-types';
-import { LineParsingService } from './LineParsingService';
+import { LineParsingService } from './line-parsing-service';
 
 export class TextMutationPolicy {
     constructor(

@@ -9,9 +9,9 @@ import {
     RANGE_SELECTED_HANDLE_CLASS,
     RANGE_SELECTION_LINK_CLASS,
 } from '../core/selectors';
-import { RangeSelectionVisualManager } from '../visual/RangeSelectionVisualManager';
-import { MobileGestureController } from './MobileGestureController';
-import { PointerSessionController } from './PointerSessionController';
+import { RangeSelectionVisualManager } from '../visual/range-selection-visual-manager';
+import { MobileGestureController } from './mobile-gesture-controller';
+import { PointerSessionController } from './pointer-session-controller';
 import {
     type RangeSelectionBoundary,
     type RangeSelectConfig,
@@ -21,11 +21,11 @@ import {
     mergeLineRanges,
     cloneLineRanges,
     cloneBlockInfo,
-    buildDragSourceFromLineRanges,
-    resolveBlockAlignedLineRange,
-    resolveTargetBoundaryForRangeSelection,
+    buildDragSourceBlockFromRanges,
+    expandToBlockAlignedRange,
     resolveBlockBoundaryAtLine,
-} from './RangeSelectionLogic';
+} from './range-selection-model';
+import { resolveRangeBoundaryAtPoint } from './range-selection-hit';
 
 const MOBILE_DRAG_LONG_PRESS_MS = 200;
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
@@ -55,7 +55,10 @@ type PointerPressData = {
     startMoveThresholdPx: number;
 };
 
-type GestureState =
+type PointerTerminalMode = 'up' | 'cancel';
+type GestureCancelReason = 'press_cancelled' | 'pointer_cancelled';
+
+type InteractionState =
     | { phase: 'idle' }
     | { phase: 'press_pending'; press: PointerPressData }
     | { phase: 'range_selecting'; rangeSelect: MouseRangeSelectState }
@@ -77,7 +80,7 @@ export interface DragEventHandlerDeps {
 }
 
 export class DragEventHandler {
-    private gesture: GestureState = { phase: 'idle' };
+    private gesture: InteractionState = { phase: 'idle' };
     private committedRangeSelection: CommittedRangeSelection | null = null;
     readonly rangeVisual: RangeSelectionVisualManager;
     readonly mobile: MobileGestureController;
@@ -101,7 +104,7 @@ export class DragEventHandler {
         if (canHandleCommittedSelection && this.isCommittedSelectionGripHit(target, e.clientX, e.clientY, pointerType)) {
             const committedBlock = this.getCommittedSelectionBlock();
             if (committedBlock) {
-                this.startPointerPressDrag(committedBlock, e, {
+                this.beginPressPendingDrag(committedBlock, e, {
                     skipLongPress: pointerType === 'mouse',
                 });
                 return;
@@ -135,15 +138,15 @@ export class DragEventHandler {
             && this.mobile.isWithinMobileDragHotzone(blockInfo, e.clientX);
         if (useHotzonePath) {
             if (multiLineSelectionEnabled) {
-                this.startRangeSelect(blockInfo, e, null);
+                this.beginRangeSelectionSession(blockInfo, e, null);
             } else {
-                this.startPointerPressDrag(blockInfo, e);
+                this.beginPressPendingDrag(blockInfo, e);
             }
             return;
         }
 
         if (inTextLineOrEmbedArea) {
-            this.startPointerPressDrag(blockInfo, e);
+            this.beginPressPendingDrag(blockInfo, e);
         }
     };
 
@@ -235,15 +238,15 @@ export class DragEventHandler {
             if (!multiLineSelectionEnabled) {
                 return;
             }
-            this.startRangeSelect(blockInfo, e, handle);
+            this.beginRangeSelectionSession(blockInfo, e, handle);
             return;
         }
 
         if (this.isMobileEnvironment()) {
             if (multiLineSelectionEnabled) {
-                this.startRangeSelect(blockInfo, e, handle);
+                this.beginRangeSelectionSession(blockInfo, e, handle);
             } else {
-                this.startPointerPressDrag(blockInfo, e);
+                this.beginPressPendingDrag(blockInfo, e);
             }
             return;
         }
@@ -251,11 +254,11 @@ export class DragEventHandler {
         e.preventDefault();
         e.stopPropagation();
         this.pointer.tryCapturePointer(e);
-        this.beginPointerDrag(blockInfo, e.pointerId, e.clientX, e.clientY, e.pointerType || null);
+        this.enterDraggingState(blockInfo, e.pointerId, e.clientX, e.clientY, e.pointerType || null);
     }
 
     destroy(): void {
-        this.abortPointerSession({ shouldFinishDragSession: true, shouldHideDropIndicator: true });
+        this.resetInteractionSession({ shouldFinishDragSession: true, shouldHideDropIndicator: true });
         this.clearCommittedRangeSelection();
         this.rangeVisual.destroy();
 
@@ -310,7 +313,7 @@ export class DragEventHandler {
         };
     }
 
-    private startRangeSelect(blockInfo: BlockInfo, e: PointerEvent, handle: HTMLElement | null): void {
+    private beginRangeSelectionSession(blockInfo: BlockInfo, e: PointerEvent, handle: HTMLElement | null): void {
         const anchorStartLineNumber = blockInfo.startLine + 1;
         const anchorEndLineNumber = blockInfo.endLine + 1;
         if (
@@ -325,7 +328,7 @@ export class DragEventHandler {
         const docLines = this.view.state.doc.lines;
         const anchorRange = normalizeLineRange(docLines, anchorStartLineNumber, anchorEndLineNumber);
         const initialRanges = mergeLineRanges(docLines, [...committedRangesSnapshot, anchorRange]);
-        const anchorBlock = buildDragSourceFromLineRanges(this.view.state.doc, initialRanges, blockInfo);
+        const anchorBlock = buildDragSourceBlockFromRanges(this.view.state.doc, initialRanges, blockInfo);
         const pointerType = e.pointerType || null;
         const config = this.getRangeSelectConfig(pointerType);
         const sourceHandleDraggableAttr = handle?.getAttribute('draggable') ?? null;
@@ -337,15 +340,7 @@ export class DragEventHandler {
                 const state = this.gesture.rangeSelect;
                 if (state.pointerId !== e.pointerId) return;
                 state.dragReady = true;
-                this.emitLifecycle({
-                    state: 'press_pending',
-                    sourceBlock: state.dragSourceBlock,
-                    targetLine: null,
-                    listIntent: null,
-                    rejectReason: null,
-                    pointerType: state.pointerType,
-                    pressReady: true,
-                });
+                this.emitPressPendingLifecycle(state.directDragSourceBlock, state.pointerType, true);
             }, MOBILE_DRAG_LONG_PRESS_MS);
         }
         if (!shouldDeferInterception) {
@@ -362,23 +357,15 @@ export class DragEventHandler {
             const state = this.gesture.rangeSelect;
             if (state.pointerId !== e.pointerId) return;
             state.longPressReady = true;
-            this.emitLifecycle({
-                state: 'press_pending',
-                sourceBlock: state.selectedBlock,
-                targetLine: null,
-                listIntent: null,
-                rejectReason: null,
-                pointerType: state.pointerType,
-                pressReady: true,
-            });
+            this.emitPressPendingLifecycle(state.activeSelectionBlock, state.pointerType, true);
             this.activateMouseRangeSelectInterception(state);
             this.updateMouseRangeSelectionFromLine(state, state.currentLineNumber);
         }, config.longPressMs);
 
         this.gesture = { phase: 'range_selecting', rangeSelect: {
-            sourceBlock: anchorBlock,
-            dragSourceBlock: cloneBlockInfo(blockInfo),
-            selectedBlock: anchorBlock,
+            anchorSelectionBlock: anchorBlock,
+            directDragSourceBlock: cloneBlockInfo(blockInfo),
+            activeSelectionBlock: anchorBlock,
             pointerId: e.pointerId,
             startX: e.clientX,
             startY: e.clientY,
@@ -399,15 +386,7 @@ export class DragEventHandler {
             selectionRanges: initialRanges,
         } };
         this.pointer.attachPointerListeners();
-        this.emitLifecycle({
-            state: 'press_pending',
-            sourceBlock: blockInfo,
-            targetLine: null,
-            listIntent: null,
-            rejectReason: null,
-            pointerType,
-            pressReady: false,
-        });
+        this.emitPressPendingLifecycle(blockInfo, pointerType, false);
     }
 
     private activateMouseRangeSelectInterception(state: MouseRangeSelectState): void {
@@ -419,7 +398,7 @@ export class DragEventHandler {
         }
     }
 
-    private startPointerPressDrag(
+    private beginPressPendingDrag(
         blockInfo: BlockInfo,
         e: PointerEvent,
         options?: { skipLongPress?: boolean }
@@ -444,15 +423,7 @@ export class DragEventHandler {
                 const state = this.gesture.press;
                 if (state.pointerId !== e.pointerId) return;
                 state.longPressReady = true;
-                this.emitLifecycle({
-                    state: 'press_pending',
-                    sourceBlock: state.sourceBlock,
-                    targetLine: null,
-                    listIntent: null,
-                    rejectReason: null,
-                    pointerType: state.pointerType,
-                    pressReady: true,
-                });
+                this.emitPressPendingLifecycle(state.sourceBlock, state.pointerType, true);
             }, longPressMs);
         const startMoveThresholdPx = skipLongPress
             ? 2
@@ -472,15 +443,7 @@ export class DragEventHandler {
             startMoveThresholdPx,
         } };
         this.pointer.attachPointerListeners();
-        this.emitLifecycle({
-            state: 'press_pending',
-            sourceBlock: blockInfo,
-            targetLine: null,
-            listIntent: null,
-            rejectReason: null,
-            pointerType,
-            pressReady: skipLongPress,
-        });
+        this.emitPressPendingLifecycle(blockInfo, pointerType, skipLongPress);
     }
 
     private clearPointerPressState(): void {
@@ -520,7 +483,7 @@ export class DragEventHandler {
         }
     }
 
-    private beginPointerDrag(
+    private enterDraggingState(
         sourceBlock: BlockInfo,
         pointerId: number,
         clientX: number,
@@ -538,36 +501,43 @@ export class DragEventHandler {
         this.gesture = { phase: 'dragging', drag: { sourceBlock, pointerId } };
         this.deps.beginPointerDragSession(sourceBlock);
         this.deps.scheduleDropIndicatorUpdate(clientX, clientY, sourceBlock, pointerType);
-        this.emitLifecycle({
-            state: 'drag_active',
-            sourceBlock,
-            targetLine: null,
-            listIntent: null,
-            rejectReason: null,
-            pointerType,
-        });
+        this.emitDragActiveLifecycle(sourceBlock, pointerType);
     }
 
 
     private handlePointerMove(e: PointerEvent): void {
-        if (this.gesture.phase === 'dragging') {
-            const dragState = this.gesture.drag;
-            if (e.pointerId === dragState.pointerId) {
-                e.preventDefault();
-                e.stopPropagation();
-                this.deps.scheduleDropIndicatorUpdate(e.clientX, e.clientY, dragState.sourceBlock, e.pointerType || null);
+        switch (this.gesture.phase) {
+            case 'dragging':
+                this.handleDraggingPointerMove(e);
                 return;
-            }
-        }
-
-        if (this.gesture.phase === 'range_selecting') {
-            const rangeState = this.gesture.rangeSelect;
-            if (e.pointerId === rangeState.pointerId) {
-                this.handleMouseRangeSelectPointerMove(e, rangeState);
+            case 'range_selecting':
+                this.handleRangeSelectingPointerMove(e);
                 return;
-            }
+            case 'press_pending':
+                this.handlePressPendingPointerMove(e);
+                return;
+            default:
+                return;
         }
+    }
 
+    private handleDraggingPointerMove(e: PointerEvent): void {
+        if (this.gesture.phase !== 'dragging') return;
+        const dragState = this.gesture.drag;
+        if (e.pointerId !== dragState.pointerId) return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.deps.scheduleDropIndicatorUpdate(e.clientX, e.clientY, dragState.sourceBlock, e.pointerType || null);
+    }
+
+    private handleRangeSelectingPointerMove(e: PointerEvent): void {
+        if (this.gesture.phase !== 'range_selecting') return;
+        const rangeState = this.gesture.rangeSelect;
+        if (e.pointerId !== rangeState.pointerId) return;
+        this.handleRangeSelectionPointerMove(e, rangeState);
+    }
+
+    private handlePressPendingPointerMove(e: PointerEvent): void {
         if (this.gesture.phase !== 'press_pending') return;
         const pressState = this.gesture.press;
         if (e.pointerId !== pressState.pointerId) return;
@@ -581,12 +551,7 @@ export class DragEventHandler {
 
         if (!pressState.longPressReady) {
             if (distance > pressState.cancelMoveThresholdPx) {
-                this.abortPointerSession({
-                    shouldFinishDragSession: false,
-                    shouldHideDropIndicator: false,
-                    cancelReason: 'press_cancelled',
-                    pointerType: e.pointerType || null,
-                });
+                this.abortForGestureCancel('press_cancelled', e.pointerType || null);
             }
             return;
         }
@@ -599,10 +564,10 @@ export class DragEventHandler {
         const pointerId = pressState.pointerId;
         this.clearCommittedRangeSelection();
         this.clearPointerPressState();
-        this.beginPointerDrag(sourceBlock, pointerId, e.clientX, e.clientY, e.pointerType || null);
+        this.enterDraggingState(sourceBlock, pointerId, e.clientX, e.clientY, e.pointerType || null);
     }
 
-    private handleMouseRangeSelectPointerMove(e: PointerEvent, state: MouseRangeSelectState): void {
+    private handleRangeSelectionPointerMove(e: PointerEvent, state: MouseRangeSelectState): void {
         state.latestX = e.clientX;
         state.latestY = e.clientY;
         const pointerType = state.pointerType ?? (e.pointerType || null);
@@ -611,33 +576,23 @@ export class DragEventHandler {
         if (!state.longPressReady) {
             if (pointerType === 'mouse') {
                 if (distance > MOUSE_RANGE_SELECT_CANCEL_MOVE_THRESHOLD_PX) {
-                    this.abortPointerSession({
-                        shouldFinishDragSession: false,
-                        shouldHideDropIndicator: false,
-                        cancelReason: 'press_cancelled',
-                        pointerType,
-                    });
+                    this.abortForGestureCancel('press_cancelled', pointerType);
                 }
             } else {
                 if (!state.dragReady) {
                     if (distance > MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX) {
-                        this.abortPointerSession({
-                            shouldFinishDragSession: false,
-                            shouldHideDropIndicator: false,
-                            cancelReason: 'press_cancelled',
-                            pointerType,
-                        });
+                        this.abortForGestureCancel('press_cancelled', pointerType);
                     }
                     return;
                 }
                 if (distance >= MOBILE_DRAG_START_MOVE_THRESHOLD_PX) {
                     e.preventDefault();
                     e.stopPropagation();
-                    const sourceBlock = state.dragSourceBlock;
+                    const sourceBlock = state.directDragSourceBlock;
                     const pointerId = state.pointerId;
                     this.clearCommittedRangeSelection();
                     this.clearMouseRangeSelectState();
-                    this.beginPointerDrag(sourceBlock, pointerId, e.clientX, e.clientY, pointerType);
+                    this.enterDraggingState(sourceBlock, pointerId, e.clientX, e.clientY, pointerType);
                 }
             }
             return;
@@ -647,7 +602,7 @@ export class DragEventHandler {
         e.preventDefault();
         e.stopPropagation();
 
-        const targetBoundary = resolveTargetBoundaryForRangeSelection(this.view, e.clientX, e.clientY, (x, y) => this.deps.getBlockInfoAtPoint(x, y));
+        const targetBoundary = resolveRangeBoundaryAtPoint(this.view, e.clientX, e.clientY, (x, y) => this.deps.getBlockInfoAtPoint(x, y));
         if (targetBoundary) {
             this.updateMouseRangeSelection(state, targetBoundary);
         }
@@ -688,7 +643,7 @@ export class DragEventHandler {
         const {
             startLineNumber: rangeStartLineNumber,
             endLineNumber: rangeEndLineNumber,
-        } = resolveBlockAlignedLineRange(
+        } = expandToBlockAlignedRange(
             this.view.state,
             state.anchorStartLineNumber,
             state.anchorEndLineNumber,
@@ -702,10 +657,10 @@ export class DragEventHandler {
             ...state.committedRangesSnapshot,
             activeRange,
         ]);
-        state.selectedBlock = buildDragSourceFromLineRanges(
+        state.activeSelectionBlock = buildDragSourceBlockFromRanges(
             this.view.state.doc,
             state.selectionRanges,
-            state.sourceBlock
+            state.anchorSelectionBlock
         );
 
         this.rangeVisual.render(state.selectionRanges);
@@ -714,7 +669,7 @@ export class DragEventHandler {
     private commitRangeSelection(state: MouseRangeSelectState): void {
         const docLines = this.view.state.doc.lines;
         const committedRanges = mergeLineRanges(docLines, state.selectionRanges);
-        const committedBlock = buildDragSourceFromLineRanges(this.view.state.doc, committedRanges, state.sourceBlock);
+        const committedBlock = buildDragSourceBlockFromRanges(this.view.state.doc, committedRanges, state.anchorSelectionBlock);
         this.committedRangeSelection = {
             selectedBlock: committedBlock,
             ranges: committedRanges,
@@ -749,14 +704,7 @@ export class DragEventHandler {
         this.pointer.releasePointerCapture();
         this.mobile.unlockMobileInteraction();
         this.mobile.detachFocusGuard();
-        this.emitLifecycle({
-            state: 'idle',
-            sourceBlock: null,
-            targetLine: null,
-            listIntent: null,
-            rejectReason: null,
-            pointerType: null,
-        });
+        this.emitIdleLifecycle();
     }
 
     private shouldClearCommittedSelectionOnPointerDown(
@@ -829,7 +777,7 @@ export class DragEventHandler {
         if (shouldDrop) {
             this.deps.performDropAtPoint(state.sourceBlock, e.clientX, e.clientY, e.pointerType || null);
         }
-        this.abortPointerSession({
+        this.resetInteractionSession({
             shouldFinishDragSession: true,
             shouldHideDropIndicator: true,
             cancelReason: shouldDrop ? null : 'pointer_cancelled',
@@ -838,100 +786,92 @@ export class DragEventHandler {
     }
 
     private handlePointerUp(e: PointerEvent): void {
-        if (this.gesture.phase === 'dragging') {
-            this.finishPointerDrag(e, true);
-            return;
-        }
-
-        if (this.gesture.phase === 'range_selecting') {
-            const rangeState = this.gesture.rangeSelect;
-            if (e.pointerId === rangeState.pointerId) {
-                if (!rangeState.longPressReady) {
-                    this.abortPointerSession({
-                        shouldFinishDragSession: false,
-                        shouldHideDropIndicator: false,
-                        cancelReason: 'press_cancelled',
-                        pointerType: e.pointerType || null,
-                    });
-                    return;
-                }
-                e.preventDefault();
-                e.stopPropagation();
-                this.commitRangeSelection(rangeState);
-                this.finishRangeSelectionSession();
-                return;
-            }
-        }
-
-        if (this.gesture.phase !== 'press_pending') return;
-        const pressState = this.gesture.press;
-        if (e.pointerId !== pressState.pointerId) return;
-        this.abortPointerSession({
-            shouldFinishDragSession: false,
-            shouldHideDropIndicator: false,
-            cancelReason: 'press_cancelled',
-            pointerType: e.pointerType || null,
-        });
+        this.handlePointerTerminalEvent(e, 'up');
     }
 
     private handlePointerCancel(e: PointerEvent): void {
-        if (this.gesture.phase === 'dragging') {
-            this.finishPointerDrag(e, false);
-            return;
-        }
-
-        if (this.gesture.phase === 'range_selecting') {
-            const rangeState = this.gesture.rangeSelect;
-            if (e.pointerId === rangeState.pointerId) {
-                this.abortPointerSession({
-                    shouldFinishDragSession: false,
-                    shouldHideDropIndicator: false,
-                    cancelReason: 'pointer_cancelled',
-                    pointerType: e.pointerType || null,
-                });
-                return;
-            }
-        }
-
-        if (this.gesture.phase !== 'press_pending') return;
-        const pressState = this.gesture.press;
-        if (e.pointerId !== pressState.pointerId) return;
-        this.abortPointerSession({
-            shouldFinishDragSession: false,
-            shouldHideDropIndicator: false,
-            cancelReason: 'pointer_cancelled',
-            pointerType: e.pointerType || null,
-        });
+        this.handlePointerTerminalEvent(e, 'cancel');
     }
 
     private handleLostPointerCapture(e: PointerEvent): void {
         if (!this.hasActivePointerSession()) return;
-        this.abortPointerSession({
-            shouldFinishDragSession: true,
-            shouldHideDropIndicator: true,
-            cancelReason: 'session_interrupted',
-            pointerType: e.pointerType || null,
-        });
+        this.abortForSessionInterrupted(e.pointerType || null);
     }
 
     private handleWindowBlur(): void {
         if (!this.hasActivePointerSession()) return;
-        this.abortPointerSession({
-            shouldFinishDragSession: true,
-            shouldHideDropIndicator: true,
-            cancelReason: 'session_interrupted',
-            pointerType: null,
-        });
+        this.abortForSessionInterrupted(null);
     }
 
     private handleDocumentVisibilityChange(): void {
         if (document.visibilityState !== 'hidden') return;
         if (!this.hasActivePointerSession()) return;
-        this.abortPointerSession({
+        this.abortForSessionInterrupted(null);
+    }
+
+    private handlePointerTerminalEvent(e: PointerEvent, mode: PointerTerminalMode): void {
+        switch (this.gesture.phase) {
+            case 'dragging':
+                this.handleDraggingPointerTerminalEvent(e, mode);
+                return;
+            case 'range_selecting':
+                this.handleRangeSelectingPointerTerminalEvent(e, mode);
+                return;
+            case 'press_pending':
+                this.handlePressPendingPointerTerminalEvent(e, mode);
+                return;
+            default:
+                return;
+        }
+    }
+
+    private handleDraggingPointerTerminalEvent(e: PointerEvent, mode: PointerTerminalMode): void {
+        this.finishPointerDrag(e, mode === 'up');
+    }
+
+    private handleRangeSelectingPointerTerminalEvent(e: PointerEvent, mode: PointerTerminalMode): void {
+        if (this.gesture.phase !== 'range_selecting') return;
+        const rangeState = this.gesture.rangeSelect;
+        if (e.pointerId !== rangeState.pointerId) return;
+        if (mode === 'cancel') {
+            this.abortForGestureCancel('pointer_cancelled', e.pointerType || null);
+            return;
+        }
+        if (!rangeState.longPressReady) {
+            this.abortForGestureCancel('press_cancelled', e.pointerType || null);
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        this.commitRangeSelection(rangeState);
+        this.finishRangeSelectionSession();
+    }
+
+    private handlePressPendingPointerTerminalEvent(e: PointerEvent, mode: PointerTerminalMode): void {
+        if (this.gesture.phase !== 'press_pending') return;
+        const pressState = this.gesture.press;
+        if (e.pointerId !== pressState.pointerId) return;
+        this.abortForGestureCancel(mode === 'up' ? 'press_cancelled' : 'pointer_cancelled', e.pointerType || null);
+    }
+
+    private abortForGestureCancel(
+        cancelReason: GestureCancelReason,
+        pointerType: string | null
+    ): void {
+        this.resetInteractionSession({
+            shouldFinishDragSession: false,
+            shouldHideDropIndicator: false,
+            cancelReason,
+            pointerType,
+        });
+    }
+
+    private abortForSessionInterrupted(pointerType: string | null): void {
+        this.resetInteractionSession({
             shouldFinishDragSession: true,
             shouldHideDropIndicator: true,
             cancelReason: 'session_interrupted',
-            pointerType: null,
+            pointerType,
         });
     }
 
@@ -959,29 +899,13 @@ export class DragEventHandler {
         return this.gesture.phase !== 'idle';
     }
 
-    private abortPointerSession(options?: {
+    private resetInteractionSession(options?: {
         shouldFinishDragSession?: boolean;
         shouldHideDropIndicator?: boolean;
         cancelReason?: string | null;
         pointerType?: string | null;
     }): void {
-        const gesture = this.gesture;
-        let sourceBlock: BlockInfo | null = null;
-        let hadDrag = false;
-        switch (gesture.phase) {
-            case 'dragging':
-                sourceBlock = gesture.drag.sourceBlock;
-                hadDrag = true;
-                break;
-            case 'press_pending':
-                sourceBlock = gesture.press.sourceBlock;
-                this.clearPointerPressState();
-                break;
-            case 'range_selecting':
-                sourceBlock = gesture.rangeSelect.selectedBlock;
-                this.clearMouseRangeSelectState();
-                break;
-        }
+        const { sourceBlock, hadDrag } = this.resolveSessionResetContext();
         const shouldFinishDragSession = options?.shouldFinishDragSession ?? hadDrag;
         const shouldHideDropIndicator = options?.shouldHideDropIndicator ?? hadDrag;
         const cancelReason = options?.cancelReason ?? null;
@@ -1000,15 +924,86 @@ export class DragEventHandler {
             this.deps.finishDragSession();
         }
         if (cancelReason && sourceBlock) {
-            this.emitLifecycle({
-                state: 'cancelled',
-                sourceBlock,
-                targetLine: null,
-                listIntent: null,
-                rejectReason: cancelReason,
-                pointerType,
-            });
+            this.emitCancelledLifecycle(sourceBlock, cancelReason, pointerType);
         }
+        this.emitIdleLifecycle();
+    }
+
+    private resolveSessionResetContext(): { sourceBlock: BlockInfo | null; hadDrag: boolean } {
+        const gesture = this.gesture;
+        switch (gesture.phase) {
+            case 'dragging':
+                return {
+                    sourceBlock: gesture.drag.sourceBlock,
+                    hadDrag: true,
+                };
+            case 'press_pending':
+                this.clearPointerPressState();
+                return {
+                    sourceBlock: gesture.press.sourceBlock,
+                    hadDrag: false,
+                };
+            case 'range_selecting':
+                this.clearMouseRangeSelectState();
+                return {
+                    sourceBlock: gesture.rangeSelect.activeSelectionBlock,
+                    hadDrag: false,
+                };
+            default:
+                return {
+                    sourceBlock: null,
+                    hadDrag: false,
+                };
+        }
+    }
+
+    private emitLifecycle(event: DragLifecycleEvent): void {
+        this.deps.onDragLifecycleEvent?.(event);
+    }
+
+    private emitPressPendingLifecycle(
+        sourceBlock: BlockInfo,
+        pointerType: string | null,
+        pressReady: boolean
+    ): void {
+        this.emitLifecycle({
+            state: 'press_pending',
+            sourceBlock,
+            targetLine: null,
+            listIntent: null,
+            rejectReason: null,
+            pointerType,
+            pressReady,
+        });
+    }
+
+    private emitDragActiveLifecycle(sourceBlock: BlockInfo, pointerType: string | null): void {
+        this.emitLifecycle({
+            state: 'drag_active',
+            sourceBlock,
+            targetLine: null,
+            listIntent: null,
+            rejectReason: null,
+            pointerType,
+        });
+    }
+
+    private emitCancelledLifecycle(
+        sourceBlock: BlockInfo,
+        rejectReason: string,
+        pointerType: string | null
+    ): void {
+        this.emitLifecycle({
+            state: 'cancelled',
+            sourceBlock,
+            targetLine: null,
+            listIntent: null,
+            rejectReason,
+            pointerType,
+        });
+    }
+
+    private emitIdleLifecycle(): void {
         this.emitLifecycle({
             state: 'idle',
             sourceBlock: null,
@@ -1017,10 +1012,6 @@ export class DragEventHandler {
             rejectReason: null,
             pointerType: null,
         });
-    }
-
-    private emitLifecycle(event: DragLifecycleEvent): void {
-        this.deps.onDragLifecycleEvent?.(event);
     }
 
     private isMultiLineSelectionEnabled(): boolean {

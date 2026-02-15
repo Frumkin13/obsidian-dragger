@@ -14,7 +14,8 @@ import {
     EMBED_HANDLE_CLASS,
 } from '../core/selectors';
 import { GRAB_HIDDEN_LINE_NUMBER_CLASS } from '../core/constants';
-import { getMainContentLineElementForLine } from './line-dom';
+import { getMainContentLineElementForLine } from '../core/line-dom';
+import { mergeLineRanges, isLineNumberInRanges } from '../core/line-range-utils';
 
 const RANGE_SELECTED_LINE_NUMBER_HIDDEN_CLASS = GRAB_HIDDEN_LINE_NUMBER_CLASS;
 
@@ -36,7 +37,7 @@ export class RangeSelectionVisualManager {
     }
 
     render(ranges: LineRange[]): void {
-        const normalizedRanges = this.mergeLineRanges(ranges);
+        const normalizedRanges = mergeLineRanges(this.view.state.doc.lines, ranges);
         const nextLineElements = new Set<HTMLElement>();
         const nextLineNumberElements = new Set<HTMLElement>();
         const nextHandleElements = new Set<HTMLElement>();
@@ -47,7 +48,7 @@ export class RangeSelectionVisualManager {
             while (pos <= range.to) {
                 const line = doc.lineAt(pos);
                 const lineNumber = line.number;
-                if (this.isLineNumberInRanges(lineNumber, normalizedRanges)) {
+                if (isLineNumberInRanges(lineNumber, normalizedRanges)) {
                     const lineEl = this.getLineElementForLine(lineNumber);
                     if (lineEl) {
                         nextLineElements.add(lineEl);
@@ -210,31 +211,6 @@ export class RangeSelectionVisualManager {
         for (const el of next) {
             current.add(el);
         }
-    }
-
-    private isLineNumberInRanges(lineNumber: number, ranges: LineRange[]): boolean {
-        for (const range of ranges) {
-            if (lineNumber >= range.startLineNumber && lineNumber <= range.endLineNumber) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private mergeLineRanges(ranges: LineRange[]): LineRange[] {
-        if (ranges.length <= 1) return ranges;
-        const sorted = [...ranges].sort((a, b) => a.startLineNumber - b.startLineNumber);
-        const merged: LineRange[] = [sorted[0]];
-        for (let i = 1; i < sorted.length; i++) {
-            const last = merged[merged.length - 1];
-            const current = sorted[i];
-            if (current.startLineNumber <= last.endLineNumber + 1) {
-                last.endLineNumber = Math.max(last.endLineNumber, current.endLineNumber);
-            } else {
-                merged.push({ ...current });
-            }
-        }
-        return merged;
     }
 
     private updateLinks(ranges: LineRange[]): void {

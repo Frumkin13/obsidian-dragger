@@ -1,6 +1,8 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../types';
 import { EMBED_BLOCK_SELECTOR, MOBILE_GESTURE_LOCK_CLASS } from '../core/selectors';
+import { safeCoordsAtPos, resolveLineNumberFromDomNodes } from '../core/dom-probe';
+import { findEmbedElementAtPoint } from '../core/embed-hit';
 
 const MOBILE_DRAG_HOTZONE_LEFT_PX = 24;
 const MOBILE_DRAG_HOTZONE_RIGHT_PX = 8;
@@ -60,12 +62,7 @@ export class MobileGestureController {
         if (lineNumber < 1 || lineNumber > this.view.state.doc.lines) return false;
 
         const line = this.view.state.doc.line(lineNumber);
-        let lineStart: ReturnType<EditorView['coordsAtPos']> | null = null;
-        try {
-            lineStart = this.view.coordsAtPos(line.from);
-        } catch {
-            lineStart = null;
-        }
+        const lineStart = safeCoordsAtPos(this.view, line.from);
         if (!lineStart) return false;
 
         const contentRect = this.view.contentDOM.getBoundingClientRect();
@@ -181,25 +178,11 @@ export class MobileGestureController {
     }
 
     private resolveLineNumberFromTarget(target: HTMLElement, lineEl: HTMLElement | null): number | null {
-        const doc = this.view.state.doc;
         const probes: Node[] = [target];
         if (lineEl) probes.push(lineEl);
         if (target.firstChild) probes.push(target.firstChild);
         if (lineEl?.firstChild) probes.push(lineEl.firstChild);
-
-        for (const probe of probes) {
-            try {
-                const pos = this.view.posAtDOM(probe, 0);
-                const lineNumber = doc.lineAt(pos).number;
-                if (lineNumber >= 1 && lineNumber <= doc.lines) {
-                    return lineNumber;
-                }
-            } catch {
-                // Try next probe node.
-            }
-        }
-
-        return null;
+        return resolveLineNumberFromDomNodes(this.view, probes);
     }
 
     private isWithinLineDragArea(lineNumber: number, clientX: number, clientY: number): boolean {
@@ -227,31 +210,23 @@ export class MobileGestureController {
             }
         }
 
-        if (typeof document.elementFromPoint !== 'function') return null;
-        const hit = document.elementFromPoint(clientX, clientY);
-        if (!(hit instanceof HTMLElement)) return null;
-        const fromPoint = hit.closest<HTMLElement>(MOBILE_LONG_PRESS_EMBED_SELECTOR);
-        if (!fromPoint || !this.view.dom.contains(fromPoint)) return null;
-        return fromPoint;
+        return findEmbedElementAtPoint(this.view, clientX, clientY, {
+            enableFallbackScan: false,
+            requireWithinEditorRect: false,
+            requireDirectWithinRoot: true,
+            normalizeToEmbedRoot: false,
+        });
     }
 
     private resolveLineRect(lineNumber: number): { top: number; bottom: number } | null {
         if (lineNumber < 1 || lineNumber > this.view.state.doc.lines) return null;
         const line = this.view.state.doc.line(lineNumber);
-        const startCoords = this.safeCoordsAtPos(line.from, 1);
-        const endCoords = this.safeCoordsAtPos(line.to, -1) ?? startCoords;
+        const startCoords = safeCoordsAtPos(this.view, line.from, 1);
+        const endCoords = safeCoordsAtPos(this.view, line.to, -1) ?? startCoords;
         if (!startCoords || !endCoords) return null;
         const top = Math.min(startCoords.top, endCoords.top);
         const bottom = Math.max(startCoords.bottom, endCoords.bottom);
         if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom <= top) return null;
         return { top, bottom };
-    }
-
-    private safeCoordsAtPos(pos: number, side: -1 | 1): ReturnType<EditorView['coordsAtPos']> | null {
-        try {
-            return this.view.coordsAtPos(pos, side);
-        } catch {
-            return null;
-        }
     }
 }

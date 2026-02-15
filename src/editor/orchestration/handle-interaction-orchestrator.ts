@@ -4,15 +4,15 @@ import { createDragHandleElement } from '../core/handle-dom';
 import {
     finishDragSession,
     startDragFromHandle,
-} from '../interaction/DragTransfer';
-import { buildListIntent, DragLifecycleEmitter } from '../core/DragLifecycleEmitter';
-import { ServiceContainer } from '../core/services/ServiceContainer';
-import { BlockMover } from '../movers/BlockMover';
-import { DropTargetCalculator } from '../drop-target/DropTargetCalculator';
-import { HandleVisibilityController } from '../visual/HandleVisibilityController';
-import { DragPerfSessionManager } from './DragPerfSessionManager';
-import { SemanticRefreshScheduler } from './SemanticRefreshScheduler';
-import { DragEventHandler } from '../interaction/DragEventHandler';
+} from '../interaction/drag-transfer';
+import { buildListIntent, DragLifecycleEmitter } from '../core/drag-lifecycle-emitter';
+import { ServiceContainer } from '../core/services/service-container';
+import { BlockMover } from '../movers/block-mover';
+import { DropTargetCalculator } from '../drop-target/drop-target-calculator';
+import { HandleVisibilityController } from '../visual/handle-visibility-controller';
+import { DragPerfSessionManager } from './drag-perf-session-manager';
+import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
+import { DragEventHandler } from '../interaction/drag-event-handler';
 
 export interface HandleInteractionOrchestratorDeps {
     view: EditorView;
@@ -143,16 +143,13 @@ export class HandleInteractionOrchestrator {
             dragSource: sourceBlock,
             pointerType,
         });
+        const listIntent = this.buildListIntentFromValidation(validation);
         if (!validation.allowed || typeof validation.targetLineNumber !== 'number') {
             this.emitDragLifecycle({
                 state: 'cancelled',
                 sourceBlock,
                 targetLine: validation.targetLineNumber ?? null,
-                listIntent: buildListIntent({
-                    listContextLineNumber: validation.listContextLineNumber,
-                    listIndentDelta: validation.listIndentDelta,
-                    listTargetIndentWidth: validation.listTargetIndentWidth,
-                }),
+                listIntent,
                 rejectReason: validation.reason ?? 'no_target',
                 pointerType,
             });
@@ -176,11 +173,7 @@ export class HandleInteractionOrchestrator {
             state: 'drop_commit',
             sourceBlock,
             targetLine: targetLineNumber,
-            listIntent: buildListIntent({
-                listContextLineNumber: validation.listContextLineNumber,
-                listIndentDelta: validation.listIndentDelta,
-                listTargetIndentWidth: validation.listTargetIndentWidth,
-            }),
+            listIntent,
             rejectReason: null,
             pointerType,
         });

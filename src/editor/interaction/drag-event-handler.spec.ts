@@ -4,7 +4,7 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../types';
-import { DragEventHandler } from './DragEventHandler';
+import { DragEventHandler } from './drag-event-handler';
 
 type RectLike = {
     left: number;

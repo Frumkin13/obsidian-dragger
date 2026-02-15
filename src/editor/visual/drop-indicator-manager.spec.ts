@@ -3,7 +3,7 @@
 import type { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockType } from '../../types';
-import { DropIndicatorManager } from './DropIndicatorManager';
+import { DropIndicatorManager } from './drop-indicator-manager';
 
 function createViewStub(): EditorView {
     const root = document.createElement('div');

@@ -1,12 +1,11 @@
 import { EditorView } from '@codemirror/view';
-import { BlockInfo } from '../../types';
+import { BlockInfo, LineRange } from '../../types';
 import {
     getLineNumberElementForLine,
     hasVisibleLineNumberGutter,
 } from '../core/handle-position';
 import {
     DRAG_HANDLE_CLASS,
-    EMBED_BLOCK_SELECTOR,
     DRAG_SOURCE_LINE_CLASS,
     DRAG_SOURCE_LINE_SINGLE_CLASS,
     DRAG_SOURCE_LINE_FIRST_CLASS,
@@ -19,7 +18,13 @@ import {
     HOVER_HIDDEN_LINE_NUMBER_CLASS,
     GRAB_HIDDEN_LINE_NUMBER_CLASS,
 } from '../core/constants';
-import { getMainContentLineElementForLine } from './line-dom';
+import { getMainContentLineElementForLine } from '../core/line-dom';
+import {
+    resolveLineNumberFromBlockStartAttribute,
+    resolveLineNumberFromDomNodes,
+} from '../core/dom-probe';
+import { mergeLineRanges, isLineNumberInRanges } from '../core/line-range-utils';
+import { collectEmbedRoots } from '../core/embed-hit';
 
 export interface HandleVisibilityDeps {
     getBlockInfoForHandle: (handle: HTMLElement) => BlockInfo | null;
@@ -174,13 +179,8 @@ export class HandleVisibilityController {
     }
 
     resolveHandleLineNumber(handle: HTMLElement): number | null {
-        const startAttr = handle.getAttribute('data-block-start');
-        if (startAttr !== null) {
-            const lineNumber = Number(startAttr) + 1;
-            if (Number.isInteger(lineNumber) && lineNumber >= 1 && lineNumber <= this.view.state.doc.lines) {
-                return lineNumber;
-            }
-        }
+        const lineNumberFromAttr = resolveLineNumberFromBlockStartAttribute(this.view, handle);
+        if (lineNumberFromAttr !== null) return lineNumberFromAttr;
 
         const blockInfo = this.deps.getBlockInfoForHandle(handle);
         if (!blockInfo) return null;
@@ -265,15 +265,7 @@ export class HandleVisibilityController {
     private applyGrabbedEmbedVisualState(): void {
         const root = this.view.dom;
         if (!(root instanceof HTMLElement)) return;
-        const rawEmbeds = Array.from(root.querySelectorAll<HTMLElement>(EMBED_BLOCK_SELECTOR));
-        const embedRoots = new Set<HTMLElement>();
-        for (const raw of rawEmbeds) {
-            const embed = raw.closest<HTMLElement>('.cm-embed-block') ?? raw;
-            if (!root.contains(embed)) continue;
-            embedRoots.add(embed);
-        }
-
-        for (const embed of embedRoots) {
+        for (const embed of collectEmbedRoots(this.view, { normalizeToEmbedRoot: true })) {
             const lineNumber = this.resolveEmbedLineNumber(embed);
             if (lineNumber === null) continue;
             if (!this.isLineNumberInGrabRanges(lineNumber)) continue;
@@ -283,54 +275,24 @@ export class HandleVisibilityController {
     }
 
     private resolveEmbedLineNumber(embed: HTMLElement): number | null {
-        const doc = this.view.state.doc;
-        const probes: Node[] = [embed];
+        const probes: Array<Node | null> = [embed];
         if (embed.firstChild) probes.push(embed.firstChild);
         if (embed.parentElement) probes.push(embed.parentElement);
         if (embed.parentElement?.firstChild) probes.push(embed.parentElement.firstChild);
-
-        for (const probe of probes) {
-            try {
-                const pos = this.view.posAtDOM(probe, 0);
-                const lineNumber = doc.lineAt(pos).number;
-                if (lineNumber >= 1 && lineNumber <= doc.lines) {
-                    return lineNumber;
-                }
-            } catch {
-                // Try next probe node.
-            }
-        }
-
-        return null;
+        return resolveLineNumberFromDomNodes(this.view, probes);
     }
 
     private isLineNumberInGrabRanges(lineNumber: number): boolean {
-        for (const range of this.grabbedLineRanges) {
-            if (lineNumber >= range.startLineNumber && lineNumber <= range.endLineNumber) {
-                return true;
-            }
-        }
-        return false;
+        return isLineNumberInRanges(lineNumber, this.grabbedLineRanges as LineRange[]);
     }
 
     private normalizeGrabLineRanges(ranges: GrabLineRange[]): GrabLineRange[] {
         const docLines = this.view.state.doc.lines;
-        const normalized = ranges
-            .map((range) => ({
-                startLineNumber: Math.max(1, Math.min(docLines, Math.min(range.startLineNumber, range.endLineNumber))),
-                endLineNumber: Math.max(1, Math.min(docLines, Math.max(range.startLineNumber, range.endLineNumber))),
-            }))
-            .sort((a, b) => a.startLineNumber - b.startLineNumber);
-        const merged: GrabLineRange[] = [];
-        for (const range of normalized) {
-            const last = merged[merged.length - 1];
-            if (!last || range.startLineNumber > last.endLineNumber + 1) {
-                merged.push(range);
-                continue;
-            }
-            last.endLineNumber = Math.max(last.endLineNumber, range.endLineNumber);
-        }
-        return merged;
+        const merged = mergeLineRanges(docLines, ranges as LineRange[]);
+        return merged.map((range) => ({
+            startLineNumber: range.startLineNumber,
+            endLineNumber: range.endLineNumber,
+        }));
     }
 
     private resolveVisibleHandleForBlock(blockInfo: BlockInfo): HTMLElement | null {

@@ -1,11 +1,11 @@
 import { EditorView } from '@codemirror/view';
-import { LineParsingService } from './LineParsingService';
-import { GeometryCalculator } from './GeometryCalculator';
-import { ContainerPolicyService } from './ContainerPolicyService';
-import { TextMutationPolicy } from './TextMutationPolicy';
-import { DragSourceResolver } from './DragSourceResolver';
-import { DropTargetCalculatorDeps } from '../../drop-target/DropTargetCalculator';
-import { BlockMoverDeps } from '../../movers/BlockMover';
+import { LineParsingService } from './line-parsing-service';
+import { GeometryCalculator } from './geometry-calculator';
+import { ContainerPolicyService } from './container-policy-service';
+import { TextMutationPolicy } from './text-mutation-policy';
+import { DragSourceResolver } from './drag-source-resolver';
+import { DropTargetCalculatorDeps } from '../../drop-target/drop-target-calculator';
+import { BlockMoverDeps } from '../../movers/block-mover';
 
 /**
  * Groups the stateless/low-state core services that many subsystems depend on.
@@ -26,15 +26,12 @@ export class ServiceContainer {
         this.textMutation = new TextMutationPolicy(this.lineParsing);
     }
 
-    buildDropTargetCalculatorDeps(
+    createDropTargetCalculatorDeps(
         hooks?: Pick<DropTargetCalculatorDeps, 'onDragTargetEvaluated' | 'recordPerfDuration' | 'incrementPerfCounter'>
     ): DropTargetCalculatorDeps {
+        const sharedDeps = this.createSharedMutationPolicyDeps();
         return {
-            parseLineWithQuote: (line) => this.textMutation.parseLineWithQuote(line),
-            getAdjustedTargetLocation: (ln, opts) => this.geometry.getAdjustedTargetLocation(ln, opts),
-            resolveDropRuleAtInsertion: (src, ln, opts) => this.containerPolicy.resolveDropRuleAtInsertion(src, ln, opts),
-            getListContext: (doc, ln) => this.textMutation.getListContext(doc, ln),
-            getIndentUnitWidth: (sample) => this.textMutation.getIndentUnitWidth(sample),
+            ...sharedDeps,
             getBlockInfoForEmbed: (el) => this.dragSource.getBlockInfoForEmbed(el),
             getIndentUnitWidthForDoc: (doc) => this.textMutation.getIndentUnitWidthForDoc(doc),
             getLineRect: (ln, fc) => this.geometry.getLineRect(ln, fc),
@@ -45,15 +42,25 @@ export class ServiceContainer {
         };
     }
 
-    buildBlockMoverDeps(): Omit<BlockMoverDeps, 'view'> {
+    createBlockMoverDeps(): Omit<BlockMoverDeps, 'view'> {
+        const sharedDeps = this.createSharedMutationPolicyDeps();
         return {
-            getAdjustedTargetLocation: (ln, opts) => this.geometry.getAdjustedTargetLocation(ln, opts),
-            resolveDropRuleAtInsertion: (src, ln, opts) => this.containerPolicy.resolveDropRuleAtInsertion(src, ln, opts),
-            parseLineWithQuote: (line) => this.textMutation.parseLineWithQuote(line),
-            getListContext: (doc, ln) => this.textMutation.getListContext(doc, ln),
-            getIndentUnitWidth: (sample) => this.textMutation.getIndentUnitWidth(sample),
+            ...sharedDeps,
             buildInsertText: (doc, src, ln, content, lcln, lid, ltw) =>
                 this.textMutation.buildInsertText(doc, src, ln, content, lcln, lid, ltw),
+        };
+    }
+
+    private createSharedMutationPolicyDeps(): Pick<
+        DropTargetCalculatorDeps,
+        'parseLineWithQuote' | 'getAdjustedTargetLocation' | 'resolveDropRuleAtInsertion' | 'getListContext' | 'getIndentUnitWidth'
+    > {
+        return {
+            parseLineWithQuote: (line) => this.textMutation.parseLineWithQuote(line),
+            getAdjustedTargetLocation: (ln, opts) => this.geometry.getAdjustedTargetLocation(ln, opts),
+            resolveDropRuleAtInsertion: (src, ln, opts) => this.containerPolicy.resolveDropRuleAtInsertion(src, ln, opts),
+            getListContext: (doc, ln) => this.textMutation.getListContext(doc, ln),
+            getIndentUnitWidth: (sample) => this.textMutation.getIndentUnitWidth(sample),
         };
     }
 }

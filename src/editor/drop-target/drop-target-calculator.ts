@@ -7,18 +7,20 @@ import {
     createGeometryFrameCache,
     GeometryFrameCache,
     getCoordsAtPos,
-} from '../core/drop-target';
+} from '../core/drop-target-geometry';
 import { DocLike, DropTargetInfo, ListContext, ParsedLine } from '../core/protocol-types';
-import { EMBED_BLOCK_SELECTOR } from '../core/selectors';
+import { findEmbedElementAtPoint } from '../core/embed-hit';
+import { resolveLineNumberAtCoords } from '../core/dom-probe';
 import { isPointInsideRenderedTableCell } from '../core/table-guard';
-import { ListDropTargetCalculator } from './ListDropTargetCalculator';
-import { clampNumber, clampTargetLineNumber } from '../utils/coordinate-utils';
+import { ListDropTargetCalculator } from './list-drop-target-calculator';
+import { clampTargetLineNumber } from '../utils/coordinate-utils';
 import { getPreviousNonEmptyLineNumber } from '../core/container-policies';
 import {
     getLineNumberAtViewportY,
     getLineNumberElementForLine,
 } from '../core/handle-position';
-import { getRenderedMainLineNumberAtPoint } from '../core/line-hit-test';
+import { getRenderedMainLineNumberAtPoint } from '../core/line-hit';
+import { getMainContentLineRectForLine } from '../core/line-dom';
 
 type PerfDurationKey =
     | 'resolve_total'
@@ -157,7 +159,6 @@ export class DropTargetCalculator {
         const result = this.resolveValidatedDropTargetInternal({
             info,
             dragSource,
-            pointerType,
             frameCache,
             lineMap,
         });
@@ -178,7 +179,6 @@ export class DropTargetCalculator {
     private resolveValidatedDropTargetInternal(params: {
         info: { clientX: number; clientY: number; dragSource?: BlockInfo | null; pointerType?: string | null };
         dragSource: BlockInfo | null;
-        pointerType: string | null;
         frameCache: GeometryFrameCache;
         lineMap: ReturnType<typeof getLineMap>;
     }): DropValidationResult {
@@ -198,43 +198,25 @@ export class DropTargetCalculator {
                     this.view.state.doc.lines,
                     showAtBottom ? block.endLine + 2 : block.startLine + 1
                 );
-                const containerStartedAt = this.now();
-                const containerRule = dragSource
-                    ? this.deps.resolveDropRuleAtInsertion(dragSource, lineNumber, { lineMap })
-                    : null;
-                this.deps.recordPerfDuration?.('container', this.now() - containerStartedAt);
-                if (containerRule && !containerRule.decision.allowDrop) {
+                const containerRule = this.resolveContainerRule(dragSource, lineNumber, lineMap);
+                if (containerRule.rejectReason) {
                     return {
                         allowed: false,
-                        reason: (containerRule.decision.rejectReason ?? 'container_policy') as DropRejectReason,
+                        reason: containerRule.rejectReason,
                     };
                 }
 
-                if (dragSource) {
-                    const inPlaceStartedAt = this.now();
-                    const inPlaceValidation = validateInPlaceDrop({
-                        doc: this.view.state.doc,
-                        sourceBlock: dragSource,
-                        targetLineNumber: lineNumber,
-                        parseLineWithQuote: this.deps.parseLineWithQuote,
-                        getListContext: this.deps.getListContext,
-                        getIndentUnitWidth: this.deps.getIndentUnitWidth,
-                        slotContext: containerRule?.slotContext,
-                        lineMap,
-                    });
-                    this.deps.recordPerfDuration?.('in_place', this.now() - inPlaceStartedAt);
-                    if (inPlaceValidation.inSelfRange && !inPlaceValidation.allowInPlaceIndentChange) {
-                        return {
-                            allowed: false,
-                            reason: inPlaceValidation.rejectReason ?? 'self_range_blocked',
-                        };
-                    }
-                    if (!inPlaceValidation.inSelfRange && inPlaceValidation.rejectReason) {
-                        return {
-                            allowed: false,
-                            reason: inPlaceValidation.rejectReason as DropRejectReason,
-                        };
-                    }
+                const inPlaceRejectReason = this.getInPlaceRejectReason({
+                    dragSource,
+                    targetLineNumber: lineNumber,
+                    slotContext: containerRule.slotContext,
+                    lineMap,
+                });
+                if (inPlaceRejectReason) {
+                    return {
+                        allowed: false,
+                        reason: inPlaceRejectReason,
+                    };
                 }
 
                 const indicatorY = showAtBottom ? rect.bottom : rect.top;
@@ -254,15 +236,11 @@ export class DropTargetCalculator {
             return { allowed: false, reason: 'no_target' } as const;
         }
 
-        const containerStartedAt = this.now();
-        const containerRule = dragSource
-            ? this.deps.resolveDropRuleAtInsertion(dragSource, vertical.targetLineNumber, { lineMap })
-            : null;
-        this.deps.recordPerfDuration?.('container', this.now() - containerStartedAt);
-        if (containerRule && !containerRule.decision.allowDrop) {
+        const containerRule = this.resolveContainerRule(dragSource, vertical.targetLineNumber, lineMap);
+        if (containerRule.rejectReason) {
             return {
                 allowed: false,
-                reason: (containerRule.decision.rejectReason ?? 'container_policy') as DropRejectReason,
+                reason: containerRule.rejectReason,
             };
         }
 
@@ -279,34 +257,20 @@ export class DropTargetCalculator {
         });
         this.deps.recordPerfDuration?.('list_target', this.now() - listStartedAt);
 
-        if (dragSource) {
-            const inPlaceStartedAt = this.now();
-            const inPlaceValidation = validateInPlaceDrop({
-                doc: this.view.state.doc,
-                sourceBlock: dragSource,
-                targetLineNumber: vertical.targetLineNumber,
-                parseLineWithQuote: this.deps.parseLineWithQuote,
-                getListContext: this.deps.getListContext,
-                getIndentUnitWidth: this.deps.getIndentUnitWidth,
-                slotContext: containerRule?.slotContext,
-                listContextLineNumberOverride: listTarget.listContextLineNumber,
-                listIndentDeltaOverride: listTarget.listIndentDelta,
-                listTargetIndentWidthOverride: listTarget.listTargetIndentWidth,
-                lineMap,
-            });
-            this.deps.recordPerfDuration?.('in_place', this.now() - inPlaceStartedAt);
-            if (inPlaceValidation.inSelfRange && !inPlaceValidation.allowInPlaceIndentChange) {
-                return {
-                    allowed: false,
-                    reason: inPlaceValidation.rejectReason ?? 'self_range_blocked',
-                };
-            }
-            if (!inPlaceValidation.inSelfRange && inPlaceValidation.rejectReason) {
-                return {
-                    allowed: false,
-                    reason: inPlaceValidation.rejectReason as DropRejectReason,
-                };
-            }
+        const inPlaceRejectReason = this.getInPlaceRejectReason({
+            dragSource,
+            targetLineNumber: vertical.targetLineNumber,
+            slotContext: containerRule.slotContext,
+            listContextLineNumberOverride: listTarget.listContextLineNumber,
+            listIndentDeltaOverride: listTarget.listIndentDelta,
+            listTargetIndentWidthOverride: listTarget.listTargetIndentWidth,
+            lineMap,
+        });
+        if (inPlaceRejectReason) {
+            return {
+                allowed: false,
+                reason: inPlaceRejectReason,
+            };
         }
 
         const geometryStartedAt = this.now();
@@ -345,6 +309,75 @@ export class DropTargetCalculator {
         };
     }
 
+    private resolveContainerRule(
+        dragSource: BlockInfo | null,
+        targetLineNumber: number,
+        lineMap: LineMap
+    ): {
+        slotContext: InsertionSlotContext | null;
+        rejectReason: DropRejectReason | null;
+    } {
+        const containerStartedAt = this.now();
+        const containerRule = dragSource
+            ? this.deps.resolveDropRuleAtInsertion(dragSource, targetLineNumber, { lineMap })
+            : null;
+        this.deps.recordPerfDuration?.('container', this.now() - containerStartedAt);
+        if (!containerRule) {
+            return { slotContext: null, rejectReason: null };
+        }
+        if (containerRule.decision.allowDrop) {
+            return { slotContext: containerRule.slotContext, rejectReason: null };
+        }
+        return {
+            slotContext: containerRule.slotContext,
+            rejectReason: (containerRule.decision.rejectReason ?? 'container_policy') as DropRejectReason,
+        };
+    }
+
+    private getInPlaceRejectReason(params: {
+        dragSource: BlockInfo | null;
+        targetLineNumber: number;
+        slotContext: InsertionSlotContext | null;
+        lineMap: LineMap;
+        listContextLineNumberOverride?: number;
+        listIndentDeltaOverride?: number;
+        listTargetIndentWidthOverride?: number;
+    }): DropRejectReason | null {
+        const {
+            dragSource,
+            targetLineNumber,
+            slotContext,
+            lineMap,
+            listContextLineNumberOverride,
+            listIndentDeltaOverride,
+            listTargetIndentWidthOverride,
+        } = params;
+
+        if (!dragSource) return null;
+        const inPlaceStartedAt = this.now();
+        const inPlaceValidation = validateInPlaceDrop({
+            doc: this.view.state.doc,
+            sourceBlock: dragSource,
+            targetLineNumber,
+            parseLineWithQuote: this.deps.parseLineWithQuote,
+            getListContext: this.deps.getListContext,
+            getIndentUnitWidth: this.deps.getIndentUnitWidth,
+            slotContext: slotContext ?? undefined,
+            listContextLineNumberOverride,
+            listIndentDeltaOverride,
+            listTargetIndentWidthOverride,
+            lineMap,
+        });
+        this.deps.recordPerfDuration?.('in_place', this.now() - inPlaceStartedAt);
+        if (inPlaceValidation.inSelfRange && !inPlaceValidation.allowInPlaceIndentChange) {
+            return inPlaceValidation.rejectReason ?? 'self_range_blocked';
+        }
+        if (!inPlaceValidation.inSelfRange && inPlaceValidation.rejectReason) {
+            return inPlaceValidation.rejectReason as DropRejectReason;
+        }
+        return null;
+    }
+
     private computeVerticalTarget(
         info: { clientX: number; clientY: number },
         dragSource: BlockInfo | null,
@@ -359,15 +392,8 @@ export class DropTargetCalculator {
         const contentRect = this.view.contentDOM.getBoundingClientRect();
         let lineNumber: number | null = getRenderedMainLineNumberAtPoint(this.view, info.clientX, info.clientY);
         if (lineNumber === null) {
-            const x = clampNumber(info.clientX, contentRect.left + 2, contentRect.right - 2);
-            let pos: number | null = null;
-            try {
-                pos = this.view.posAtCoords({ x, y: info.clientY });
-            } catch {
-                return null;
-            }
-            if (pos === null) return null;
-            lineNumber = this.view.state.doc.lineAt(pos).number;
+            lineNumber = resolveLineNumberAtCoords(this.view, info.clientX, info.clientY, contentRect);
+            if (lineNumber === null) return null;
         }
 
         let line = this.view.state.doc.line(lineNumber);
@@ -436,6 +462,9 @@ export class DropTargetCalculator {
             }
         }
 
+        const lineRect = getMainContentLineRectForLine(this.view, lineNumber);
+        if (lineRect) return (lineRect.top + lineRect.bottom) / 2;
+
         if (typeof this.view.domAtPos !== 'function') return null;
         try {
             const domAtPos = this.view.domAtPos(lineFromPos);
@@ -455,39 +484,13 @@ export class DropTargetCalculator {
     }
 
     private getEmbedElementAtPoint(clientX: number, clientY: number): HTMLElement | null {
-        const rawEl = document.elementFromPoint(clientX, clientY);
-        const el = rawEl instanceof HTMLElement ? rawEl : null;
-        if (el) {
-            const direct = el.closest<HTMLElement>(EMBED_BLOCK_SELECTOR);
-            if (direct) {
-                return direct.closest<HTMLElement>('.cm-embed-block') ?? direct;
-            }
-        }
-
-        const editorRect = this.view.dom.getBoundingClientRect();
-        if (clientY < editorRect.top || clientY > editorRect.bottom) return null;
-        if (clientX < editorRect.left || clientX > editorRect.right) return null;
-
-        const embeds = Array.from(
-            this.view.dom.querySelectorAll<HTMLElement>(EMBED_BLOCK_SELECTOR)
-        );
-
-        let best: HTMLElement | null = null;
-        let bestDist = Number.POSITIVE_INFINITY;
-        for (const raw of embeds) {
-            const embed = raw.closest<HTMLElement>('.cm-embed-block') ?? raw;
-            const rect = embed.getBoundingClientRect();
-            if (clientY >= rect.top && clientY <= rect.bottom) {
-                const centerY = (rect.top + rect.bottom) / 2;
-                const dist = Math.abs(centerY - clientY);
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    best = embed;
-                }
-            }
-        }
-
-        return best;
+        return findEmbedElementAtPoint(this.view, clientX, clientY, {
+            fallbackPaddingX: 0,
+            requireWithinEditorRect: true,
+            requireDirectWithinRoot: false,
+            enableFallbackScan: true,
+            normalizeToEmbedRoot: true,
+        });
     }
 
     private buildResolveCacheKey(

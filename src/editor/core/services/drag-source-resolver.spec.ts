@@ -3,7 +3,7 @@
 import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DragSourceResolver } from './DragSourceResolver';
+import { DragSourceResolver } from './drag-source-resolver';
 import { BlockType } from '../../../types';
 
 const originalElementFromPoint = (document as Document & {

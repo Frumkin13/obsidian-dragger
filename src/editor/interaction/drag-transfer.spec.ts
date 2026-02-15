@@ -8,7 +8,7 @@ import {
     beginDragSession,
     finishDragSession,
     getDragSourceBlockFromEvent,
-} from './DragTransfer';
+} from './drag-transfer';
 import { getActiveDragSourceBlock } from '../core/session';
 
 function createViewStub(docText = 'line'): EditorView {

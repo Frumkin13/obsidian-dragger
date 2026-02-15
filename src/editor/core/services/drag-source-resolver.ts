@@ -1,8 +1,13 @@
 import { EditorView } from '@codemirror/view';
 import { detectBlock, getHeadingSectionRange } from '../block-detector';
 import { BlockInfo, BlockType } from '../../../types';
-import { EMBED_BLOCK_SELECTOR } from '../selectors';
-import { getRenderedMainLineNumberAtPoint } from '../line-hit-test';
+import { findEmbedElementAtPoint } from '../embed-hit';
+import {
+    resolveLineNumberAtCoords,
+    resolveLineNumberFromBlockStartAttribute,
+    resolveLineNumberFromDomNodes,
+} from '../dom-probe';
+import { getRenderedMainLineNumberAtPoint } from '../line-hit';
 
 const EMBED_HIT_FALLBACK_PADDING_PX = 8;
 
@@ -13,21 +18,17 @@ export class DragSourceResolver {
         // Line handles are absolutely positioned overlays, so DOM position can drift
         // from the bound source line (especially on rendered blocks like `---`).
         // Prefer handle attributes as the authoritative source.
-        const startAttr = handle.getAttribute('data-block-start');
-        const startLine = startAttr !== null ? Number(startAttr) + 1 : NaN;
-        if (Number.isInteger(startLine) && startLine >= 1 && startLine <= this.view.state.doc.lines) {
+        const startLine = resolveLineNumberFromBlockStartAttribute(this.view, handle);
+        if (startLine !== null) {
             const block = this.getDraggableBlockAtLine(startLine);
             if (block) return block;
         }
 
         // Fallback to DOM lookup for unexpected/legacy handles without attributes.
-        try {
-            const pos = this.view.posAtDOM(handle);
-            const lineNumber = this.view.state.doc.lineAt(pos).number;
+        const lineNumber = resolveLineNumberFromDomNodes(this.view, [handle]);
+        if (lineNumber !== null) {
             const block = this.getDraggableBlockAtLine(lineNumber);
             if (block) return block;
-        } catch {
-            // ignore
         }
 
         return null;
@@ -55,30 +56,18 @@ export class DragSourceResolver {
         const contentRect = this.view.contentDOM.getBoundingClientRect();
         if (clientY < contentRect.top || clientY > contentRect.bottom) return null;
 
-        const x = Math.min(Math.max(clientX, contentRect.left + 2), contentRect.right - 2);
-        let pos: number | null = null;
-        try {
-            pos = this.view.posAtCoords({ x, y: clientY });
-        } catch {
-            return null;
-        }
-        if (pos === null) return null;
-
-        const lineNumber = this.view.state.doc.lineAt(pos).number;
+        const lineNumber = resolveLineNumberAtCoords(this.view, clientX, clientY, contentRect);
+        if (lineNumber === null) return null;
         return this.getDraggableBlockAtLine(lineNumber);
     }
 
     getBlockInfoForEmbed(embedEl: HTMLElement): BlockInfo | null {
         const candidates = this.collectEmbedProbeCandidates(embedEl);
         for (const candidate of candidates) {
-            try {
-                const pos = this.view.posAtDOM(candidate);
-                const line = this.view.state.doc.lineAt(pos);
-                const block = detectBlock(this.view.state, line.number);
-                if (block) return this.expandHeadingBlockIfCollapsed(block);
-            } catch {
-                // try next candidate
-            }
+            const lineNumber = resolveLineNumberFromDomNodes(this.view, [candidate]);
+            if (lineNumber === null) continue;
+            const block = this.getDraggableBlockAtLine(lineNumber);
+            if (block) return block;
         }
         return null;
     }
@@ -108,43 +97,13 @@ export class DragSourceResolver {
     }
 
     private getEmbedElementAtPoint(clientX: number, clientY: number): HTMLElement | null {
-        const root = this.view.dom;
-        if (!(root instanceof HTMLElement)) return null;
-
-        if (typeof document.elementFromPoint === 'function') {
-            const rawEl = document.elementFromPoint(clientX, clientY);
-            const el = rawEl instanceof HTMLElement ? rawEl : null;
-            if (el) {
-                const direct = el.closest<HTMLElement>(EMBED_BLOCK_SELECTOR);
-                if (direct && root.contains(direct)) {
-                    return direct.closest<HTMLElement>('.cm-embed-block') ?? direct;
-                }
-            }
-        }
-
-        const editorRect = root.getBoundingClientRect();
-        if (clientY < editorRect.top || clientY > editorRect.bottom) return null;
-        if (clientX < editorRect.left || clientX > editorRect.right) return null;
-
-        const embeds = Array.from(root.querySelectorAll<HTMLElement>(EMBED_BLOCK_SELECTOR));
-        let best: HTMLElement | null = null;
-        let bestDist = Number.POSITIVE_INFINITY;
-        for (const raw of embeds) {
-            const embed = raw.closest<HTMLElement>('.cm-embed-block') ?? raw;
-            const rect = embed.getBoundingClientRect();
-            const withinX = clientX >= rect.left - EMBED_HIT_FALLBACK_PADDING_PX
-                && clientX <= rect.right + EMBED_HIT_FALLBACK_PADDING_PX;
-            const withinY = clientY >= rect.top && clientY <= rect.bottom;
-            if (!withinX || !withinY) continue;
-            const centerY = (rect.top + rect.bottom) / 2;
-            const dist = Math.abs(centerY - clientY);
-            if (dist < bestDist) {
-                bestDist = dist;
-                best = embed;
-            }
-        }
-
-        return best;
+        return findEmbedElementAtPoint(this.view, clientX, clientY, {
+            fallbackPaddingX: EMBED_HIT_FALLBACK_PADDING_PX,
+            requireWithinEditorRect: true,
+            requireDirectWithinRoot: true,
+            enableFallbackScan: true,
+            normalizeToEmbedRoot: true,
+        });
     }
 
     private expandHeadingBlockIfCollapsed(block: BlockInfo): BlockInfo {
