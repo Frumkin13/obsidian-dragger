@@ -4,7 +4,7 @@ import { t } from './i18n';
 
 export type HandleVisibilityMode = 'always' | 'hover' | 'hidden';
 export type HandleIconStyle = 'dot' | 'grip-dots' | 'grip-lines' | 'square';
-export type DragSourceVisualStyle = 'none' | 'subtle';
+export type DragSourceVisualStyle = 'outline' | 'subtle' | 'filled';
 
 export interface DragNDropSettings {
     // 抓取手柄颜色模式
@@ -27,6 +27,10 @@ export interface DragNDropSettings {
     enableMultiLineSelection: boolean;
     // 是否启用移动端长按文本直接拖拽
     enableMobileTextLongPressDrag: boolean;
+    // 是否启用拖拽源高亮
+    enableDragSourceHighlight: boolean;
+    // 是否启用列表落点高亮
+    enableListDropHighlight: boolean;
     // 拖拽源视觉样式
     dragSourceVisualStyle: DragSourceVisualStyle;
     // 手柄横向偏移量（像素）
@@ -46,17 +50,22 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     enableCrossFileDrag: false,
     enableMultiLineSelection: true,
     enableMobileTextLongPressDrag: true,
+    enableDragSourceHighlight: true,
+    enableListDropHighlight: true,
     dragSourceVisualStyle: 'subtle',
     handleHorizontalOffsetPx: 0,
     alignHandleToLineNumber: true,
 };
 
 export function normalizeDragSourceVisualStyle(value: unknown): DragSourceVisualStyle {
-    return value === 'none' ? 'none' : 'subtle';
-}
-
-export function isDragSourceVisualStyleEnabled(value: unknown): boolean {
-    return normalizeDragSourceVisualStyle(value) !== 'none';
+    if (value === 'outline' || value === 'subtle' || value === 'filled') {
+        return value;
+    }
+    // Legacy migration: old "none" is mapped to minimal-but-on style.
+    if (value === 'none') {
+        return 'outline';
+    }
+    return 'subtle';
 }
 
 export class DragNDropSettingTab extends PluginSettingTab {
@@ -111,11 +120,32 @@ export class DragNDropSettingTab extends PluginSettingTab {
             .setName(i.dragSourceVisualStyle)
             .setDesc(i.dragSourceVisualStyleDesc)
             .addDropdown(dropdown => dropdown
+                .addOption('outline', i.optionDragSourceVisualOutline)
                 .addOption('subtle', i.optionDragSourceVisualSubtle)
-                .addOption('none', i.optionDragSourceVisualNone)
+                .addOption('filled', i.optionDragSourceVisualFilled)
                 .setValue(this.plugin.settings.dragSourceVisualStyle)
                 .onChange(async (value: DragSourceVisualStyle) => {
                     this.plugin.settings.dragSourceVisualStyle = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName(i.enableDragSourceHighlight)
+            .setDesc(i.enableDragSourceHighlightDesc)
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableDragSourceHighlight)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableDragSourceHighlight = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName(i.enableListDropHighlight)
+            .setDesc(i.enableListDropHighlightDesc)
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableListDropHighlight)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableListDropHighlight = value;
                     await this.plugin.saveSettings();
                 }));
 

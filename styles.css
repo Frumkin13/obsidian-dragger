@@ -118,14 +118,50 @@
     border-radius: 4px;
 }
 
+/* 统一拖拽视觉样式变量（源块 + 列表落点） */
+body,
+body[data-dnd-drag-source-style="subtle"],
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor[data-dnd-drag-source-style="subtle"] {
+    --dnd-drag-source-bg: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+    --dnd-drag-source-border: color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+    --dnd-drag-source-selected-bg: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+    --dnd-drag-source-selected-border: color-mix(in srgb, var(--interactive-accent) 40%, transparent);
+    --dnd-drop-highlight-bg: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+    --dnd-drop-highlight-border: color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+}
+
+body[data-dnd-drag-source-style="outline"],
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor[data-dnd-drag-source-style="outline"] {
+    --dnd-drag-source-bg: transparent;
+    --dnd-drag-source-border: color-mix(in srgb, var(--interactive-accent) 42%, transparent);
+    --dnd-drag-source-selected-bg: transparent;
+    --dnd-drag-source-selected-border: color-mix(in srgb, var(--interactive-accent) 52%, transparent);
+    --dnd-drop-highlight-bg: transparent;
+    --dnd-drop-highlight-border: color-mix(in srgb, var(--interactive-accent) 42%, transparent);
+}
+
+body[data-dnd-drag-source-style="filled"],
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor[data-dnd-drag-source-style="filled"] {
+    --dnd-drag-source-bg: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+    --dnd-drag-source-border: color-mix(in srgb, var(--interactive-accent) 38%, transparent);
+    --dnd-drag-source-selected-bg: color-mix(in srgb, var(--interactive-accent) 28%, transparent);
+    --dnd-drag-source-selected-border: color-mix(in srgb, var(--interactive-accent) 48%, transparent);
+    --dnd-drop-highlight-bg: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+    --dnd-drop-highlight-border: color-mix(in srgb, var(--interactive-accent) 38%, transparent);
+}
+
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line {
+    background: var(--dnd-drag-source-bg);
     border-radius: 0;
-    box-shadow: none;
+    box-shadow:
+        inset 1px 0 0 var(--dnd-drag-source-border),
+        inset -1px 0 0 var(--dnd-drag-source-border);
 }
 
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .dnd-drag-source-embed {
+    background: var(--dnd-drag-source-bg);
     border-radius: 6px;
-    box-shadow: none;
+    box-shadow: inset 0 0 0 1px var(--dnd-drag-source-border);
 }
 
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line-single {
@@ -146,127 +182,71 @@
     border-bottom-right-radius: 6px;
 }
 
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor:not([data-dnd-drag-source-style="none"]) .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line {
-    background: rgba(128, 128, 128, 0.12);
-    background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line-single,
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line-first {
     box-shadow:
-        inset 1px 0 0 rgba(128, 128, 128, 0.34),
-        inset -1px 0 0 rgba(128, 128, 128, 0.34);
-    box-shadow:
-        inset 1px 0 0 color-mix(in srgb, var(--interactive-accent) 30%, transparent),
-        inset -1px 0 0 color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+        inset 1px 0 0 var(--dnd-drag-source-border),
+        inset -1px 0 0 var(--dnd-drag-source-border),
+        inset 0 1px 0 var(--dnd-drag-source-border);
 }
 
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor:not([data-dnd-drag-source-style="none"]) .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line-single,
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor:not([data-dnd-drag-source-style="none"]) .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line-first {
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line-single,
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line-last {
     box-shadow:
-        inset 1px 0 0 rgba(128, 128, 128, 0.34),
-        inset -1px 0 0 rgba(128, 128, 128, 0.34),
-        inset 0 1px 0 rgba(128, 128, 128, 0.34);
-    box-shadow:
-        inset 1px 0 0 color-mix(in srgb, var(--interactive-accent) 30%, transparent),
-        inset -1px 0 0 color-mix(in srgb, var(--interactive-accent) 30%, transparent),
-        inset 0 1px 0 color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+        inset 1px 0 0 var(--dnd-drag-source-border),
+        inset -1px 0 0 var(--dnd-drag-source-border),
+        inset 0 -1px 0 var(--dnd-drag-source-border);
 }
 
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor:not([data-dnd-drag-source-style="none"]) .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line-single,
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor:not([data-dnd-drag-source-style="none"]) .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line-last {
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line-single {
     box-shadow:
-        inset 1px 0 0 rgba(128, 128, 128, 0.34),
-        inset -1px 0 0 rgba(128, 128, 128, 0.34),
-        inset 0 -1px 0 rgba(128, 128, 128, 0.34);
-    box-shadow:
-        inset 1px 0 0 color-mix(in srgb, var(--interactive-accent) 30%, transparent),
-        inset -1px 0 0 color-mix(in srgb, var(--interactive-accent) 30%, transparent),
-        inset 0 -1px 0 color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+        inset 1px 0 0 var(--dnd-drag-source-border),
+        inset -1px 0 0 var(--dnd-drag-source-border),
+        inset 0 1px 0 var(--dnd-drag-source-border),
+        inset 0 -1px 0 var(--dnd-drag-source-border);
 }
 
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor:not([data-dnd-drag-source-style="none"]) .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line-single {
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line {
+    background: var(--dnd-drag-source-selected-bg);
     box-shadow:
-        inset 1px 0 0 rgba(128, 128, 128, 0.34),
-        inset -1px 0 0 rgba(128, 128, 128, 0.34),
-        inset 0 1px 0 rgba(128, 128, 128, 0.34),
-        inset 0 -1px 0 rgba(128, 128, 128, 0.34);
-    box-shadow:
-        inset 1px 0 0 color-mix(in srgb, var(--interactive-accent) 30%, transparent),
-        inset -1px 0 0 color-mix(in srgb, var(--interactive-accent) 30%, transparent),
-        inset 0 1px 0 color-mix(in srgb, var(--interactive-accent) 30%, transparent),
-        inset 0 -1px 0 color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+        inset 1px 0 0 var(--dnd-drag-source-selected-border),
+        inset -1px 0 0 var(--dnd-drag-source-selected-border);
 }
 
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor:not([data-dnd-drag-source-style="none"]) .dnd-drag-source-embed {
-    background: rgba(128, 128, 128, 0.12);
-    background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
-    box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.34);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-single,
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-first {
+    box-shadow:
+        inset 1px 0 0 var(--dnd-drag-source-selected-border),
+        inset -1px 0 0 var(--dnd-drag-source-selected-border),
+        inset 0 1px 0 var(--dnd-drag-source-selected-border);
 }
 
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor:not([data-dnd-drag-source-style="none"]) .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line {
-    background: rgba(128, 128, 128, 0.2);
-    background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-single,
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-last {
     box-shadow:
-        inset 1px 0 0 rgba(128, 128, 128, 0.42),
-        inset -1px 0 0 rgba(128, 128, 128, 0.42);
-    box-shadow:
-        inset 1px 0 0 color-mix(in srgb, var(--interactive-accent) 40%, transparent),
-        inset -1px 0 0 color-mix(in srgb, var(--interactive-accent) 40%, transparent);
+        inset 1px 0 0 var(--dnd-drag-source-selected-border),
+        inset -1px 0 0 var(--dnd-drag-source-selected-border),
+        inset 0 -1px 0 var(--dnd-drag-source-selected-border);
 }
 
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor:not([data-dnd-drag-source-style="none"]) .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-single,
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor:not([data-dnd-drag-source-style="none"]) .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-first {
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-single {
     box-shadow:
-        inset 1px 0 0 rgba(128, 128, 128, 0.42),
-        inset -1px 0 0 rgba(128, 128, 128, 0.42),
-        inset 0 1px 0 rgba(128, 128, 128, 0.42);
-    box-shadow:
-        inset 1px 0 0 color-mix(in srgb, var(--interactive-accent) 40%, transparent),
-        inset -1px 0 0 color-mix(in srgb, var(--interactive-accent) 40%, transparent),
-        inset 0 1px 0 color-mix(in srgb, var(--interactive-accent) 40%, transparent);
+        inset 1px 0 0 var(--dnd-drag-source-selected-border),
+        inset -1px 0 0 var(--dnd-drag-source-selected-border),
+        inset 0 1px 0 var(--dnd-drag-source-selected-border),
+        inset 0 -1px 0 var(--dnd-drag-source-selected-border);
 }
 
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor:not([data-dnd-drag-source-style="none"]) .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-single,
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor:not([data-dnd-drag-source-style="none"]) .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-last {
-    box-shadow:
-        inset 1px 0 0 rgba(128, 128, 128, 0.42),
-        inset -1px 0 0 rgba(128, 128, 128, 0.42),
-        inset 0 -1px 0 rgba(128, 128, 128, 0.42);
-    box-shadow:
-        inset 1px 0 0 color-mix(in srgb, var(--interactive-accent) 40%, transparent),
-        inset -1px 0 0 color-mix(in srgb, var(--interactive-accent) 40%, transparent),
-        inset 0 -1px 0 color-mix(in srgb, var(--interactive-accent) 40%, transparent);
+body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line,
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor[data-dnd-drag-source-highlight="off"] .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line {
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor:not([data-dnd-drag-source-style="none"]) .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-single {
-    box-shadow:
-        inset 1px 0 0 rgba(128, 128, 128, 0.42),
-        inset -1px 0 0 rgba(128, 128, 128, 0.42),
-        inset 0 1px 0 rgba(128, 128, 128, 0.42),
-        inset 0 -1px 0 rgba(128, 128, 128, 0.42);
-    box-shadow:
-        inset 1px 0 0 color-mix(in srgb, var(--interactive-accent) 40%, transparent),
-        inset -1px 0 0 color-mix(in srgb, var(--interactive-accent) 40%, transparent),
-        inset 0 1px 0 color-mix(in srgb, var(--interactive-accent) 40%, transparent),
-        inset 0 -1px 0 color-mix(in srgb, var(--interactive-accent) 40%, transparent);
-}
-
-body[data-dnd-drag-source-style="none"] .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line {
-    background: transparent;
-    box-shadow: none;
-}
-
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor[data-dnd-drag-source-style="none"] .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line {
-    background: transparent;
-    box-shadow: none;
-}
-
-body[data-dnd-drag-source-style="none"] .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .dnd-drag-source-embed {
-    background: transparent;
-    box-shadow: none;
-}
-
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor[data-dnd-drag-source-style="none"] .dnd-drag-source-embed {
-    background: transparent;
-    box-shadow: none;
+body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .dnd-drag-source-embed,
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor[data-dnd-drag-source-highlight="off"] .dnd-drag-source-embed {
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
 .dnd-range-selection-link {
@@ -381,11 +361,11 @@ body.dnd-mobile-gesture-lock {
     pointer-events: none;
     z-index: 9999;
     border-radius: 6px;
-    background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+    background: var(--dnd-drop-highlight-bg, color-mix(in srgb, var(--interactive-accent) 10%, transparent));
+    box-shadow: inset 0 0 0 1px var(--dnd-drop-highlight-border, color-mix(in srgb, var(--interactive-accent) 30%, transparent));
 }
 
-body[data-dnd-drag-source-style="none"] .dnd-drop-highlight {
+body[data-dnd-list-drop-highlight="off"] .dnd-drop-highlight {
     display: none !important;
 }
 

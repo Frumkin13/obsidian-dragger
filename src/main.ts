@@ -33,10 +33,22 @@ export default class DragNDropPlugin extends Plugin {
     async loadSettings() {
         const saved = await this.loadData() ?? {};
         this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+        const savedRecord = saved as Record<string, unknown>;
         // Migrate legacy alwaysShowHandles boolean
         if ('alwaysShowHandles' in saved && !('handleVisibility' in saved)) {
             this.settings.handleVisibility = (saved as { alwaysShowHandles?: boolean }).alwaysShowHandles ? 'always' : 'hover';
         }
+        // Legacy migration: old "none" style implied both highlights were effectively off.
+        if (savedRecord.dragSourceVisualStyle === 'none') {
+            if (!('enableDragSourceHighlight' in savedRecord)) {
+                this.settings.enableDragSourceHighlight = false;
+            }
+            if (!('enableListDropHighlight' in savedRecord)) {
+                this.settings.enableListDropHighlight = false;
+            }
+        }
+        this.settings.enableDragSourceHighlight = this.settings.enableDragSourceHighlight !== false;
+        this.settings.enableListDropHighlight = this.settings.enableListDropHighlight !== false;
         if (this.settings.enableCrossFileDrag) {
             this.settings.enableCrossFileDrag = false;
         }
@@ -58,6 +70,8 @@ export default class DragNDropPlugin extends Plugin {
         const dragSourceVisualStyle = normalizeDragSourceVisualStyle(this.settings.dragSourceVisualStyle);
         this.settings.dragSourceVisualStyle = dragSourceVisualStyle;
         body.setAttribute('data-dnd-drag-source-style', dragSourceVisualStyle);
+        body.setAttribute('data-dnd-drag-source-highlight', this.settings.enableDragSourceHighlight ? 'on' : 'off');
+        body.setAttribute('data-dnd-list-drop-highlight', this.settings.enableListDropHighlight ? 'on' : 'off');
 
         const rawHandleOffset = Number(this.settings.handleHorizontalOffsetPx);
         const handleOffset = Number.isFinite(rawHandleOffset)

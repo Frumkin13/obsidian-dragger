@@ -39,7 +39,7 @@ import {
 } from './core/DragLifecycleEmitter';
 import { HandleInteractionOrchestrator } from './orchestration/HandleInteractionOrchestrator';
 import { DragLifecycleEvent } from '../types';
-import { isDragSourceVisualStyleEnabled, normalizeDragSourceVisualStyle } from '../settings';
+import { normalizeDragSourceVisualStyle } from '../settings';
 
 /**
  * 创建拖拽手柄ViewPlugin
@@ -71,6 +71,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                 this.view = view;
                 this.ensureEditorRootClasses();
                 this.syncDragSourceVisualStyleAttr();
+                this.syncDragSourceHighlightEnabledAttr();
                 this.syncGutterClass();
                 this.services = new ServiceContainer(this.view);
                 this.handleVisibility = new HandleVisibilityController(this.view, {
@@ -107,7 +108,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                         pointerType: info.pointerType ?? null,
                     })
                     , {
-                        isDropHighlightEnabled: () => isDragSourceVisualStyleEnabled(_plugin.settings.dragSourceVisualStyle),
+                        isDropHighlightEnabled: () => _plugin.settings.enableListDropHighlight !== false,
                         recordPerfDuration: (key, durationMs) => {
                             this.dragPerfManager.recordDuration(key, durationMs);
                         },
@@ -162,7 +163,9 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                     isMobileTextLongPressDragEnabled: () => _plugin.settings.enableMobileTextLongPressDrag,
                     beginPointerDragSession: (blockInfo) => {
                         this.orchestrator.ensureDragPerfSession();
-                        this.handleVisibility.enterGrabVisualStateForBlock(blockInfo, null);
+                        if (this.isDragSourceHighlightEnabled()) {
+                            this.handleVisibility.enterGrabVisualStateForBlock(blockInfo, null);
+                        }
                         beginDragSession(blockInfo, this.view);
                     },
                     finishDragSession: () => {
@@ -210,6 +213,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
             update(update: ViewUpdate) {
                 this.ensureEditorRootClasses();
                 this.syncDragSourceVisualStyleAttr();
+                this.syncDragSourceHighlightEnabledAttr();
                 // Viewport changes have highest priority - refresh visible decorations immediately
                 if (update.viewportChanged) {
                     this.refreshDecorationsAndEmbeds();
@@ -261,6 +265,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                 this.lineHandleManager.destroy();
                 this.view.dom.classList.remove(ROOT_EDITOR_CLASS);
                 this.view.dom.removeAttribute('data-dnd-drag-source-style');
+                this.view.dom.removeAttribute('data-dnd-drag-source-highlight');
                 this.view.contentDOM.classList.remove(MAIN_EDITOR_CONTENT_CLASS);
                 this.dropIndicator.destroy();
                 this.orchestrator.emitDragLifecycle({
@@ -337,6 +342,17 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                 this.view.dom.setAttribute('data-dnd-drag-source-style', style);
             }
 
+            private syncDragSourceHighlightEnabledAttr(): void {
+                this.view.dom.setAttribute(
+                    'data-dnd-drag-source-highlight',
+                    this.isDragSourceHighlightEnabled() ? 'on' : 'off',
+                );
+            }
+
+            private isDragSourceHighlightEnabled(): boolean {
+                return _plugin.settings.enableDragSourceHighlight !== false;
+            }
+
             private refreshDecorationsAndEmbeds(): void {
                 this.ensureEditorRootClasses();
                 this.syncGutterClass();
@@ -347,6 +363,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
             private handleSettingsUpdated(): void {
                 this.ensureEditorRootClasses();
                 this.syncDragSourceVisualStyleAttr();
+                this.syncDragSourceHighlightEnabledAttr();
                 this.refreshDecorationsAndEmbeds();
                 this.dragEventHandler.refreshSelectionVisual();
                 this.handleVisibility.refreshGrabVisualState();
@@ -354,7 +371,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
 
             private handleSourceVisualByLifecycle(event: DragLifecycleEvent): void {
                 if (event.state === 'press_pending') {
-                    if (event.pressReady && event.sourceBlock) {
+                    if (event.pressReady && event.sourceBlock && this.isDragSourceHighlightEnabled()) {
                         this.handleVisibility.enterGrabVisualStateForBlock(event.sourceBlock, null);
                     } else {
                         // Pressing should not show drag-source highlight before long-press is ready.
@@ -363,8 +380,10 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                     return;
                 }
                 if (event.state === 'drag_active') {
-                    if (event.sourceBlock) {
+                    if (event.sourceBlock && this.isDragSourceHighlightEnabled()) {
                         this.handleVisibility.enterGrabVisualStateForBlock(event.sourceBlock, null);
+                    } else if (!this.isDragSourceHighlightEnabled()) {
+                        this.handleVisibility.clearGrabbedLineNumbers();
                     }
                     return;
                 }
