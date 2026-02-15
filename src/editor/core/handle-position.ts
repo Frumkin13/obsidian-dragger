@@ -1,6 +1,22 @@
 import { EditorView } from '@codemirror/view';
 import { getHandleSizePx, getHandleHorizontalOffsetPx, getAlignToLineNumber } from './constants';
 
+type RectLike = {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+    width?: number;
+    height?: number;
+};
+
+function rectWidth(rect: RectLike): number {
+    return typeof rect.width === 'number' ? rect.width : (rect.right - rect.left);
+}
+
+function rectHeight(rect: RectLike): number {
+    return typeof rect.height === 'number' ? rect.height : (rect.bottom - rect.top);
+}
 
 function safeCoordsAtPos(view: EditorView, pos: number): ReturnType<EditorView['coordsAtPos']> | null {
     try {
@@ -10,14 +26,14 @@ function safeCoordsAtPos(view: EditorView, pos: number): ReturnType<EditorView['
     }
 }
 
-function isUsableRect(rect: DOMRect | null | undefined): rect is DOMRect {
+function isUsableRect(rect: RectLike | null | undefined): rect is RectLike {
     if (!rect) return false;
-    return rect.width > 0 && rect.height > 0;
+    return rectWidth(rect) > 0 && rectHeight(rect) > 0;
 }
 
-function isLineNumberRowRect(rect: DOMRect | null | undefined): rect is DOMRect {
+function isLineNumberRowRect(rect: RectLike | null | undefined): rect is RectLike {
     if (!rect) return false;
-    return rect.height > 0;
+    return rectHeight(rect) > 0;
 }
 
 function isElementVisible(el: Element): boolean {
@@ -52,14 +68,14 @@ function getGutterElementInnerCenterX(gutterElement: HTMLElement): number | null
     return (innerLeft + innerRight) / 2;
 }
 
-function getLineNumberGutterRect(view: EditorView): DOMRect | null {
+function getLineNumberGutterRect(view: EditorView): RectLike | null {
     const lineNumberGutter = getLineNumberGutter(view);
     if (!lineNumberGutter) return null;
     const rect = lineNumberGutter.getBoundingClientRect();
     return isUsableRect(rect) ? rect : null;
 }
 
-function getAnyGutterRect(view: EditorView): DOMRect | null {
+function getAnyGutterRect(view: EditorView): RectLike | null {
     const gutters = view.dom.querySelector('.cm-gutters');
     if (!gutters || !isElementVisible(gutters)) return null;
     const rect = gutters.getBoundingClientRect();
@@ -100,15 +116,88 @@ function getLineNumberElementCenterX(view: EditorView): number | null {
     return null;
 }
 
+function resolveLineNumberFromGutterElement(
+    view: EditorView,
+    gutterElement: HTMLElement
+): number | null {
+    const byData = gutterElement.getAttribute('data-line-number')
+        ?? gutterElement.getAttribute('data-line')
+        ?? gutterElement.dataset.lineNumber
+        ?? null;
+    if (byData) {
+        const parsed = Number(byData);
+        if (Number.isInteger(parsed) && parsed >= 1 && parsed <= view.state.doc.lines) {
+            return parsed;
+        }
+    }
+
+    const aria = gutterElement.getAttribute('aria-label');
+    if (aria) {
+        const match = aria.match(/\d+/);
+        if (match) {
+            const parsed = Number(match[0]);
+            if (Number.isInteger(parsed) && parsed >= 1 && parsed <= view.state.doc.lines) {
+                return parsed;
+            }
+        }
+    }
+
+    const raw = gutterElement.textContent?.trim();
+    if (!raw) return null;
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > view.state.doc.lines) return null;
+    return parsed;
+}
+
+function getMainContentLineElementByLineNumber(view: EditorView, lineNumber: number): HTMLElement | null {
+    const selector = ':scope > .cm-line';
+    const lineEls = Array.from(view.contentDOM.querySelectorAll<HTMLElement>(selector));
+    for (const lineEl of lineEls) {
+        try {
+            const pos = view.posAtDOM(lineEl, 0);
+            const resolvedLineNumber = view.state.doc.lineAt(pos).number;
+            if (resolvedLineNumber === lineNumber) {
+                return lineEl;
+            }
+        } catch {
+            // skip invalid candidates
+        }
+    }
+    return null;
+}
+
+function getViewportMidYForLine(view: EditorView, lineNumber: number): number | null {
+    const lineEl = getMainContentLineElementByLineNumber(view, lineNumber);
+    if (lineEl) {
+        const rect = lineEl.getBoundingClientRect();
+        if (rect.height > 0) {
+            return (rect.top + rect.bottom) / 2;
+        }
+    }
+
+    const line = view.state.doc.line(lineNumber);
+    const probePositions = [line.from, Math.max(line.from, line.to - 1), line.to];
+    let top = Number.POSITIVE_INFINITY;
+    let bottom = Number.NEGATIVE_INFINITY;
+    let hasRect = false;
+    for (const pos of probePositions) {
+        const rect = safeCoordsAtPos(view, pos);
+        if (!isLineNumberRowRect(rect)) continue;
+        top = Math.min(top, rect.top);
+        bottom = Math.max(bottom, rect.bottom);
+        hasRect = true;
+    }
+    if (!hasRect) return null;
+    return (top + bottom) / 2;
+}
+
 function getClosestLineNumberElementByY(view: EditorView, lineNumber: number): HTMLElement | null {
     if (lineNumber < 1 || lineNumber > view.state.doc.lines) return null;
     const gutter = getLineNumberGutter(view);
     if (!gutter) return null;
 
-    const line = view.state.doc.line(lineNumber);
-    const lineCoords = safeCoordsAtPos(view, line.from);
-    if (!lineCoords) return null;
-    const y = (lineCoords.top + lineCoords.bottom) / 2;
+    const y = getViewportMidYForLine(view, lineNumber);
+    if (y === null) return null;
 
     const candidates = Array.from(gutter.querySelectorAll<HTMLElement>('.cm-gutterElement'));
     let bestEl: HTMLElement | null = null;
@@ -127,29 +216,35 @@ function getClosestLineNumberElementByY(view: EditorView, lineNumber: number): H
     return bestEl;
 }
 
-function getLineNumberTextRect(lineNumberEl: HTMLElement): DOMRect | null {
-    if (!lineNumberEl.textContent?.trim()) return null;
-    try {
-        const range = document.createRange();
-        range.selectNodeContents(lineNumberEl);
-        const rect = range.getBoundingClientRect();
-        if (isUsableRect(rect)) return rect;
-    } catch {
-        // ignore range measurement failures
-    }
-    return null;
-}
-
-function getLineNumberElementByText(view: EditorView, lineNumber: number): HTMLElement | null {
+function getLineNumberElementByLineNumber(view: EditorView, lineNumber: number): HTMLElement | null {
     const gutter = getLineNumberGutter(view);
     if (!gutter) return null;
-    const target = String(lineNumber);
     const candidates = Array.from(gutter.querySelectorAll<HTMLElement>('.cm-gutterElement'));
-    return candidates.find((el) => el.textContent?.trim() === target) ?? null;
+    return candidates.find((el) => resolveLineNumberFromGutterElement(view, el) === lineNumber) ?? null;
 }
 
 export function getLineNumberElementForLine(view: EditorView, lineNumber: number): HTMLElement | null {
-    return getClosestLineNumberElementByY(view, lineNumber) ?? getLineNumberElementByText(view, lineNumber);
+    return getLineNumberElementByLineNumber(view, lineNumber) ?? getClosestLineNumberElementByY(view, lineNumber);
+}
+
+export function getLineNumberAtViewportY(view: EditorView, viewportY: number): number | null {
+    const gutter = getLineNumberGutter(view);
+    if (!gutter) return null;
+    const candidates = Array.from(gutter.querySelectorAll<HTMLElement>('.cm-gutterElement'));
+    let nearest: { lineNumber: number; distance: number } | null = null;
+    for (const candidate of candidates) {
+        const rect = candidate.getBoundingClientRect();
+        if (!isLineNumberRowRect(rect)) continue;
+        const lineNumber = resolveLineNumberFromGutterElement(view, candidate);
+        if (lineNumber === null) continue;
+        if (viewportY >= rect.top && viewportY <= rect.bottom) return lineNumber;
+        const centerY = (rect.top + rect.bottom) / 2;
+        const distance = Math.abs(centerY - viewportY);
+        if (!nearest || distance < nearest.distance) {
+            nearest = { lineNumber, distance };
+        }
+    }
+    return nearest?.lineNumber ?? null;
 }
 
 export function hasVisibleLineNumberGutter(view: EditorView): boolean {
@@ -165,10 +260,7 @@ function getHandleCenterForLine(view: EditorView, lineNumber: number): { x: numb
         if (lineNumberEl) {
             const rect = lineNumberEl.getBoundingClientRect();
             if (isLineNumberRowRect(rect)) {
-                const textRect = getLineNumberTextRect(lineNumberEl);
-                const centerY = textRect
-                    ? (textRect.top + textRect.height / 2)
-                    : (rect.top + rect.height / 2);
+                const centerY = rect.top + rect.height / 2;
                 const centerX = (getGutterElementInnerCenterX(lineNumberEl) ?? (rect.left + rect.width / 2)) + horizontalOffset;
                 return {
                     x: centerX,
@@ -179,10 +271,31 @@ function getHandleCenterForLine(view: EditorView, lineNumber: number): { x: numb
     }
 
     if (lineNumber >= 1 && lineNumber <= view.state.doc.lines) {
+        const lineEl = getMainContentLineElementByLineNumber(view, lineNumber);
+        if (lineEl) {
+            const rect = lineEl.getBoundingClientRect();
+            if (rect.height > 0) {
+                return {
+                    x: getHandleColumnCenterX(view),
+                    y: (rect.top + rect.bottom) / 2,
+                };
+            }
+        }
+
         const line = view.state.doc.line(lineNumber);
-        const lineCoords = safeCoordsAtPos(view, line.from);
-        if (lineCoords) {
-            const height = lineCoords.bottom - lineCoords.top;
+        const probePositions = [line.from, Math.max(line.from, line.to - 1), line.to];
+        let top = Number.POSITIVE_INFINITY;
+        let bottom = Number.NEGATIVE_INFINITY;
+        let hasRect = false;
+        for (const pos of probePositions) {
+            const rect = safeCoordsAtPos(view, pos);
+            if (!isLineNumberRowRect(rect)) continue;
+            top = Math.min(top, rect.top);
+            bottom = Math.max(bottom, rect.bottom);
+            hasRect = true;
+        }
+        if (hasRect) {
+            const height = bottom - top;
             const defaultLineHeight = view.defaultLineHeight || 20;
             const offsetY = height > defaultLineHeight * 1.5
                 ? defaultLineHeight / 2
@@ -190,7 +303,7 @@ function getHandleCenterForLine(view: EditorView, lineNumber: number): { x: numb
 
             return {
                 x: getHandleColumnCenterX(view),
-                y: lineCoords.top + Math.max(0, offsetY),
+                y: top + Math.max(0, offsetY),
             };
         }
     }
@@ -207,11 +320,11 @@ export function getHandleColumnCenterX(view: EditorView): number {
         if (lineNumberElementCenterX !== null) return lineNumberElementCenterX + horizontalOffset;
 
         const lineNumberRect = getLineNumberGutterRect(view);
-        if (lineNumberRect) return lineNumberRect.left + lineNumberRect.width / 2 + horizontalOffset;
+        if (lineNumberRect) return lineNumberRect.left + rectWidth(lineNumberRect) / 2 + horizontalOffset;
     }
 
     const gutterRect = getAnyGutterRect(view);
-    if (gutterRect) return gutterRect.left + gutterRect.width / 2 + horizontalOffset;
+    if (gutterRect) return gutterRect.left + rectWidth(gutterRect) / 2 + horizontalOffset;
 
     // 手柄完全悬浮在编辑器左侧边缘，不依赖文档内容
     const contentRect = view.contentDOM.getBoundingClientRect();

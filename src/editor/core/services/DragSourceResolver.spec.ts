@@ -35,12 +35,35 @@ afterEach(() => {
 });
 
 describe('DragSourceResolver', () => {
-    it('prefers DOM position over stale handle data attributes', () => {
+    it('prefers handle data attributes over DOM overlay mapping', () => {
         const state = EditorState.create({
             doc: 'alpha\nbeta\n- item\ngamma',
         });
         const handle = document.createElement('span');
-        handle.setAttribute('data-block-start', '0');
+        handle.setAttribute('data-block-start', '2');
+
+        const view = {
+            state,
+            posAtDOM: (node: Node) => {
+                if (node === handle) {
+                    return state.doc.line(1).from;
+                }
+                throw new Error('unexpected node');
+            },
+        } as unknown as EditorView;
+
+        const resolver = new DragSourceResolver(view);
+        const block = resolver.getBlockInfoForHandle(handle);
+        expect(block).not.toBeNull();
+        expect(block?.startLine).toBe(2);
+        expect(block?.content).toContain('- item');
+    });
+
+    it('falls back to DOM position when handle data attributes are missing', () => {
+        const state = EditorState.create({
+            doc: 'alpha\nbeta\n- item\ngamma',
+        });
+        const handle = document.createElement('span');
 
         const view = {
             state,
@@ -56,7 +79,6 @@ describe('DragSourceResolver', () => {
         const block = resolver.getBlockInfoForHandle(handle);
         expect(block).not.toBeNull();
         expect(block?.startLine).toBe(2);
-        expect(block?.content).toContain('- item');
     });
 
     it('falls back to data attributes when DOM lookup fails', () => {
@@ -204,5 +226,61 @@ describe('DragSourceResolver', () => {
         expect(block?.type).toBe(BlockType.MathBlock);
         expect(block?.startLine).toBe(0);
         expect(block?.endLine).toBe(2);
+    });
+
+    it('resolves horizontal rule from rendered line hit when posAtCoords drifts', () => {
+        const state = EditorState.create({
+            doc: 'first\n---\nthird',
+        });
+        const root = document.createElement('div');
+        const content = document.createElement('div');
+        content.className = 'cm-content';
+        root.appendChild(content);
+        document.body.appendChild(root);
+
+        const line1 = document.createElement('div');
+        line1.className = 'cm-line';
+        const line2 = document.createElement('div');
+        line2.className = 'cm-line';
+        const hr = document.createElement('hr');
+        hr.className = 'cm-hr';
+        line2.appendChild(hr);
+        const line3 = document.createElement('div');
+        line3.className = 'cm-line';
+        content.append(line1, line2, line3);
+
+        Object.defineProperty(root, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(0, 0, 360, 220),
+        });
+        Object.defineProperty(content, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(0, 0, 340, 180),
+        });
+        Object.defineProperty(document, 'elementFromPoint', {
+            configurable: true,
+            writable: true,
+            value: vi.fn(() => hr),
+        });
+
+        const view = {
+            state,
+            dom: root,
+            contentDOM: content,
+            posAtCoords: () => state.doc.line(1).from,
+            posAtDOM: (node: Node) => {
+                if (node === line1) return state.doc.line(1).from;
+                if (node === line2) return state.doc.line(2).from;
+                if (node === line3) return state.doc.line(3).from;
+                throw new Error('unexpected node');
+            },
+        } as unknown as EditorView;
+
+        const resolver = new DragSourceResolver(view);
+        const block = resolver.getDraggableBlockAtPoint(120, 56);
+        expect(block).not.toBeNull();
+        expect(block?.type).toBe(BlockType.HorizontalRule);
+        expect(block?.startLine).toBe(1);
+        expect(block?.endLine).toBe(1);
     });
 });

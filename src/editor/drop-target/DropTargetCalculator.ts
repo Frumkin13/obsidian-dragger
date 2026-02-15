@@ -14,6 +14,11 @@ import { isPointInsideRenderedTableCell } from '../core/table-guard';
 import { ListDropTargetCalculator } from './ListDropTargetCalculator';
 import { clampNumber, clampTargetLineNumber } from '../utils/coordinate-utils';
 import { getPreviousNonEmptyLineNumber } from '../core/container-policies';
+import {
+    getLineNumberAtViewportY,
+    getLineNumberElementForLine,
+} from '../core/handle-position';
+import { getRenderedMainLineNumberAtPoint } from '../core/line-hit-test';
 
 type PerfDurationKey =
     | 'resolve_total'
@@ -352,16 +357,24 @@ export class DropTargetCalculator {
         lineRectSourceLineNumber: number;
     } | null {
         const contentRect = this.view.contentDOM.getBoundingClientRect();
-        const x = clampNumber(info.clientX, contentRect.left + 2, contentRect.right - 2);
-        let pos: number | null = null;
-        try {
-            pos = this.view.posAtCoords({ x, y: info.clientY });
-        } catch {
-            return null;
+        let lineNumber: number | null = getRenderedMainLineNumberAtPoint(this.view, info.clientX, info.clientY);
+        if (lineNumber === null) {
+            const x = clampNumber(info.clientX, contentRect.left + 2, contentRect.right - 2);
+            let pos: number | null = null;
+            try {
+                pos = this.view.posAtCoords({ x, y: info.clientY });
+            } catch {
+                return null;
+            }
+            if (pos === null) return null;
+            lineNumber = this.view.state.doc.lineAt(pos).number;
         }
-        if (pos === null) return null;
 
-        const line = this.view.state.doc.lineAt(pos);
+        let line = this.view.state.doc.line(lineNumber);
+        const gutterLineNumber = getLineNumberAtViewportY(this.view, info.clientY);
+        if (gutterLineNumber !== null && gutterLineNumber !== line.number) {
+            line = this.view.state.doc.line(gutterLineNumber);
+        }
         const allowListChildIntent = !!dragSource && dragSource.type === BlockType.ListItem;
         const lineBoundsForSnap = this.listDropTargetCalculator.getListMarkerBounds(line.number, { frameCache });
         const lineParsedForSnap = this.deps.parseLineWithQuote(line.text);
@@ -383,11 +396,16 @@ export class DropTargetCalculator {
             if (isBlankLine) {
                 forcedLineNumber = line.number;
             } else {
-                const lineStart = getCoordsAtPos(this.view, line.from, frameCache);
-                const lineEnd = getCoordsAtPos(this.view, line.to, frameCache);
-                if (lineStart && lineEnd) {
-                    const midY = (lineStart.top + lineEnd.bottom) / 2;
-                    showAtBottom = info.clientY > midY;
+                const visualMidY = this.getVisualLineMidY(line.number, line.from);
+                if (visualMidY !== null) {
+                    showAtBottom = info.clientY > visualMidY;
+                } else {
+                    const lineStart = getCoordsAtPos(this.view, line.from, frameCache);
+                    const lineEnd = getCoordsAtPos(this.view, line.to, frameCache);
+                    if (lineStart && lineEnd) {
+                        const midY = (lineStart.top + lineEnd.bottom) / 2;
+                        showAtBottom = info.clientY > midY;
+                    }
                 }
             }
         }
@@ -407,6 +425,33 @@ export class DropTargetCalculator {
             childIntentOnLine,
             lineRectSourceLineNumber: line.number,
         };
+    }
+
+    private getVisualLineMidY(lineNumber: number, lineFromPos: number): number | null {
+        const lineNumberEl = getLineNumberElementForLine(this.view, lineNumber);
+        if (lineNumberEl) {
+            const lineNumberRect = lineNumberEl.getBoundingClientRect();
+            if (lineNumberRect.height > 0) {
+                return lineNumberRect.top + lineNumberRect.height / 2;
+            }
+        }
+
+        if (typeof this.view.domAtPos !== 'function') return null;
+        try {
+            const domAtPos = this.view.domAtPos(lineFromPos);
+            const base = domAtPos.node.nodeType === Node.TEXT_NODE
+                ? domAtPos.node.parentElement
+                : domAtPos.node;
+            if (!(base instanceof Element)) return null;
+            const lineEl = base.closest<HTMLElement>('.cm-line');
+            if (!lineEl) return null;
+            if (!this.view.contentDOM.contains(lineEl)) return null;
+            const rect = lineEl.getBoundingClientRect();
+            if (!(rect.height > 0)) return null;
+            return (rect.top + rect.bottom) / 2;
+        } catch {
+            return null;
+        }
     }
 
     private getEmbedElementAtPoint(clientX: number, clientY: number): HTMLElement | null {

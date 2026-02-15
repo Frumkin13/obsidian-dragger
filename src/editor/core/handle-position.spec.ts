@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
 
 import type { EditorView } from '@codemirror/view';
+import { EditorState } from '@codemirror/state';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
     getHandleColumnCenterX,
+    getHandleTopPxForLine,
     setHandleHorizontalOffsetPx,
     viewportXToEditorLocalX,
     viewportYToEditorLocalY,
 } from './handle-position';
+import { setAlignToLineNumber } from './constants';
 
 type RectLike = {
     left: number;
@@ -44,6 +47,7 @@ function setRect(el: HTMLElement, left: number, top: number, width: number, heig
 
 afterEach(() => {
     setHandleHorizontalOffsetPx(0);
+    setAlignToLineNumber(true);
     document.body.innerHTML = '';
 });
 
@@ -115,5 +119,111 @@ describe('handle-position', () => {
         const view = { dom: root } as unknown as EditorView;
         expect(viewportXToEditorLocalX(view, 140)).toBeCloseTo(17, 6);
         expect(viewportYToEditorLocalY(view, 90)).toBeCloseTo(15, 6);
+    });
+
+    it('anchors handle Y by target gutter line number instead of coordsAtPos proximity', () => {
+        const state = EditorState.create({ doc: 'first\n---\nthird' });
+
+        const root = document.createElement('div');
+        root.className = 'cm-editor';
+        const content = document.createElement('div');
+        content.className = 'cm-content';
+        root.appendChild(content);
+        const gutter = document.createElement('div');
+        gutter.className = 'cm-gutter cm-lineNumbers';
+        const row1 = document.createElement('div');
+        row1.className = 'cm-gutterElement';
+        row1.textContent = '1';
+        const row2 = document.createElement('div');
+        row2.className = 'cm-gutterElement';
+        row2.textContent = '2';
+        const row3 = document.createElement('div');
+        row3.className = 'cm-gutterElement';
+        row3.textContent = '3';
+        gutter.appendChild(row1);
+        gutter.appendChild(row2);
+        gutter.appendChild(row3);
+        root.appendChild(gutter);
+        document.body.appendChild(root);
+
+        setRect(root, 0, 0, 400, 240);
+        setRect(content, 80, 0, 300, 240);
+        setRect(gutter, 20, 0, 40, 240);
+        setRect(row1, 20, 10, 40, 20);
+        setRect(row2, 20, 50, 40, 20);
+        setRect(row3, 20, 90, 40, 20);
+
+        const line2 = state.doc.line(2);
+        const view = {
+            state,
+            dom: root,
+            contentDOM: content,
+            coordsAtPos: (pos: number) => {
+                // Simulate a bad DOM mapping for line 2 (e.g. hr render overlay):
+                // coords falls near line 1 although target line is 2.
+                if (pos === line2.from) {
+                    return createRect(100, 12, 10, 16) as unknown as DOMRect;
+                }
+                return createRect(100, 52, 10, 16) as unknown as DOMRect;
+            },
+        } as unknown as EditorView;
+
+        const top = getHandleTopPxForLine(view, 2);
+        expect(top).toBe(52);
+    });
+
+    it('resolves gutter row by rendered line mapping when gutter text is unavailable', () => {
+        const state = EditorState.create({ doc: 'first\n---\nthird' });
+
+        const root = document.createElement('div');
+        root.className = 'cm-editor';
+        const content = document.createElement('div');
+        content.className = 'cm-content';
+        const line1 = document.createElement('div');
+        line1.className = 'cm-line';
+        const line2 = document.createElement('div');
+        line2.className = 'cm-line';
+        const line3 = document.createElement('div');
+        line3.className = 'cm-line';
+        content.append(line1, line2, line3);
+        root.appendChild(content);
+
+        const gutter = document.createElement('div');
+        gutter.className = 'cm-gutter cm-lineNumbers';
+        const row1 = document.createElement('div');
+        row1.className = 'cm-gutterElement';
+        const row2 = document.createElement('div');
+        row2.className = 'cm-gutterElement';
+        const row3 = document.createElement('div');
+        row3.className = 'cm-gutterElement';
+        gutter.append(row1, row2, row3);
+        root.appendChild(gutter);
+        document.body.appendChild(root);
+
+        setRect(root, 0, 0, 400, 240);
+        setRect(content, 80, 0, 300, 240);
+        setRect(gutter, 20, 0, 40, 240);
+        setRect(row1, 20, 10, 40, 20);
+        setRect(row2, 20, 50, 40, 20);
+        setRect(row3, 20, 90, 40, 20);
+        setRect(line1, 80, 10, 300, 20);
+        setRect(line2, 80, 50, 300, 20);
+        setRect(line3, 80, 90, 300, 20);
+
+        const view = {
+            state,
+            dom: root,
+            contentDOM: content,
+            posAtDOM: (node: Node) => {
+                if (node === line1) return state.doc.line(1).from;
+                if (node === line2) return state.doc.line(2).from;
+                if (node === line3) return state.doc.line(3).from;
+                throw new Error('unknown node');
+            },
+            coordsAtPos: () => createRect(100, 12, 10, 16) as unknown as DOMRect,
+        } as unknown as EditorView;
+
+        const top = getHandleTopPxForLine(view, 2);
+        expect(top).toBe(52);
     });
 });

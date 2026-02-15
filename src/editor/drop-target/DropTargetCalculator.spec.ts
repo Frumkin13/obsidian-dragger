@@ -11,6 +11,20 @@ function originalElementFromPoint(this: void, x: number, y: number): Element | n
     return document.elementFromPoint(x, y);
 }
 
+function createRect(left: number, top: number, width: number, height: number): DOMRect {
+    return {
+        left,
+        top,
+        right: left + width,
+        bottom: top + height,
+        width,
+        height,
+        x: left,
+        y: top,
+        toJSON: () => ({}),
+    } as DOMRect;
+}
+
 function createViewStub(docText: string): EditorView {
     const state = EditorState.create({ doc: docText });
     const root = document.createElement('div');
@@ -224,5 +238,139 @@ describe('DropTargetCalculator', () => {
 
         expect(first).toEqual(second);
         expect(resolveDropRuleAtInsertion).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses gutter line hit-testing when posAtCoords maps hr pointer to previous line', () => {
+        mockElementFromPoint(null);
+        const state = EditorState.create({ doc: 'first\n---\nthird' });
+        const root = document.createElement('div');
+        root.className = 'cm-editor';
+        const content = document.createElement('div');
+        content.className = 'cm-content';
+        const gutter = document.createElement('div');
+        gutter.className = 'cm-gutter cm-lineNumbers';
+        const row1 = document.createElement('div');
+        row1.className = 'cm-gutterElement';
+        row1.textContent = '1';
+        const row2 = document.createElement('div');
+        row2.className = 'cm-gutterElement';
+        row2.textContent = '2';
+        const row3 = document.createElement('div');
+        row3.className = 'cm-gutterElement';
+        row3.textContent = '3';
+        gutter.append(row1, row2, row3);
+        root.append(content, gutter);
+        document.body.appendChild(root);
+
+        const rootRect = createRect(0, 0, 420, 240);
+        const contentRect = createRect(80, 0, 320, 240);
+        const gutterRect = createRect(20, 0, 40, 240);
+        Object.defineProperty(root, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => rootRect,
+        });
+        Object.defineProperty(content, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => contentRect,
+        });
+        Object.defineProperty(gutter, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => gutterRect,
+        });
+        Object.defineProperty(row1, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(20, 10, 40, 20),
+        });
+        Object.defineProperty(row2, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(20, 40, 40, 20),
+        });
+        Object.defineProperty(row3, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(20, 70, 40, 20),
+        });
+
+        const view = {
+            state,
+            dom: root,
+            contentDOM: content,
+            defaultCharacterWidth: 7,
+            // Simulate hr render overlay mapping bug: y over line 2 still resolves to line 1.
+            posAtCoords: () => state.doc.line(1).from,
+            coordsAtPos: () => createRect(100, 10, 120, 20),
+            domAtPos: () => {
+                throw new Error('unexpected dom lookup');
+            },
+        } as unknown as EditorView;
+
+        const calculator = new DropTargetCalculator(view, createDeps());
+        const validation = calculator.resolveValidatedDropTarget({
+            clientX: 120,
+            clientY: 55,
+            dragSource: createSourceBlock('outside', 9, 9),
+        });
+
+        expect(validation.allowed).toBe(true);
+        expect(validation.targetLineNumber).toBe(3);
+    });
+
+    it('prefers rendered cm-line hit-testing before posAtCoords for hr lines', () => {
+        const state = EditorState.create({ doc: 'first\n---\nthird' });
+        const root = document.createElement('div');
+        root.className = 'cm-editor';
+        const content = document.createElement('div');
+        content.className = 'cm-content';
+        root.appendChild(content);
+        document.body.appendChild(root);
+
+        const line1 = document.createElement('div');
+        line1.className = 'cm-line';
+        const line2 = document.createElement('div');
+        line2.className = 'cm-line';
+        const hr = document.createElement('hr');
+        hr.className = 'cm-hr';
+        line2.appendChild(hr);
+        const line3 = document.createElement('div');
+        line3.className = 'cm-line';
+        content.append(line1, line2, line3);
+
+        Object.defineProperty(root, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(0, 0, 420, 240),
+        });
+        Object.defineProperty(content, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(80, 0, 320, 240),
+        });
+        Object.defineProperty(document, 'elementFromPoint', {
+            configurable: true,
+            writable: true,
+            value: vi.fn(() => hr),
+        });
+
+        const view = {
+            state,
+            dom: root,
+            contentDOM: content,
+            defaultCharacterWidth: 7,
+            posAtCoords: () => state.doc.line(1).from,
+            posAtDOM: (node: Node) => {
+                if (node === line1) return state.doc.line(1).from;
+                if (node === line2) return state.doc.line(2).from;
+                if (node === line3) return state.doc.line(3).from;
+                throw new Error('unexpected node');
+            },
+            coordsAtPos: () => createRect(100, 10, 120, 20),
+        } as unknown as EditorView;
+
+        const calculator = new DropTargetCalculator(view, createDeps());
+        const validation = calculator.resolveValidatedDropTarget({
+            clientX: 120,
+            clientY: 55,
+            dragSource: createSourceBlock('outside', 9, 9),
+        });
+
+        expect(validation.allowed).toBe(true);
+        expect(validation.targetLineNumber).toBe(3);
     });
 });

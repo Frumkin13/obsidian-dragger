@@ -2,6 +2,7 @@ import { EditorView } from '@codemirror/view';
 import { detectBlock, getHeadingSectionRange } from '../block-detector';
 import { BlockInfo, BlockType } from '../../../types';
 import { EMBED_BLOCK_SELECTOR } from '../selectors';
+import { getRenderedMainLineNumberAtPoint } from '../line-hit-test';
 
 const EMBED_HIT_FALLBACK_PADDING_PX = 8;
 
@@ -9,22 +10,24 @@ export class DragSourceResolver {
     constructor(private readonly view: EditorView) { }
 
     getBlockInfoForHandle(handle: HTMLElement): BlockInfo | null {
-        // First, try DOM position for most accurate resolution
+        // Line handles are absolutely positioned overlays, so DOM position can drift
+        // from the bound source line (especially on rendered blocks like `---`).
+        // Prefer handle attributes as the authoritative source.
+        const startAttr = handle.getAttribute('data-block-start');
+        const startLine = startAttr !== null ? Number(startAttr) + 1 : NaN;
+        if (Number.isInteger(startLine) && startLine >= 1 && startLine <= this.view.state.doc.lines) {
+            const block = this.getDraggableBlockAtLine(startLine);
+            if (block) return block;
+        }
+
+        // Fallback to DOM lookup for unexpected/legacy handles without attributes.
         try {
             const pos = this.view.posAtDOM(handle);
             const lineNumber = this.view.state.doc.lineAt(pos).number;
             const block = this.getDraggableBlockAtLine(lineNumber);
             if (block) return block;
         } catch {
-            // DOM lookup failed, fall through to attribute-based resolution
-        }
-
-        // Fallback to attribute-based resolution when DOM lookup fails (e.g., after scrolling)
-        const startAttr = handle.getAttribute('data-block-start');
-        const startLine = startAttr !== null ? Number(startAttr) + 1 : NaN;
-        if (Number.isInteger(startLine) && startLine >= 1 && startLine <= this.view.state.doc.lines) {
-            const block = this.getDraggableBlockAtLine(startLine);
-            if (block) return block;
+            // ignore
         }
 
         return null;
@@ -41,6 +44,12 @@ export class DragSourceResolver {
         if (embedAtPoint) {
             const embedBlock = this.getBlockInfoForEmbed(embedAtPoint);
             if (embedBlock) return embedBlock;
+        }
+
+        const renderedLineNumber = getRenderedMainLineNumberAtPoint(this.view, clientX, clientY);
+        if (renderedLineNumber !== null) {
+            const renderedBlock = this.getDraggableBlockAtLine(renderedLineNumber);
+            if (renderedBlock) return renderedBlock;
         }
 
         const contentRect = this.view.contentDOM.getBoundingClientRect();
