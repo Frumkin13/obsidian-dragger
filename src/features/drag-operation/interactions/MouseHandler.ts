@@ -54,6 +54,7 @@ type PointerPressData = {
     timeoutId: number | null;
     cancelMoveThresholdPx: number;
     startMoveThresholdPx: number;
+    suppressNativeInteraction: boolean;
 };
 
 type PointerTerminalMode = 'up' | 'cancel';
@@ -127,10 +128,6 @@ export class DragEventHandler {
             && this.mobile.isWithinMobileTextLineOrEmbedArea(target, e.clientX, e.clientY);
         if (!inMobileHotzoneBand && !inTextLineOrEmbedArea) return;
 
-        // Mobile interaction hit should be consumed first to avoid editor focus/keyboard side effects.
-        e.preventDefault();
-        e.stopPropagation();
-
         const blockInfo = this.deps.getBlockInfoAtPoint(e.clientX, e.clientY);
         if (!blockInfo) return;
         if (this.deps.isBlockInsideRenderedTableCell(blockInfo)) return;
@@ -147,7 +144,8 @@ export class DragEventHandler {
         }
 
         if (inTextLineOrEmbedArea) {
-            this.beginPressPendingDrag(blockInfo, e);
+            // Keep native tap-to-focus behavior in text/embed areas.
+            this.beginPressPendingDrag(blockInfo, e, { deferInterception: true });
         }
     };
 
@@ -402,16 +400,19 @@ export class DragEventHandler {
     private beginPressPendingDrag(
         blockInfo: BlockInfo,
         e: PointerEvent,
-        options?: { skipLongPress?: boolean }
+        options?: { skipLongPress?: boolean; deferInterception?: boolean }
     ): void {
         const pointerType = e.pointerType || null;
-        e.preventDefault();
-        e.stopPropagation();
-        this.pointer.tryCapturePointer(e);
-        if (pointerType !== 'mouse') {
-            this.mobile.lockMobileInteraction();
-            this.mobile.attachFocusGuard();
-            this.mobile.suppressMobileKeyboard();
+        const suppressNativeInteraction = options?.deferInterception !== true;
+        if (suppressNativeInteraction) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.pointer.tryCapturePointer(e);
+            if (pointerType !== 'mouse') {
+                this.mobile.lockMobileInteraction();
+                this.mobile.attachFocusGuard();
+                this.mobile.suppressMobileKeyboard();
+            }
         }
         const skipLongPress = options?.skipLongPress === true;
         const longPressMs = pointerType === 'mouse'
@@ -424,6 +425,15 @@ export class DragEventHandler {
                 const state = this.gesture.press;
                 if (state.pointerId !== e.pointerId) return;
                 state.longPressReady = true;
+                if (!state.suppressNativeInteraction) {
+                    state.suppressNativeInteraction = true;
+                    if (state.pointerType !== 'mouse') {
+                        this.mobile.lockMobileInteraction();
+                        this.mobile.attachFocusGuard();
+                        this.mobile.suppressMobileKeyboard();
+                    }
+                    this.pointer.tryCapturePointerById(state.pointerId);
+                }
                 this.emitPressPendingLifecycle(state.sourceBlock, state.pointerType, true);
             }, longPressMs);
         const startMoveThresholdPx = skipLongPress
@@ -442,6 +452,7 @@ export class DragEventHandler {
             timeoutId,
             cancelMoveThresholdPx: MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX,
             startMoveThresholdPx,
+            suppressNativeInteraction,
         } };
         this.pointer.attachPointerListeners();
         this.emitPressPendingLifecycle(blockInfo, pointerType, skipLongPress);
@@ -885,12 +896,12 @@ export class DragEventHandler {
         ) {
             this.clearCommittedRangeSelection();
         }
-        if (!this.hasActivePointerSession()) return;
+        if (!this.shouldSuppressNativeInteractionForActiveGesture()) return;
         this.mobile.suppressMobileKeyboard(e.target);
     }
 
     private handleTouchMove(e: TouchEvent): void {
-        if (!this.hasActivePointerSession()) return;
+        if (!this.shouldSuppressNativeInteractionForActiveGesture()) return;
         if (e.cancelable) {
             e.preventDefault();
         }
@@ -898,6 +909,19 @@ export class DragEventHandler {
 
     private hasActivePointerSession(): boolean {
         return this.gesture.phase !== 'idle';
+    }
+
+    private shouldSuppressNativeInteractionForActiveGesture(): boolean {
+        switch (this.gesture.phase) {
+            case 'dragging':
+                return true;
+            case 'range_selecting':
+                return this.gesture.rangeSelect.isIntercepting;
+            case 'press_pending':
+                return this.gesture.press.suppressNativeInteraction;
+            default:
+                return false;
+        }
     }
 
     private resetInteractionSession(options?: {
