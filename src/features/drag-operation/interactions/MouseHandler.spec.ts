@@ -85,6 +85,7 @@ function createViewStub(lineCountOrLines: number | string[] = 1): EditorView {
         dom: root,
         contentDOM: content,
         state,
+        hasFocus: false,
         visibleRanges: [{ from: 0, to: docLength }],
         coordsAtPos: (pos: number) => {
             const line = state.doc.lineAt(pos);
@@ -319,6 +320,66 @@ describe('DragEventHandler', () => {
         }), 'touch');
         expect(performDropAtPoint).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
+        expect(view.dom.querySelector('.dnd-range-selection-link')).toBeNull();
+        handler.destroy();
+    });
+
+    it('does not start text long-press drag while editor is focused with a caret', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        const scheduleDropIndicatorUpdate = vi.fn();
+        const performDropAtPoint = vi.fn();
+
+        Object.defineProperty(view, 'hasFocus', {
+            configurable: true,
+            value: true,
+        });
+
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate,
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint,
+        });
+
+        handler.attach();
+        const downEvent = dispatchPointer(line!, 'pointerdown', {
+            pointerId: 913,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+        expect(downEvent.defaultPrevented).toBe(false);
+
+        vi.advanceTimersByTime(260);
+        const touchMove = dispatchTouchMove(window);
+        expect(touchMove.defaultPrevented).toBe(false);
+
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 913,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 913,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(scheduleDropIndicatorUpdate).not.toHaveBeenCalled();
+        expect(performDropAtPoint).not.toHaveBeenCalled();
         expect(view.dom.querySelector('.dnd-range-selection-link')).toBeNull();
         handler.destroy();
     });

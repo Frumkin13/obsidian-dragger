@@ -144,6 +144,7 @@ export class DragEventHandler {
         }
 
         if (inTextLineOrEmbedArea) {
+            if (this.shouldDisableMobileTextLongPressDragInInputState()) return;
             // Keep native tap-to-focus behavior in text/embed areas.
             this.beginPressPendingDrag(blockInfo, e, { deferInterception: true });
         }
@@ -298,6 +299,11 @@ export class DragEventHandler {
         if (e.pointerType === 'mouse') return false;
         if (!this.mobile.isMobileEnvironment()) return false;
         return true;
+    }
+
+    private shouldDisableMobileTextLongPressDragInInputState(): boolean {
+        if (!this.view.hasFocus) return false;
+        return this.view.state.selection.main.empty;
     }
 
     private getRangeSelectConfig(pointerType: string | null): RangeSelectConfig {
