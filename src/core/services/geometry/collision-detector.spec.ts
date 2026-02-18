@@ -211,6 +211,53 @@ describe('DropTargetCalculator', () => {
         expect(validation.reason).toBe('no_anchor');
     });
 
+    it('targets after blank last line when pointer is in the lower half of that blank line', () => {
+        mockElementFromPoint(null);
+        const state = EditorState.create({ doc: 'first\nsecond\n' });
+        const root = document.createElement('div');
+        root.className = 'cm-editor';
+        const content = document.createElement('div');
+        content.className = 'cm-content';
+        root.appendChild(content);
+        document.body.appendChild(root);
+
+        Object.defineProperty(root, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(0, 0, 420, 240),
+        });
+        Object.defineProperty(content, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(80, 0, 320, 240),
+        });
+
+        const line1 = state.doc.line(1);
+        const line2 = state.doc.line(2);
+        const line3 = state.doc.line(3);
+        const view = {
+            state,
+            dom: root,
+            contentDOM: content,
+            defaultCharacterWidth: 7,
+            posAtCoords: () => line3.from,
+            coordsAtPos: (pos: number) => {
+                if (pos === line1.from || pos === line1.to) return createRect(100, 10, 120, 20);
+                if (pos === line2.from || pos === line2.to) return createRect(100, 40, 120, 20);
+                if (pos === line3.from || pos === line3.to) return createRect(100, 70, 120, 20);
+                return createRect(100, 70, 120, 20);
+            },
+        } as unknown as EditorView;
+
+        const calculator = new DropTargetCalculator(view, createDeps());
+        const validation = calculator.resolveValidatedDropTarget({
+            clientX: 120,
+            clientY: 89,
+            dragSource: createSourceBlock('outside', 8, 8),
+        });
+
+        expect(validation.allowed).toBe(true);
+        expect(validation.targetLineNumber).toBe(4);
+    });
+
     it('reuses cached validation result for repeated identical input', () => {
         mockElementFromPoint(null);
         const resolveDropRuleAtInsertion = vi.fn(() => ({

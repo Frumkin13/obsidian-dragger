@@ -1121,6 +1121,59 @@ describe('DragEventHandler', () => {
         handler.destroy();
     });
 
+    it('uses configured touch long-press duration for multi-line selection mode', () => {
+        const view = createViewStub(8);
+        const handle = document.createElement('div');
+        handle.className = 'dnd-drag-handle';
+        handle.setAttribute('draggable', 'true');
+        view.dom.appendChild(handle);
+
+        const sourceBlock = createBlock('- item', 1, 1);
+        const beginPointerDragSession = vi.fn();
+        const performDropAtPoint = vi.fn();
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => null,
+            isBlockInsideRenderedTableCell: () => false,
+            getMultiLineSelectionLongPressMs: () => 400,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint,
+        });
+
+        handler.attach();
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 170,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(450);
+
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 170,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 105,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 170,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 105,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(performDropAtPoint).not.toHaveBeenCalled();
+        const link = view.dom.querySelector<HTMLElement>('.dnd-range-selection-link');
+        expect(link).not.toBeNull();
+        expect(link?.classList.contains('is-active')).toBe(true);
+        handler.destroy();
+    });
+
     it('clears committed selection when clicking content area on the right side', () => {
         const view = createViewStub(8);
         const handle = document.createElement('div');

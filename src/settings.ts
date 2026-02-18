@@ -15,6 +15,21 @@ export type {
     HandleVisibilityMode,
 } from './shared/types/settings-types';
 
+export const DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS = 900;
+const MIN_MULTI_LINE_SELECTION_LONG_PRESS_MS = 300;
+const MAX_MULTI_LINE_SELECTION_LONG_PRESS_MS = 2000;
+const MULTI_LINE_SELECTION_LONG_PRESS_STEP_MS = 50;
+
+export function normalizeMultiLineSelectionLongPressMs(value: unknown): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS;
+    }
+    return Math.max(
+        MIN_MULTI_LINE_SELECTION_LONG_PRESS_MS,
+        Math.min(MAX_MULTI_LINE_SELECTION_LONG_PRESS_MS, Math.round(value))
+    );
+}
+
 export const DEFAULT_SETTINGS: DragNDropSettings = {
     handleColorMode: 'theme',
     handleColor: '#8a8a8a',
@@ -25,6 +40,7 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     indicatorColor: '#7a7a7a',
     enableCrossFileDrag: false,
     enableMultiLineSelection: true,
+    multiLineSelectionLongPressMs: DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS,
     enableMobileTextLongPressDrag: true,
     enableDragSourceHighlight: true,
     enableListDropHighlight: true,
@@ -201,6 +217,23 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.enableMultiLineSelection)
                 .onChange(async (value) => {
                     this.plugin.settings.enableMultiLineSelection = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName(i.multiLineSelectionLongPressMs)
+            .setDesc(i.multiLineSelectionLongPressMsDesc)
+            .addSlider((slider) => slider
+                .setLimits(
+                    MIN_MULTI_LINE_SELECTION_LONG_PRESS_MS,
+                    MAX_MULTI_LINE_SELECTION_LONG_PRESS_MS,
+                    MULTI_LINE_SELECTION_LONG_PRESS_STEP_MS,
+                )
+                .setDynamicTooltip()
+                .setValue(this.plugin.settings.multiLineSelectionLongPressMs)
+                .onChange(async (value) => {
+                    this.plugin.settings.multiLineSelectionLongPressMs =
+                        normalizeMultiLineSelectionLongPressMs(value);
                     await this.plugin.saveSettings();
                 }));
 

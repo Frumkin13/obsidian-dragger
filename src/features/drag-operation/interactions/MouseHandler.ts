@@ -32,6 +32,8 @@ const MOBILE_DRAG_LONG_PRESS_MS = 200;
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
 const MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX = 12;
 const TOUCH_RANGE_SELECT_LONG_PRESS_MS = 900;
+const MIN_TOUCH_RANGE_SELECT_LONG_PRESS_MS = 300;
+const MAX_TOUCH_RANGE_SELECT_LONG_PRESS_MS = 2000;
 const MOUSE_RANGE_SELECT_LONG_PRESS_MS = 260;
 const MOUSE_RANGE_SELECT_CANCEL_MOVE_THRESHOLD_PX = 12;
 const RANGE_SELECTION_GRIP_HIT_PADDING_PX = 20;
@@ -72,6 +74,7 @@ export interface DragEventHandlerDeps {
     getBlockInfoAtPoint: (clientX: number, clientY: number) => BlockInfo | null;
     isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
     isMultiLineSelectionEnabled?: () => boolean;
+    getMultiLineSelectionLongPressMs?: () => number;
     isMobileTextLongPressDragEnabled?: () => boolean;
     beginPointerDragSession: (blockInfo: BlockInfo) => void;
     finishDragSession: () => void;
@@ -314,7 +317,7 @@ export class DragEventHandler {
         }
 
         return {
-            longPressMs: TOUCH_RANGE_SELECT_LONG_PRESS_MS,
+            longPressMs: this.getTouchRangeSelectLongPressMs(),
         };
     }
 
@@ -1053,5 +1056,19 @@ export class DragEventHandler {
     private isMobileTextLongPressDragEnabled(): boolean {
         if (!this.deps.isMobileTextLongPressDragEnabled) return true;
         return this.deps.isMobileTextLongPressDragEnabled();
+    }
+
+    private getTouchRangeSelectLongPressMs(): number {
+        if (!this.deps.getMultiLineSelectionLongPressMs) {
+            return TOUCH_RANGE_SELECT_LONG_PRESS_MS;
+        }
+        const value = this.deps.getMultiLineSelectionLongPressMs();
+        if (!Number.isFinite(value)) {
+            return TOUCH_RANGE_SELECT_LONG_PRESS_MS;
+        }
+        return Math.max(
+            MIN_TOUCH_RANGE_SELECT_LONG_PRESS_MS,
+            Math.min(MAX_TOUCH_RANGE_SELECT_LONG_PRESS_MS, Math.round(value))
+        );
     }
 }

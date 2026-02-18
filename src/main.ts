@@ -7,6 +7,7 @@ import {
     DEFAULT_SETTINGS,
     DragNDropSettingTab,
     HandleVisibilityMode,
+    normalizeMultiLineSelectionLongPressMs,
     normalizeDragSourceVisualStyle,
 } from './settings';
 import { DragLifecycleEvent, DragLifecycleListener } from './shared/types/drag-events';
@@ -49,6 +50,9 @@ export default class DragNDropPlugin extends Plugin {
         }
         this.settings.enableDragSourceHighlight = this.settings.enableDragSourceHighlight !== false;
         this.settings.enableListDropHighlight = this.settings.enableListDropHighlight !== false;
+        this.settings.multiLineSelectionLongPressMs = normalizeMultiLineSelectionLongPressMs(
+            this.settings.multiLineSelectionLongPressMs
+        );
         if (this.settings.enableCrossFileDrag) {
             this.settings.enableCrossFileDrag = false;
         }
@@ -66,6 +70,9 @@ export default class DragNDropPlugin extends Plugin {
         const visibility: HandleVisibilityMode = this.settings.handleVisibility ?? 'hover';
         body.classList.toggle('dnd-handles-always', visibility === 'always');
         body.classList.toggle('dnd-handles-hidden', visibility === 'hidden');
+        this.settings.multiLineSelectionLongPressMs = normalizeMultiLineSelectionLongPressMs(
+            this.settings.multiLineSelectionLongPressMs
+        );
 
         const dragSourceVisualStyle = normalizeDragSourceVisualStyle(this.settings.dragSourceVisualStyle);
         this.settings.dragSourceVisualStyle = dragSourceVisualStyle;

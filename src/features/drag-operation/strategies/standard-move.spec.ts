@@ -32,6 +32,28 @@ function createListBlock(doc: EditorState['doc'], startLine: number, endLine: nu
     };
 }
 
+function createMutableView(state: EditorState): {
+    view: EditorView;
+    dispatch: ReturnType<typeof vi.fn>;
+    getState: () => EditorState;
+} {
+    let currentState = state;
+    const dispatch = vi.fn((tr: Parameters<EditorState['update']>[0]) => {
+        currentState = currentState.update(tr).state;
+    });
+    const view = {
+        get state() {
+            return currentState;
+        },
+        dispatch,
+    } as unknown as EditorView;
+    return {
+        view,
+        dispatch,
+        getState: () => currentState,
+    };
+}
+
 describe('BlockMover', () => {
     it('skips dispatch when container policy blocks the drop', () => {
         const state = EditorState.create({ doc: 'alpha\nbeta\ngamma' });
@@ -206,5 +228,237 @@ describe('BlockMover', () => {
         });
 
         expect(dispatch).toHaveBeenCalledTimes(1);
+    });
+
+    it('moves block to end without merging with existing last line content', () => {
+        const initialState = EditorState.create({ doc: 'alpha\nbeta\ngamma' });
+        const { view, getState } = createMutableView(initialState);
+        const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(
+            () => 0 as unknown as ReturnType<typeof setTimeout>
+        );
+        const mover = new BlockMover({
+            view,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+        });
+
+        mover.moveBlock({
+            sourceBlock: createBlockFromLine(initialState.doc, 1),
+            targetPos: initialState.doc.length,
+            targetLineNumberOverride: initialState.doc.lines + 1,
+        });
+
+        expect(getState().doc.toString()).toBe('beta\ngamma\nalpha');
+        setTimeoutSpy.mockRestore();
+    });
+
+    it('moves last line to another position without leaving an extra trailing blank line', () => {
+        const initialState = EditorState.create({ doc: 'alpha\nbeta\ngamma' });
+        const { view, getState } = createMutableView(initialState);
+        const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(
+            () => 0 as unknown as ReturnType<typeof setTimeout>
+        );
+        const mover = new BlockMover({
+            view,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+        });
+
+        mover.moveBlock({
+            sourceBlock: createBlockFromLine(initialState.doc, 3),
+            targetPos: initialState.doc.line(1).from,
+            targetLineNumberOverride: 1,
+        });
+
+        expect(getState().doc.toString()).toBe('gamma\nalpha\nbeta');
+        setTimeoutSpy.mockRestore();
+    });
+
+    it('moves last text line out of a terminal blank-line document while preserving terminal blank line', () => {
+        const initialState = EditorState.create({ doc: 'alpha\nbeta\n' });
+        const { view, getState } = createMutableView(initialState);
+        const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(
+            () => 0 as unknown as ReturnType<typeof setTimeout>
+        );
+        const mover = new BlockMover({
+            view,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+        });
+
+        mover.moveBlock({
+            sourceBlock: createBlockFromLine(initialState.doc, 2),
+            targetPos: initialState.doc.line(1).from,
+            targetLineNumberOverride: 1,
+        });
+
+        expect(getState().doc.toString()).toBe('beta\nalpha\n');
+        setTimeoutSpy.mockRestore();
+    });
+
+    it('moves last text line to the blank-tail insertion slot without dropping a line', () => {
+        const initialState = EditorState.create({ doc: 'alpha\nbeta\n' });
+        const { view, getState } = createMutableView(initialState);
+        const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(
+            () => 0 as unknown as ReturnType<typeof setTimeout>
+        );
+        const mover = new BlockMover({
+            view,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+        });
+
+        mover.moveBlock({
+            sourceBlock: createBlockFromLine(initialState.doc, 2),
+            targetPos: initialState.doc.line(initialState.doc.lines).from,
+            targetLineNumberOverride: initialState.doc.lines,
+        });
+
+        expect(getState().doc.toString()).toBe('alpha\nbeta\n');
+        setTimeoutSpy.mockRestore();
+    });
+
+    it('moves a non-terminal source into penultimate line without removing trailing blank line', () => {
+        const initialState = EditorState.create({ doc: 'alpha\nbeta\ngamma\n' });
+        const { view, getState } = createMutableView(initialState);
+        const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(
+            () => 0 as unknown as ReturnType<typeof setTimeout>
+        );
+        const mover = new BlockMover({
+            view,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+        });
+
+        mover.moveBlock({
+            sourceBlock: createBlockFromLine(initialState.doc, 1),
+            targetPos: initialState.doc.line(initialState.doc.lines).from,
+            targetLineNumberOverride: initialState.doc.lines,
+        });
+
+        expect(getState().doc.toString()).toBe('beta\ngamma\nalpha\n');
+        setTimeoutSpy.mockRestore();
+    });
+
+    it('moves last text line after terminal blank slot without dropping a line', () => {
+        const initialState = EditorState.create({ doc: 'alpha\nbeta\n' });
+        const { view, getState } = createMutableView(initialState);
+        const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(
+            () => 0 as unknown as ReturnType<typeof setTimeout>
+        );
+        const mover = new BlockMover({
+            view,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+        });
+
+        mover.moveBlock({
+            sourceBlock: createBlockFromLine(initialState.doc, 2),
+            targetPos: initialState.doc.length,
+            targetLineNumberOverride: initialState.doc.lines + 1,
+        });
+
+        expect(getState().doc.toString()).toBe('alpha\n\nbeta');
+        setTimeoutSpy.mockRestore();
+    });
+
+    it('moves block into trailing empty last line while preserving terminal blank line', () => {
+        const initialState = EditorState.create({ doc: 'alpha\nbeta\n' });
+        const { view, getState } = createMutableView(initialState);
+        const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(
+            () => 0 as unknown as ReturnType<typeof setTimeout>
+        );
+        const mover = new BlockMover({
+            view,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+        });
+
+        mover.moveBlock({
+            sourceBlock: createBlockFromLine(initialState.doc, 1),
+            targetPos: initialState.doc.line(initialState.doc.lines).from,
+            targetLineNumberOverride: initialState.doc.lines,
+        });
+
+        expect(getState().doc.toString()).toBe('beta\nalpha\n');
+        setTimeoutSpy.mockRestore();
+    });
+
+    it('keeps trailing empty line when targeting after the final blank line', () => {
+        const initialState = EditorState.create({ doc: 'alpha\nbeta\n' });
+        const { view, getState } = createMutableView(initialState);
+        const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(
+            () => 0 as unknown as ReturnType<typeof setTimeout>
+        );
+        const mover = new BlockMover({
+            view,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+        });
+
+        mover.moveBlock({
+            sourceBlock: createBlockFromLine(initialState.doc, 1),
+            targetPos: initialState.doc.length,
+            targetLineNumberOverride: initialState.doc.lines + 1,
+        });
+
+        expect(getState().doc.toString()).toBe('beta\n\nalpha');
+        setTimeoutSpy.mockRestore();
     });
 });

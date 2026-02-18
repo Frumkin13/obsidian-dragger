@@ -418,10 +418,26 @@ export class DropTargetCalculator {
         let showAtBottom = false;
         if (!forcedLineNumber) {
             const isBlankLine = line.text.trim().length === 0;
-            showAtBottom = !isBlankLine;
             if (isBlankLine) {
-                forcedLineNumber = line.number;
+                const visualMidY = this.getVisualLineMidY(line.number, line.from);
+                if (visualMidY !== null) {
+                    forcedLineNumber = info.clientY > visualMidY
+                        ? line.number + 1
+                        : line.number;
+                } else {
+                    const lineStart = getCoordsAtPos(this.view, line.from, frameCache);
+                    const lineEnd = getCoordsAtPos(this.view, line.to, frameCache);
+                    if (lineStart && lineEnd) {
+                        const midY = (lineStart.top + lineEnd.bottom) / 2;
+                        forcedLineNumber = info.clientY > midY
+                            ? line.number + 1
+                            : line.number;
+                    } else {
+                        forcedLineNumber = line.number;
+                    }
+                }
             } else {
+                showAtBottom = true;
                 const visualMidY = this.getVisualLineMidY(line.number, line.from);
                 if (visualMidY !== null) {
                     showAtBottom = info.clientY > visualMidY;

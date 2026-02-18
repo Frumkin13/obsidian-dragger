@@ -125,18 +125,25 @@ export class BlockMover {
         const insertPos = targetLineNumber > doc.lines
             ? doc.length
             : doc.line(targetLineNumber).from;
-        const deleteFrom = sourceFrom;
-        const deleteTo = Math.min(sourceTo + 1, doc.length);
+        const normalizedInsertText = this.normalizeInsertTextForPosition(
+            doc,
+            insertPos,
+            insertText,
+            targetLineNumber
+        );
+        const deleteRange = this.resolveDeleteRange(doc, sourceFrom, sourceTo, targetLineNumber);
+        const deleteFrom = deleteRange.from;
+        const deleteTo = deleteRange.to;
 
         if (allowInPlaceIndentChange && insertPos === deleteFrom) {
             view.dispatch({
-                changes: { from: deleteFrom, to: deleteTo, insert: insertText },
+                changes: { from: deleteFrom, to: deleteTo, insert: normalizedInsertText },
                 scrollIntoView: false,
             });
         } else {
             view.dispatch({
                 changes: [
-                    { from: insertPos, to: insertPos, insert: insertText },
+                    { from: insertPos, to: insertPos, insert: normalizedInsertText },
                     { from: deleteFrom, to: deleteTo },
                 ].sort((a, b) => b.from - a.from),
                 scrollIntoView: false,
@@ -195,30 +202,42 @@ export class BlockMover {
         const segments = normalizedRanges.map((range) => {
             const startLine = doc.line(range.startLine + 1);
             const endLine = doc.line(range.endLine + 1);
-            const from = startLine.from;
-            const to = Math.min(endLine.to + 1, doc.length);
+            const sourceFrom = startLine.from;
+            const sourceTo = endLine.to;
+            const deleteRange = this.resolveDeleteRange(doc, sourceFrom, sourceTo, targetLineNumber);
             return {
-                from,
-                to,
+                sourceFrom,
+                sourceTo,
+                deleteFrom: deleteRange.from,
+                deleteTo: deleteRange.to,
                 startLineNumber: range.startLine + 1,
             };
         });
 
         const insertText = segments
-            .map((segment) => doc.sliceString(segment.from, segment.to))
+            .map((segment) => doc.sliceString(
+                segment.sourceFrom,
+                Math.min(segment.sourceTo + 1, doc.length)
+            ))
             .join('');
         if (!insertText.length) return;
 
         const insertPos = targetLineNumber > doc.lines
             ? doc.length
             : doc.line(targetLineNumber).from;
-        if (segments.some((segment) => insertPos > segment.from && insertPos < segment.to)) {
+        const normalizedInsertText = this.normalizeInsertTextForPosition(
+            doc,
+            insertPos,
+            insertText,
+            targetLineNumber
+        );
+        if (segments.some((segment) => insertPos > segment.deleteFrom && insertPos < segment.deleteTo)) {
             return;
         }
 
         const changes = [
-            { from: insertPos, to: insertPos, insert: insertText },
-            ...segments.map((segment) => ({ from: segment.from, to: segment.to })),
+            { from: insertPos, to: insertPos, insert: normalizedInsertText },
+            ...segments.map((segment) => ({ from: segment.deleteFrom, to: segment.deleteTo })),
         ].sort((a, b) => b.from - a.from);
 
         view.dispatch({
@@ -272,5 +291,72 @@ export class BlockMover {
             }
         }
         return false;
+    }
+
+    private normalizeInsertTextForPosition(
+        doc: DocLikeWithRange,
+        insertPos: number,
+        insertText: string,
+        targetLineNumber: number
+    ): string {
+        if (insertPos !== doc.length) {
+            return insertText;
+        }
+
+        const lastChar = doc.length > 0
+            ? doc.sliceString(doc.length - 1, doc.length)
+            : '';
+
+        // Inserting at the terminal blank-line slot (targetLineNumber === doc.lines while doc ends with '\n')
+        // should preserve the trailing blank line shape.
+        if (targetLineNumber <= doc.lines && lastChar === '\n') {
+            return insertText;
+        }
+
+        let normalized = insertText;
+        if (normalized.endsWith('\n')) {
+            normalized = normalized.slice(0, -1);
+        }
+        if (!normalized.length) {
+            return normalized;
+        }
+
+        if (doc.length === 0) {
+            return normalized;
+        }
+
+        if (lastChar === '\n') {
+            return `\n${normalized}`;
+        }
+
+        return `\n${normalized}`;
+    }
+
+    private resolveDeleteRange(
+        doc: DocLikeWithRange,
+        sourceFrom: number,
+        sourceTo: number,
+        targetLineNumber: number
+    ): { from: number; to: number } {
+        void targetLineNumber;
+
+        if (sourceTo < doc.length) {
+            return {
+                from: sourceFrom,
+                to: Math.min(sourceTo + 1, doc.length),
+            };
+        }
+
+        if (sourceFrom > 0) {
+            return {
+                from: sourceFrom - 1,
+                to: sourceTo,
+            };
+        }
+
+        return {
+            from: sourceFrom,
+            to: sourceTo,
+        };
     }
 }

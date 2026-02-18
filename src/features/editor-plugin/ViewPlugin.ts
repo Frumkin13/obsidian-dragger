@@ -146,6 +146,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 isBlockInsideRenderedTableCell: (blockInfo) =>
                     isPosInsideRenderedTableCell(this.view, blockInfo.from, { skipLayoutRead: true }),
                 isMultiLineSelectionEnabled: () => plugin.settings.enableMultiLineSelection,
+                getMultiLineSelectionLongPressMs: () => plugin.settings.multiLineSelectionLongPressMs,
                 isMobileTextLongPressDragEnabled: () => plugin.settings.enableMobileTextLongPressDrag,
                 beginPointerDragSession: (blockInfo) => {
                     this.orchestrator.ensureDragPerfSession();
