@@ -6,6 +6,9 @@
     "scripts": {
         "dev": "node esbuild.config.mjs",
         "build": "node esbuild.config.mjs production",
+        "lint": "eslint src --config eslint.config.mjs",
+        "lint:fix": "eslint src --config eslint.config.mjs --fix",
+        "lint:review": "eslint src --config eslint.config.mjs --max-warnings=0",
         "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
         "test": "vitest run",
         "test:watch": "vitest"
@@ -23,6 +26,8 @@
         "@codemirror/view": "^6.0.0",
         "@types/node": "^16.11.6",
         "builtin-modules": "^3.3.0",
+        "eslint": "^9.38.0",
+        "eslint-plugin-obsidianmd": "^0.1.9",
         "esbuild": "^0.17.3",
         "jsdom": "^22.1.0",
         "obsidian": "latest",

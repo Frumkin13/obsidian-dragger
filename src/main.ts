@@ -80,7 +80,9 @@ export default class DragNDropPlugin extends Plugin {
         this.settings.handleHorizontalOffsetPx = handleOffset;
         setHandleHorizontalOffsetPx(handleOffset);
         setAlignToLineNumber(this.settings.alignHandleToLineNumber ?? true);
-        body.style.setProperty('--dnd-handle-horizontal-offset-px', `${handleOffset}px`);
+        body.setCssProps({
+            '--dnd-handle-horizontal-offset-px': `${handleOffset}px`,
+        });
 
         let colorValue = '';
         if (this.settings.handleColorMode === 'theme') {
@@ -90,11 +92,15 @@ export default class DragNDropPlugin extends Plugin {
         }
 
         if (colorValue) {
-            body.style.setProperty('--dnd-handle-color', colorValue);
-            body.style.setProperty('--dnd-handle-color-hover', colorValue);
+            body.setCssProps({
+                '--dnd-handle-color': colorValue,
+                '--dnd-handle-color-hover': colorValue,
+            });
         } else {
-            body.style.removeProperty('--dnd-handle-color');
-            body.style.removeProperty('--dnd-handle-color-hover');
+            body.setCssProps({
+                '--dnd-handle-color': '',
+                '--dnd-handle-color-hover': '',
+            });
         }
 
         let indicatorColorValue = '';
@@ -105,15 +111,21 @@ export default class DragNDropPlugin extends Plugin {
         }
 
         if (indicatorColorValue) {
-            body.style.setProperty('--dnd-drop-indicator-color', indicatorColorValue);
+            body.setCssProps({
+                '--dnd-drop-indicator-color': indicatorColorValue,
+            });
         } else {
-            body.style.removeProperty('--dnd-drop-indicator-color');
+            body.setCssProps({
+                '--dnd-drop-indicator-color': '',
+            });
         }
 
         const handleSize = Math.max(12, Math.min(28, this.settings.handleSize ?? 16));
         setHandleSizePx(handleSize);
-        body.style.setProperty('--dnd-handle-size', `${handleSize}px`);
-        body.style.setProperty('--dnd-handle-core-size', `${Math.round(handleSize * 0.5)}px`);
+        body.setCssProps({
+            '--dnd-handle-size': `${handleSize}px`,
+            '--dnd-handle-core-size': `${Math.round(handleSize * 0.5)}px`,
+        });
         body.setAttribute('data-dnd-handle-icon', this.settings.handleIcon ?? 'dot');
 
         window.dispatchEvent(new Event('dnd:settings-updated'));

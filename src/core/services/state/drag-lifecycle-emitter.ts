@@ -1,4 +1,3 @@
-import { BlockInfo } from '../../../shared/types/block-types';
 import { DragLifecycleEvent, DragListIntent } from '../../../shared/types/drag-events';
 
 export function buildListIntent(raw: {

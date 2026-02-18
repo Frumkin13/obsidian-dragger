@@ -85,6 +85,19 @@ npm run test      # 运行 Vitest 测试套件（116 个测试）
 npm run typecheck # TypeScript 类型检查
 ```
 
+
+## 提交前本地检查
+
+建议在推送前按以下顺序执行，确保与 AutoReview 的检查口径一致：
+
+```bash
+npm install
+npm run lint:review
+npm run typecheck
+npm run test
+```
+
+`lint:review` 使用了 `--max-warnings=0`，可在本地严格拦截会导致审核失败的问题。
 ## 许可
 
 [MIT](LICENSE)
@@ -94,3 +107,4 @@ npm run typecheck # TypeScript 类型检查
 欢迎提交 PR 和 Issue！
 
 如果这个插件对你有帮助，欢迎在 GitHub 点个 ⭐
+

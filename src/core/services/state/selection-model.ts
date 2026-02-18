@@ -2,11 +2,7 @@ import { EditorState } from '@codemirror/state';
 import { BlockInfo, LineRange } from '../../../shared/types/block-types';
 import { detectBlock } from '../../model/block/block-factory';
 import { clampLineNumber } from '../parser/line-number';
-import {
-    normalizeLineRange,
-    mergeLineRanges,
-    cloneLineRanges,
-} from '../parser/line-range-utils';
+import { mergeLineRanges } from '../parser/line-range-utils';
 
 export type { LineRange };
 export {

@@ -87,6 +87,19 @@ npm run test      # run Vitest suite (116 tests)
 npm run typecheck # TypeScript type checking
 ```
 
+
+## Pre-review checks
+
+Run these checks before pushing to ensure local results match AutoReview:
+
+```bash
+npm install
+npm run lint:review
+npm run typecheck
+npm run test
+```
+
+`lint:review` is configured with `--max-warnings=0`, so CI/AutoReview blocker rules are enforced locally.
 ## License
 
 [MIT](LICENSE)
@@ -96,3 +109,4 @@ npm run typecheck # TypeScript type checking
 PRs and issues are welcome!
 
 If this plugin helps you, a ⭐ on GitHub would mean a lot.
+

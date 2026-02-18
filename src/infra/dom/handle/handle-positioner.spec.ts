@@ -373,11 +373,11 @@ describe('handle-position', () => {
         line1El.className = 'cm-line';
         const preview = document.createElement('div');
         preview.className = 'cm-preview-code-block';
-        preview.textContent = 'const a = 1;';
+        preview.textContent = 'Code line';
         line1El.appendChild(preview);
         const line2El = document.createElement('div');
         line2El.className = 'cm-line';
-        line2El.textContent = 'const a = 1;';
+        line2El.textContent = 'Code line';
         const line3El = document.createElement('div');
         line3El.className = 'cm-line';
         line3El.textContent = '```';
@@ -394,7 +394,7 @@ describe('handle-position', () => {
         const line1 = state.doc.line(1);
         const line2 = state.doc.line(2);
         const line3 = state.doc.line(3);
-        const originalCreateRange = document.createRange;
+        const originalCreateRange = document.createRange.bind(document);
         const previewFirstRowRect = createRect(92, 54, 220, 24) as unknown as DOMRect;
         Object.defineProperty(document, 'createRange', {
             configurable: true,
@@ -453,12 +453,12 @@ describe('handle-position', () => {
         formatting.className = 'cm-formatting';
         formatting.textContent = '```';
         const codeText = document.createElement('span');
-        codeText.textContent = 'const a = 1;';
+        codeText.textContent = 'Code line';
         preview.append(formatting, codeText);
         line1El.appendChild(preview);
         const line2El = document.createElement('div');
         line2El.className = 'cm-line';
-        line2El.textContent = 'const a = 1;';
+        line2El.textContent = 'Code line';
         const line3El = document.createElement('div');
         line3El.className = 'cm-line';
         line3El.textContent = '```';
@@ -475,7 +475,7 @@ describe('handle-position', () => {
         const line1 = state.doc.line(1);
         const line2 = state.doc.line(2);
         const line3 = state.doc.line(3);
-        const originalCreateRange = document.createRange;
+        const originalCreateRange = document.createRange.bind(document);
         const formattingRect = createRect(92, 38, 24, 18) as unknown as DOMRect;
         const codeRect = createRect(130, 58, 220, 24) as unknown as DOMRect;
         let selectedNode: Node | null = null;
@@ -571,7 +571,7 @@ describe('handle-position', () => {
 
         const line1 = state.doc.line(1);
         const line2 = state.doc.line(2);
-        const originalCreateRange = document.createRange;
+        const originalCreateRange = document.createRange.bind(document);
         const tableFirstRowRect = createRect(92, 52, 220, 24) as unknown as DOMRect;
         Object.defineProperty(document, 'createRange', {
             configurable: true,
@@ -634,11 +634,11 @@ describe('handle-position', () => {
         const colHandle = document.createElement('div');
         colHandle.className = 'table-col-drag-handle';
         colHandle.setAttribute('data-ignore-swipe', 'true');
-        colHandle.textContent = 'drag-col';
+        colHandle.textContent = 'Drag column';
         const rowHandle = document.createElement('div');
         rowHandle.className = 'table-row-drag-handle';
         rowHandle.setAttribute('data-ignore-swipe', 'true');
-        rowHandle.textContent = 'drag-row';
+        rowHandle.textContent = 'Drag row';
         th.append(cellWrapper, colHandle, rowHandle);
         table.appendChild(th);
         tableWrapper.appendChild(table);
@@ -653,7 +653,7 @@ describe('handle-position', () => {
         setRect(line1El, 80, 40, 300, 120);
 
         const line1 = state.doc.line(1);
-        const originalCreateRange = document.createRange;
+        const originalCreateRange = document.createRange.bind(document);
         const cellRect = createRect(92, 60, 100, 24) as unknown as DOMRect;
         const handleRect = createRect(92, 44, 40, 18) as unknown as DOMRect;
         let selectedNode: Node | null = null;
@@ -734,7 +734,7 @@ describe('handle-position', () => {
         const headColHandle = document.createElement('div');
         headColHandle.className = 'table-col-drag-handle';
         headColHandle.setAttribute('data-ignore-swipe', 'true');
-        headColHandle.textContent = 'drag-col';
+        headColHandle.textContent = 'Drag column';
         headCell.append(headCellWrapper, headColHandle);
         headRow.appendChild(headCell);
         thead.appendChild(headRow);
@@ -745,11 +745,11 @@ describe('handle-position', () => {
         const hiddenCellWrapper = document.createElement('div');
         hiddenCellWrapper.className = 'table-cell-wrapper';
         hiddenCellWrapper.textContent = 'A1';
-        hiddenCellWrapper.style.display = 'none';
+        hiddenCellWrapper.setCssStyles({ display: 'none' });
         const bodyRowHandle = document.createElement('div');
         bodyRowHandle.className = 'table-row-drag-handle';
         bodyRowHandle.setAttribute('data-ignore-swipe', 'true');
-        bodyRowHandle.textContent = 'drag-row';
+        bodyRowHandle.textContent = 'Drag row';
         const innerEditorWrapper = document.createElement('div');
         innerEditorWrapper.className = 'table-cell-wrapper';
         innerEditorWrapper.setAttribute('data-ignore-swipe', 'true');
@@ -780,7 +780,7 @@ describe('handle-position', () => {
         setRect(nestedLine, 100, 98, 80, 20);
 
         const line1 = state.doc.line(1);
-        const originalCreateRange = document.createRange;
+        const originalCreateRange = document.createRange.bind(document);
         const headingCellRect = createRect(92, 60, 100, 24) as unknown as DOMRect;
         const nestedLineRect = createRect(96, 98, 40, 20) as unknown as DOMRect;
         let selectedNode: Node | null = null;
@@ -839,10 +839,10 @@ describe('handle-position', () => {
         content.className = 'cm-content';
         const line1El = document.createElement('div');
         line1El.className = 'cm-line';
-        line1El.textContent = '# Heading';
+        line1El.textContent = 'Heading';
         const line2El = document.createElement('div');
         line2El.className = 'cm-line';
-        line2El.textContent = 'next';
+        line2El.textContent = 'Next';
         content.append(line1El, line2El);
         root.appendChild(content);
         document.body.appendChild(root);
@@ -854,7 +854,7 @@ describe('handle-position', () => {
 
         const line1 = state.doc.line(1);
         const line2 = state.doc.line(2);
-        const originalCreateRange = document.createRange;
+        const originalCreateRange = document.createRange.bind(document);
         const headingTextRect = createRect(92, 52, 140, 24) as unknown as DOMRect;
         Object.defineProperty(document, 'createRange', {
             configurable: true,
@@ -908,7 +908,7 @@ describe('handle-position', () => {
         line1El.textContent = '```js';
         const line2El = document.createElement('div');
         line2El.className = 'cm-line';
-        line2El.textContent = 'const a = 1;';
+        line2El.textContent = 'Code line';
         const line3El = document.createElement('div');
         line3El.className = 'cm-line';
         line3El.textContent = '```';
@@ -925,7 +925,7 @@ describe('handle-position', () => {
         const line1 = state.doc.line(1);
         const line2 = state.doc.line(2);
         const line3 = state.doc.line(3);
-        const originalCreateRange = document.createRange;
+        const originalCreateRange = document.createRange.bind(document);
         const oversizedRect = createRect(92, 40, 220, 96) as unknown as DOMRect;
         Object.defineProperty(document, 'createRange', {
             configurable: true,
@@ -985,7 +985,7 @@ describe('handle-position', () => {
         const row2 = document.createElement('div');
         row2.className = 'cm-gutterElement';
         row2.textContent = '2';
-        row2.style.lineHeight = '24px';
+        row2.setCssStyles({ lineHeight: '24px' });
         const row3 = document.createElement('div');
         row3.className = 'cm-gutterElement';
         row3.textContent = '3';
@@ -1049,3 +1049,4 @@ describe('handle-position', () => {
         expect(top).toBeNull();
     });
 });
+
