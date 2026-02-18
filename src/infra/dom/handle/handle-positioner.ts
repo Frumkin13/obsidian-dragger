@@ -1,4 +1,4 @@
-import { BlockType, EditorView } from '@codemirror/view';
+import { BlockInfo as ViewBlockInfo, BlockType, EditorView } from '@codemirror/view';
 import { getHandleSizePx, getHandleHorizontalOffsetPx, getAlignToLineNumber } from '../../../shared/constants';
 import { getMainContentLineElementForLine } from '../probe/line-dom';
 
@@ -145,7 +145,7 @@ function resolveLineNumberFromGutterElement(
 function getRenderedAnchorBlockForLine(view: EditorView, lineNumber: number): ReturnType<EditorView['lineBlockAt']> | null {
     for (const lineBlock of view.viewportLineBlocks) {
         if (Array.isArray(lineBlock.type)) {
-            let firstSameLineBlock: (typeof lineBlock.type)[number] | null = null;
+            let firstSameLineBlock: ViewBlockInfo | null = null;
             for (const block of lineBlock.type) {
                 if (view.state.doc.lineAt(block.from).number !== lineNumber) continue;
                 firstSameLineBlock ??= block;

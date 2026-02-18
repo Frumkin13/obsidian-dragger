@@ -26,10 +26,10 @@ export const en: ZhCnStrings = {
 
     handleIcon: 'Handle icon',
     handleIconDesc: 'Choose the icon style for drag handles',
-    iconDot: '● Dot',
-    iconGripDots: '⠿ Grip dots',
-    iconGripLines: '☰ Grip lines',
-    iconSquare: '■ Square',
+    iconDot: '● dot',
+    iconGripDots: '⠿ grip dots',
+    iconGripLines: '☰ grip lines',
+    iconSquare: '■ square',
 
     handleSize: 'Handle size',
     handleSizeDesc: 'Adjust the size of drag handles (px)',
