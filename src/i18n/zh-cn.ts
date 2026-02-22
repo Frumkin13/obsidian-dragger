@@ -52,6 +52,8 @@ export const zhCn = {
     multiLineSelectionLongPressMsDesc: '移动端长按多少毫秒后进入多文本块选择模式',
     mobileTextLongPressDrag: '移动端文本长按拖拽',
     mobileTextLongPressDragDesc: '移动端在文本整行或块内容区域长按可直接拖拽当前块，无需左侧手柄',
+    enableCrossFileDrag: '跨文件拖拽',
+    enableCrossFileDragDesc: '允许将块拖拽到另一个已打开文件的编辑器中',
 
     // Align handle to line number
     alignHandleToLineNumber: '手柄对齐行号',

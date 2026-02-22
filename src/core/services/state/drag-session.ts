@@ -5,6 +5,11 @@ import { DROP_HIGHLIGHT_SELECTOR, DROP_INDICATOR_SELECTOR } from '../../../share
 const activeDragSourceByView = new WeakMap<EditorView, BlockInfo | null>();
 const knownViewRefs = new Set<WeakRef<EditorView>>();
 
+export type ActiveDragSourceEntry = {
+    view: EditorView;
+    block: BlockInfo;
+};
+
 export function setActiveDragSourceBlock(view: EditorView, block: BlockInfo | null): void {
     if (block) {
         activeDragSourceByView.set(view, block);
@@ -20,14 +25,24 @@ export function getActiveDragSourceBlock(view?: EditorView): BlockInfo | null {
         return activeDragSourceByView.get(view) ?? null;
     }
 
+    return getActiveDragSourceEntry()?.block ?? null;
+}
+
+export function getActiveDragSourceView(): EditorView | null {
+    return getActiveDragSourceEntry()?.view ?? null;
+}
+
+export function getActiveDragSourceEntry(): ActiveDragSourceEntry | null {
     for (const ref of knownViewRefs) {
-        const v = ref.deref();
-        if (!v) {
+        const view = ref.deref();
+        if (!view) {
             knownViewRefs.delete(ref);
             continue;
         }
-        const block = activeDragSourceByView.get(v);
-        if (block) return block;
+        const block = activeDragSourceByView.get(view);
+        if (block) {
+            return { view, block };
+        }
     }
     return null;
 }

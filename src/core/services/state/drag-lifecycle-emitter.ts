@@ -1,4 +1,4 @@
-import { DragLifecycleEvent, DragListIntent } from '../../../shared/types/drag-events';
+import { DragLifecycleEvent, DragListIntent } from '../../../shared/types/drag';
 
 export function buildListIntent(raw: {
     listContextLineNumber?: number;

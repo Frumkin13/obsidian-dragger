@@ -1,6 +1,11 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../shared/types/block-types';
-import { DragLifecycleEvent, DragListIntent } from '../../shared/types/drag-events';
+import {
+    DragDocumentRelation,
+    DragLifecycleEvent,
+    DragListIntent,
+    DragSourceScope,
+} from '../../shared/types/drag';
 import { createDragHandleElement } from '../../infra/dom/handle/handle-renderer';
 import {
     finishDragSession,
@@ -14,6 +19,7 @@ import { HandleVisibilityController } from '../drag-handle/controller/Visibility
 import { DragPerfSessionManager } from '../editor-plugin/drag-perf-session-manager';
 import { SemanticRefreshScheduler } from '../editor-plugin/Decorations';
 import { DragEventHandler } from './interactions/MouseHandler';
+import { getActiveDragSourceView } from '../../core/services/state/drag-session';
 
 export interface HandleInteractionOrchestratorDeps {
     view: EditorView;
@@ -26,6 +32,7 @@ export interface HandleInteractionOrchestratorDeps {
     getSemanticRefreshScheduler: () => SemanticRefreshScheduler;
     refreshDecorationsAndEmbeds: () => void;
     getDragEventHandler: () => DragEventHandler;
+    resolveEditorDocumentKey?: (view: EditorView) => string | null;
 }
 
 export class HandleInteractionOrchestrator {
@@ -39,6 +46,7 @@ export class HandleInteractionOrchestrator {
     private readonly getSemanticRefreshScheduler: () => SemanticRefreshScheduler;
     private readonly refreshDecorationsAndEmbeds: () => void;
     private readonly getDragEventHandler: () => DragEventHandler;
+    private readonly resolveEditorDocumentKey?: (view: EditorView) => string | null;
 
     constructor(deps: HandleInteractionOrchestratorDeps) {
         this.view = deps.view;
@@ -51,6 +59,7 @@ export class HandleInteractionOrchestrator {
         this.getSemanticRefreshScheduler = deps.getSemanticRefreshScheduler;
         this.refreshDecorationsAndEmbeds = deps.refreshDecorationsAndEmbeds;
         this.getDragEventHandler = deps.getDragEventHandler;
+        this.resolveEditorDocumentKey = deps.resolveEditorDocumentKey;
     }
 
     createHandleElement(getBlockInfo: () => BlockInfo | null): HTMLElement {
@@ -138,11 +147,17 @@ export class HandleInteractionOrchestrator {
     performDropAtPoint(sourceBlock: BlockInfo, clientX: number, clientY: number, pointerType: string | null): void {
         this.ensureDragPerfSession();
         const view = this.view;
+        const sourceView = getActiveDragSourceView();
+        const sourceScope: DragSourceScope = sourceView && sourceView !== view
+            ? 'cross_editor'
+            : 'same_editor';
+        const sourceDocumentRelation = this.resolveDragDocumentRelation(sourceView);
         const validation = this.dropTargetCalculator.resolveValidatedDropTarget({
             clientX,
             clientY,
             dragSource: sourceBlock,
             pointerType,
+            sourceScope,
         });
         const listIntent = this.buildListIntentFromValidation(validation);
         if (!validation.allowed || typeof validation.targetLineNumber !== 'number') {
@@ -169,6 +184,8 @@ export class HandleInteractionOrchestrator {
             listContextLineNumberOverride: validation.listContextLineNumber,
             listIndentDeltaOverride: validation.listIndentDelta,
             listTargetIndentWidthOverride: validation.listTargetIndentWidth,
+            sourceView: sourceScope === 'cross_editor' && sourceView ? sourceView : undefined,
+            sourceDocumentRelation,
         });
         this.emitDragLifecycle({
             state: 'drop_commit',
@@ -272,5 +289,23 @@ export class HandleInteractionOrchestrator {
         if (!handle || !handle.isConnected) return;
         handle.setAttribute('data-block-start', String(blockInfo.startLine));
         handle.setAttribute('data-block-end', String(blockInfo.endLine));
+    }
+
+    private resolveDragDocumentRelation(sourceView: EditorView | null): DragDocumentRelation {
+        if (!sourceView || sourceView === this.view) {
+            return 'same_document';
+        }
+        const resolveDocumentKey = this.resolveEditorDocumentKey;
+        if (!resolveDocumentKey) {
+            return 'different_document';
+        }
+        const sourceDocumentKey = resolveDocumentKey(sourceView);
+        const targetDocumentKey = resolveDocumentKey(this.view);
+        if (!sourceDocumentKey || !targetDocumentKey) {
+            return 'different_document';
+        }
+        return sourceDocumentKey === targetDocumentKey
+            ? 'same_document'
+            : 'different_document';
     }
 }

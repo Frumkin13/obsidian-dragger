@@ -246,8 +246,14 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     this.plugin.settings.enableMobileTextLongPressDrag = value;
                     await this.plugin.saveSettings();
                 }));
-
-        // Cross-file drag remains disabled in this release.
-        // Keep the persisted setting key for backward compatibility, but hide it from UI.
+        new Setting(containerEl)
+            .setName(i.enableCrossFileDrag)
+            .setDesc(i.enableCrossFileDragDesc)
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableCrossFileDrag)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableCrossFileDrag = value;
+                    await this.plugin.saveSettings();
+                }));
     }
 }

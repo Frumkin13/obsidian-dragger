@@ -136,4 +136,43 @@ describe('DropIndicatorManager', () => {
 
         manager.destroy();
     });
+
+    it('keeps only one editor indicator visible across manager instances', () => {
+        const viewA = createViewStub();
+        const viewB = createViewStub();
+        const resolveDropTargetA = vi.fn(() => ({
+            lineNumber: 1,
+            indicatorY: 12,
+            lineRect: { left: 6, width: 120 },
+        }));
+        const resolveDropTargetB = vi.fn(() => ({
+            lineNumber: 2,
+            indicatorY: 26,
+            lineRect: { left: 10, width: 140 },
+        }));
+        const queuedFrames: FrameRequestCallback[] = [];
+        vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+            queuedFrames.push(cb);
+            return queuedFrames.length;
+        });
+        vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => { });
+        vi.spyOn(window, 'getComputedStyle').mockReturnValue({ paddingRight: '0' } as CSSStyleDeclaration);
+
+        const managerA = new DropIndicatorManager(viewA, resolveDropTargetA);
+        const managerB = new DropIndicatorManager(viewB, resolveDropTargetB);
+
+        managerA.scheduleFromPoint(10, 10, null, 'mouse');
+        queuedFrames.shift()?.(0);
+
+        managerB.scheduleFromPoint(20, 20, null, 'mouse');
+        queuedFrames.shift()?.(16);
+
+        const indicators = Array.from(document.querySelectorAll<HTMLElement>('.dnd-drop-indicator'));
+        expect(indicators).toHaveLength(2);
+        expect(indicators[0].classList.contains('dnd-hidden')).toBe(true);
+        expect(indicators[1].classList.contains('dnd-hidden')).toBe(false);
+
+        managerA.destroy();
+        managerB.destroy();
+    });
 });

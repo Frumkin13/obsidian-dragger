@@ -46,6 +46,8 @@ export const en: ZhCnStrings = {
     multiLineSelectionLongPressMsDesc: 'On mobile, hold for this duration before entering multi-block selection mode',
     mobileTextLongPressDrag: 'Mobile text long-press drag',
     mobileTextLongPressDragDesc: 'On mobile, long-press a text line or rendered block content to drag the current block directly without using the left handle',
+    enableCrossFileDrag: 'Cross-file drag',
+    enableCrossFileDragDesc: 'Allow dragging blocks into another open file editor',
 
     alignHandleToLineNumber: 'Align handle to line numbers',
     alignHandleToLineNumberDesc: 'When off, handles are positioned at the editor edge even if line numbers are visible',

@@ -194,6 +194,22 @@ describe('DropTargetCalculator', () => {
         expect(validation.reason).toBe('self_range_blocked');
     });
 
+    it('allows cross-editor scope to bypass self-range rejection', () => {
+        mockElementFromPoint(null);
+        const view = createViewStub('- first\n- second');
+        const calculator = new DropTargetCalculator(view, createDeps());
+
+        const validation = calculator.resolveValidatedDropTarget({
+            clientX: 40,
+            clientY: 5,
+            dragSource: createListSourceBlock('- first', 0, 0),
+            sourceScope: 'cross_editor',
+        });
+
+        expect(validation.allowed).toBe(true);
+        expect(validation.reason).toBeUndefined();
+    });
+
     it('returns no_anchor when insertion anchor cannot be resolved', () => {
         mockElementFromPoint(null);
         const view = createViewStub('plain line');

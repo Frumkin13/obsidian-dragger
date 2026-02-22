@@ -21,6 +21,7 @@ import {
 } from '../../../infra/dom/handle/handle-positioner';
 import { getRenderedMainLineNumberAtPoint } from '../../../infra/dom/probe/line-hit';
 import { getMainContentLineRectForLine } from '../../../infra/dom/probe/line-dom';
+import { DragSourceScope } from '../../../shared/types/drag';
 
 type PerfDurationKey =
     | 'resolve_total'
@@ -115,7 +116,13 @@ export class DropTargetCalculator {
         });
     }
 
-    getDropTargetInfo(info: { clientX: number; clientY: number; dragSource?: BlockInfo | null; pointerType?: string | null }): DropTargetInfo | null {
+    getDropTargetInfo(info: {
+        clientX: number;
+        clientY: number;
+        dragSource?: BlockInfo | null;
+        pointerType?: string | null;
+        sourceScope?: DragSourceScope;
+    }): DropTargetInfo | null {
         const validated = this.resolveValidatedDropTarget(info);
         if (!validated.allowed || typeof validated.targetLineNumber !== 'number' || typeof validated.indicatorY !== 'number') {
             return null;
@@ -131,11 +138,18 @@ export class DropTargetCalculator {
         };
     }
 
-    resolveValidatedDropTarget(info: { clientX: number; clientY: number; dragSource?: BlockInfo | null; pointerType?: string | null }): DropValidationResult {
+    resolveValidatedDropTarget(info: {
+        clientX: number;
+        clientY: number;
+        dragSource?: BlockInfo | null;
+        pointerType?: string | null;
+        sourceScope?: DragSourceScope;
+    }): DropValidationResult {
         const startedAt = this.now();
         const dragSource = info.dragSource ?? null;
         const pointerType = info.pointerType ?? null;
-        const cacheKey = this.buildResolveCacheKey(info.clientX, info.clientY, dragSource, pointerType);
+        const sourceScope = info.sourceScope ?? 'same_editor';
+        const cacheKey = this.buildResolveCacheKey(info.clientX, info.clientY, dragSource, pointerType, sourceScope);
         if (
             this.lastResolvedCache
             && this.lastResolvedCache.state === this.view.state
@@ -159,6 +173,7 @@ export class DropTargetCalculator {
         const result = this.resolveValidatedDropTargetInternal({
             info,
             dragSource,
+            sourceScope,
             frameCache,
             lineMap,
         });
@@ -177,12 +192,19 @@ export class DropTargetCalculator {
     }
 
     private resolveValidatedDropTargetInternal(params: {
-        info: { clientX: number; clientY: number; dragSource?: BlockInfo | null; pointerType?: string | null };
+        info: {
+            clientX: number;
+            clientY: number;
+            dragSource?: BlockInfo | null;
+            pointerType?: string | null;
+            sourceScope?: DragSourceScope;
+        };
         dragSource: BlockInfo | null;
+        sourceScope: DragSourceScope;
         frameCache: GeometryFrameCache;
         lineMap: ReturnType<typeof getLineMap>;
     }): DropValidationResult {
-        const { info, dragSource, frameCache, lineMap } = params;
+        const { info, dragSource, sourceScope, frameCache, lineMap } = params;
 
         if (isPointInsideRenderedTableCell(this.view, info.clientX, info.clientY)) {
             return { allowed: false, reason: 'table_cell' } as const;
@@ -208,6 +230,7 @@ export class DropTargetCalculator {
 
                 const inPlaceRejectReason = this.getInPlaceRejectReason({
                     dragSource,
+                    sourceScope,
                     targetLineNumber: lineNumber,
                     slotContext: containerRule.slotContext,
                     lineMap,
@@ -251,6 +274,7 @@ export class DropTargetCalculator {
             forcedLineNumber: vertical.forcedLineNumber,
             childIntentOnLine: vertical.childIntentOnLine,
             dragSource,
+            sourceScope,
             clientX: info.clientX,
             frameCache,
             lineMap,
@@ -259,6 +283,7 @@ export class DropTargetCalculator {
 
         const inPlaceRejectReason = this.getInPlaceRejectReason({
             dragSource,
+            sourceScope,
             targetLineNumber: vertical.targetLineNumber,
             slotContext: containerRule.slotContext,
             listContextLineNumberOverride: listTarget.listContextLineNumber,
@@ -336,6 +361,7 @@ export class DropTargetCalculator {
 
     private getInPlaceRejectReason(params: {
         dragSource: BlockInfo | null;
+        sourceScope: DragSourceScope;
         targetLineNumber: number;
         slotContext: InsertionSlotContext | null;
         lineMap: LineMap;
@@ -345,6 +371,7 @@ export class DropTargetCalculator {
     }): DropRejectReason | null {
         const {
             dragSource,
+            sourceScope,
             targetLineNumber,
             slotContext,
             lineMap,
@@ -353,7 +380,7 @@ export class DropTargetCalculator {
             listTargetIndentWidthOverride,
         } = params;
 
-        if (!dragSource) return null;
+        if (!dragSource || sourceScope === 'cross_editor') return null;
         const inPlaceStartedAt = this.now();
         const inPlaceValidation = validateInPlaceDrop({
             doc: this.view.state.doc,
@@ -513,10 +540,11 @@ export class DropTargetCalculator {
         clientX: number,
         clientY: number,
         dragSource: BlockInfo | null,
-        pointerType: string | null
+        pointerType: string | null,
+        sourceScope: DragSourceScope
     ): string {
         if (!dragSource) {
-            return `${clientX}|${clientY}|none|${pointerType ?? ''}`;
+            return `${clientX}|${clientY}|none|${pointerType ?? ''}|${sourceScope}`;
         }
         const compositeKey = (dragSource.compositeSelection?.ranges ?? [])
             .map((range) => `${range.startLine}-${range.endLine}`)
@@ -525,6 +553,7 @@ export class DropTargetCalculator {
             clientX,
             clientY,
             pointerType ?? '',
+            sourceScope,
             dragSource.type,
             dragSource.startLine,
             dragSource.endLine,

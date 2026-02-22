@@ -9,6 +9,7 @@ import {
 import { GeometryFrameCache, getCoordsAtPos } from '../../../core/services/geometry/rect-calculator';
 import { DocLike, ParsedLine } from '../../../shared/types/protocol-types';
 import { ListTargetSessionCache } from './list-target-session-cache';
+import { DragSourceScope } from '../../../shared/types/drag';
 
 export type ListDropTargetInfo = {
     listContextLineNumber?: number;
@@ -113,6 +114,7 @@ export class ListDropTargetCalculator {
         forcedLineNumber: number | null;
         childIntentOnLine: boolean;
         dragSource: BlockInfo | null;
+        sourceScope?: DragSourceScope;
         clientX: number;
         frameCache?: GeometryFrameCache;
         lineMap?: LineMap;
@@ -123,6 +125,7 @@ export class ListDropTargetCalculator {
             forcedLineNumber,
             childIntentOnLine,
             dragSource,
+            sourceScope = 'same_editor',
             clientX,
             frameCache,
             lineMap: providedLineMap,
@@ -134,6 +137,7 @@ export class ListDropTargetCalculator {
             lineNumber,
             forcedLineNumber,
             childIntentOnLine,
+            sourceScope,
             dragSource,
             clientX,
         });
@@ -170,7 +174,8 @@ export class ListDropTargetCalculator {
 
         const baseLineNumber = this.resolveReferenceListLineNumber(referenceLineNumber, lineMap);
         if (baseLineNumber === null) return finalize({});
-        const isSelfTarget = !!dragSource
+        const isSelfTarget = sourceScope !== 'cross_editor'
+            && !!dragSource
             && dragSource.type === BlockType.ListItem
             && baseLineNumber === dragSource.startLine + 1;
         const allowChild = !isSelfTarget;

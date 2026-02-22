@@ -6,7 +6,7 @@ import {
     MOBILE_GESTURE_LOCK_CLASS,
     DRAGGING_BODY_CLASS,
 } from '../../shared/dom-selectors';
-import { getActiveDragSourceBlock } from '../../core/services/state/drag-session';
+import { getActiveDragSourceBlock, getActiveDragSourceView } from '../../core/services/state/drag-session';
 import { isPosInsideRenderedTableCell } from '../../infra/dom/probe/table-guard';
 import { prewarmFenceScan } from '../../core/model/block/block-factory';
 import { BlockMover } from '../drag-operation/strategies/standard-move';
@@ -28,8 +28,9 @@ import { ServiceContainer } from '../../core/services/service-container';
 import { hasVisibleLineNumberGutter } from '../../infra/dom/handle/handle-positioner';
 import { DragLifecycleEmitter } from '../../core/services/state/drag-lifecycle-emitter';
 import { HandleInteractionOrchestrator } from '../drag-operation/orchestrator';
-import { DragLifecycleEvent } from '../../shared/types/drag-events';
+import { DragLifecycleEvent, DragSourceScope } from '../../shared/types/drag';
 import { normalizeDragSourceVisualStyle } from '../../settings';
+import { resolveEditorDocumentKey } from '../../infra/obsidian/editor-document-key';
 
 export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
     return class {
@@ -92,6 +93,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                     clientY: info.clientY,
                     dragSource: info.dragSource ?? getActiveDragSourceBlock(this.view) ?? null,
                     pointerType: info.pointerType ?? null,
+                    sourceScope: this.resolveDragSourceScope(),
                 })
                 , {
                     isDropHighlightEnabled: () => plugin.settings.enableListDropHighlight !== false,
@@ -124,6 +126,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 getSemanticRefreshScheduler: () => this.semanticRefreshScheduler,
                 refreshDecorationsAndEmbeds: () => this.refreshDecorationsAndEmbeds(),
                 getDragEventHandler: () => this.dragEventHandler,
+                resolveEditorDocumentKey: (editorView) => resolveEditorDocumentKey(plugin.app, editorView),
             });
             this.lineHandleManager = new LineHandleManager(this.view, {
                 createHandleElement: (getBlockInfo) => this.orchestrator.createHandleElement(getBlockInfo),
@@ -148,6 +151,8 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 isMultiLineSelectionEnabled: () => plugin.settings.enableMultiLineSelection,
                 getMultiLineSelectionLongPressMs: () => plugin.settings.multiLineSelectionLongPressMs,
                 isMobileTextLongPressDragEnabled: () => plugin.settings.enableMobileTextLongPressDrag,
+                isCrossEditorDragActive: () => this.resolveDragSourceScope() === 'cross_editor',
+                isCrossFileDragEnabled: () => plugin.settings.enableCrossFileDrag === true,
                 beginPointerDragSession: (blockInfo) => {
                     this.orchestrator.ensureDragPerfSession();
                     if (this.isDragSourceHighlightEnabled()) {
@@ -385,6 +390,14 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
             if (event.state === 'drop_commit') {
                 this.handleVisibility.clearGrabbedLineNumbers();
             }
+        }
+
+        private resolveDragSourceScope(): DragSourceScope {
+            const sourceView = getActiveDragSourceView();
+            if (!sourceView || sourceView === this.view) {
+                return 'same_editor';
+            }
+            return 'cross_editor';
         }
     };
 }

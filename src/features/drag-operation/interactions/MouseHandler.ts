@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../../shared/types/block-types';
-import { DragLifecycleEvent } from '../../../shared/types/drag-events';
+import { DragLifecycleEvent } from '../../../shared/types/drag';
 import {
     getHandleColumnCenterX,
 } from '../../../infra/dom/handle/handle-positioner';
@@ -27,6 +27,7 @@ import {
     resolveBlockBoundaryAtLine,
 } from '../../../core/services/state/selection-model';
 import { resolveRangeBoundaryAtPoint } from './range-selection-hit';
+import { resolveDragTransferGuard as resolveDragTransferGuardDecision } from './drag-transfer-guard';
 
 const MOBILE_DRAG_LONG_PRESS_MS = 200;
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
@@ -76,6 +77,8 @@ export interface DragEventHandlerDeps {
     isMultiLineSelectionEnabled?: () => boolean;
     getMultiLineSelectionLongPressMs?: () => number;
     isMobileTextLongPressDragEnabled?: () => boolean;
+    isCrossEditorDragActive?: () => boolean;
+    isCrossFileDragEnabled?: () => boolean;
     beginPointerDragSession: (blockInfo: BlockInfo) => void;
     finishDragSession: () => void;
     scheduleDropIndicatorUpdate: (clientX: number, clientY: number, dragSource: BlockInfo | null, pointerType: string | null) => void;
@@ -154,7 +157,8 @@ export class DragEventHandler {
     };
 
     private readonly onEditorDragEnter = (e: DragEvent) => {
-        if (!this.shouldHandleDrag(e)) return;
+        const transferGuard = this.resolveDragTransferGuard(e);
+        if (transferGuard.decision === 'ignore') return;
         if (this.gesture.phase === 'range_selecting') {
             this.clearMouseRangeSelectState();
             this.pointer.detachPointerListeners();
@@ -163,21 +167,34 @@ export class DragEventHandler {
         e.preventDefault();
         e.stopPropagation();
         if (e.dataTransfer) {
-            e.dataTransfer.dropEffect = 'move';
+            e.dataTransfer.dropEffect = transferGuard.dropEffect;
+        }
+        if (transferGuard.decision === 'block') {
+            this.deps.hideDropIndicator();
         }
     };
 
     private readonly onEditorDragOver = (e: DragEvent) => {
-        if (!this.shouldHandleDrag(e)) return;
+        const transferGuard = this.resolveDragTransferGuard(e);
+        if (transferGuard.decision === 'ignore') return;
         e.preventDefault();
         e.stopPropagation();
         if (!e.dataTransfer) return;
-        e.dataTransfer.dropEffect = 'move';
+        e.dataTransfer.dropEffect = transferGuard.dropEffect;
+        if (transferGuard.decision === 'block') {
+            this.deps.hideDropIndicator();
+            return;
+        }
         this.deps.scheduleDropIndicatorUpdate(e.clientX, e.clientY, this.deps.getDragSourceBlock(e), 'mouse');
     };
 
     private readonly onEditorDragLeave = (e: DragEvent) => {
-        if (!this.shouldHandleDrag(e)) return;
+        const transferGuard = this.resolveDragTransferGuard(e);
+        if (transferGuard.decision === 'ignore') return;
+        if (transferGuard.decision === 'block') {
+            this.deps.hideDropIndicator();
+            return;
+        }
         const rect = this.view.dom.getBoundingClientRect();
         if (e.clientX < rect.left || e.clientX > rect.right ||
             e.clientY < rect.top || e.clientY > rect.bottom) {
@@ -186,9 +203,14 @@ export class DragEventHandler {
     };
 
     private readonly onEditorDrop = (e: DragEvent) => {
-        if (!this.shouldHandleDrag(e)) return;
+        const transferGuard = this.resolveDragTransferGuard(e);
+        if (transferGuard.decision === 'ignore') return;
         e.preventDefault();
         e.stopPropagation();
+        if (transferGuard.decision === 'block') {
+            this.deps.hideDropIndicator();
+            return;
+        }
         if (!e.dataTransfer) return;
         const sourceBlock = this.deps.getDragSourceBlock(e);
         if (!sourceBlock) return;
@@ -287,9 +309,12 @@ export class DragEventHandler {
         this.rangeVisual.scheduleRefresh();
     }
 
-    private shouldHandleDrag(e: DragEvent): boolean {
-        if (!e.dataTransfer) return false;
-        return Array.from(e.dataTransfer.types).includes('application/dnd-block');
+    private resolveDragTransferGuard(e: DragEvent) {
+        return resolveDragTransferGuardDecision({
+            event: e,
+            isCrossEditorDrag: this.deps.isCrossEditorDragActive?.() ?? false,
+            isCrossFileDragEnabled: this.deps.isCrossFileDragEnabled?.() ?? false,
+        });
     }
 
     private isMobileEnvironment(): boolean {

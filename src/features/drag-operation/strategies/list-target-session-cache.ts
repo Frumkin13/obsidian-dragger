@@ -1,5 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { ListDropTargetInfo } from './list-target-calculator';
+import { DragSourceScope } from '../../../shared/types/drag';
 
 type MarkerBounds = { markerStartX: number; contentStartX: number } | null;
 
@@ -113,6 +114,7 @@ export class ListTargetSessionCache {
         lineNumber: number;
         forcedLineNumber: number | null;
         childIntentOnLine: boolean;
+        sourceScope: DragSourceScope;
         dragSource: { type: string | number; startLine: number; endLine: number; from: number; to: number };
         clientX: number;
     }): string {
@@ -126,6 +128,7 @@ export class ListTargetSessionCache {
             params.lineNumber,
             params.forcedLineNumber ?? 'n',
             params.childIntentOnLine ? '1' : '0',
+            params.sourceScope,
             clientXBucket,
             params.dragSource.type,
             params.dragSource.startLine,

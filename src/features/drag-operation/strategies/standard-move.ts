@@ -6,6 +6,8 @@ import { InsertionSlotContext } from '../../../core/model/container/insertion-ru
 import { DocLike, DocLikeWithRange, ListContext, ParsedLine } from '../../../shared/types/protocol-types';
 import { ListRenumberer } from './list-reorder';
 import { clampTargetLineNumber } from '../../../shared/utils/math';
+import { moveBlockAcrossEditors } from './cross-editor-move';
+import { DragDocumentRelation } from '../../../shared/types/drag';
 
 export interface BlockMoverDeps {
     view: EditorView;
@@ -49,6 +51,8 @@ export class BlockMover {
         listContextLineNumberOverride?: number;
         listIndentDeltaOverride?: number;
         listTargetIndentWidthOverride?: number;
+        sourceView?: EditorView;
+        sourceDocumentRelation?: DragDocumentRelation;
     }): void {
         const {
             sourceBlock,
@@ -57,7 +61,31 @@ export class BlockMover {
             listContextLineNumberOverride,
             listIndentDeltaOverride,
             listTargetIndentWidthOverride,
+            sourceView,
+            sourceDocumentRelation,
         } = params;
+
+        if (sourceView && sourceView !== this.deps.view && sourceDocumentRelation !== 'same_document') {
+            moveBlockAcrossEditors({
+                sourceView,
+                targetView: this.deps.view,
+                sourceBlock,
+                targetPos,
+                targetLineNumberOverride,
+                listContextLineNumberOverride,
+                listIndentDeltaOverride,
+                listTargetIndentWidthOverride,
+                deps: {
+                    getAdjustedTargetLocation: this.deps.getAdjustedTargetLocation,
+                    resolveDropRuleAtInsertion: this.deps.resolveDropRuleAtInsertion,
+                    parseLineWithQuote: this.deps.parseLineWithQuote,
+                    getListContext: this.deps.getListContext,
+                    getIndentUnitWidth: this.deps.getIndentUnitWidth,
+                    buildInsertText: this.deps.buildInsertText,
+                },
+            });
+            return;
+        }
 
         const compositeRanges = sourceBlock.compositeSelection?.ranges ?? [];
         if (compositeRanges.length > 1) {

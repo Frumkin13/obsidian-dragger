@@ -77,4 +77,23 @@ describe('DragTransfer session scoping', () => {
 
         expect(resolved?.content).toBe('local-block');
     });
+
+    it('returns null for payload-only drag events without an active drag session', () => {
+        const view = createViewStub('line');
+        const payloadBlock = createBlock('payload-only', 0);
+        const event = new Event('drop') as DragEvent;
+        Object.defineProperty(event, 'dataTransfer', {
+            configurable: true,
+            value: {
+                types: ['application/dnd-block'],
+                getData: (type: string) => type === 'application/dnd-block'
+                    ? JSON.stringify(payloadBlock)
+                    : '',
+            },
+        });
+
+        const resolved = getDragSourceBlockFromEvent(event, view);
+
+        expect(resolved).toBeNull();
+    });
 });

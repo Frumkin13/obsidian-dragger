@@ -54,6 +54,41 @@ function createMutableView(state: EditorState): {
     };
 }
 
+function createLinkedViews(state: EditorState): {
+    sourceView: EditorView;
+    targetView: EditorView;
+    sourceDispatch: ReturnType<typeof vi.fn>;
+    targetDispatch: ReturnType<typeof vi.fn>;
+    getState: () => EditorState;
+} {
+    let currentState = state;
+    const sourceDispatch = vi.fn((tr: Parameters<EditorState['update']>[0]) => {
+        currentState = currentState.update(tr).state;
+    });
+    const targetDispatch = vi.fn((tr: Parameters<EditorState['update']>[0]) => {
+        currentState = currentState.update(tr).state;
+    });
+    const sourceView = {
+        get state() {
+            return currentState;
+        },
+        dispatch: sourceDispatch,
+    } as unknown as EditorView;
+    const targetView = {
+        get state() {
+            return currentState;
+        },
+        dispatch: targetDispatch,
+    } as unknown as EditorView;
+    return {
+        sourceView,
+        targetView,
+        sourceDispatch,
+        targetDispatch,
+        getState: () => currentState,
+    };
+}
+
 describe('BlockMover', () => {
     it('skips dispatch when container policy blocks the drop', () => {
         const state = EditorState.create({ doc: 'alpha\nbeta\ngamma' });
@@ -107,6 +142,123 @@ describe('BlockMover', () => {
         const payload = dispatch.mock.calls[0][0];
         expect(Array.isArray(payload.changes)).toBe(true);
         expect(payload.changes).toHaveLength(2);
+        setTimeoutSpy.mockRestore();
+    });
+
+    it('moves a single block across editor views', () => {
+        const sourceInitialState = EditorState.create({ doc: 'alpha\nbeta\ngamma' });
+        const targetInitialState = EditorState.create({ doc: 'one\ntwo' });
+        const { view: sourceView, getState: getSourceState } = createMutableView(sourceInitialState);
+        const { view: targetView, getState: getTargetState } = createMutableView(targetInitialState);
+        const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
+        const mover = new BlockMover({
+            view: targetView,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+        });
+
+        mover.moveBlock({
+            sourceBlock: createBlockFromLine(sourceInitialState.doc, 2),
+            targetPos: targetInitialState.doc.line(2).from,
+            targetLineNumberOverride: 2,
+            sourceView,
+        });
+
+        expect(getTargetState().doc.toString()).toBe('one\nbeta\ntwo');
+        expect(getSourceState().doc.toString()).toBe('alpha\ngamma');
+        setTimeoutSpy.mockRestore();
+    });
+
+    it('moves a composite source across editor views', () => {
+        const sourceInitialState = EditorState.create({ doc: 'alpha\nbeta\ngamma\ndelta\nepsilon' });
+        const targetInitialState = EditorState.create({ doc: 'one\ntwo' });
+        const { view: sourceView, getState: getSourceState } = createMutableView(sourceInitialState);
+        const { view: targetView, getState: getTargetState } = createMutableView(targetInitialState);
+        const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
+        const mover = new BlockMover({
+            view: targetView,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+        });
+
+        const line2 = sourceInitialState.doc.line(2);
+        const line4 = sourceInitialState.doc.line(4);
+        mover.moveBlock({
+            sourceBlock: {
+                type: BlockType.Paragraph,
+                startLine: 1,
+                endLine: 3,
+                from: line2.from,
+                to: line4.to,
+                indentLevel: 0,
+                content: 'beta\ndelta',
+                compositeSelection: {
+                    ranges: [
+                        { startLine: 1, endLine: 1 },
+                        { startLine: 3, endLine: 3 },
+                    ],
+                },
+            },
+            targetPos: targetInitialState.doc.line(2).from,
+            targetLineNumberOverride: 2,
+            sourceView,
+        });
+
+        expect(getTargetState().doc.toString()).toBe('one\nbeta\ndelta\ntwo');
+        expect(getSourceState().doc.toString()).toBe('alpha\ngamma\nepsilon');
+        setTimeoutSpy.mockRestore();
+    });
+
+    it('uses a single-document transaction for same-file cross-window moves', () => {
+        const initialState = EditorState.create({ doc: 'alpha\nbeta\ngamma' });
+        const {
+            sourceView,
+            targetView,
+            sourceDispatch,
+            targetDispatch,
+            getState,
+        } = createLinkedViews(initialState);
+        const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(
+            () => 0 as unknown as ReturnType<typeof setTimeout>
+        );
+        const mover = new BlockMover({
+            view: targetView,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+        });
+
+        mover.moveBlock({
+            sourceBlock: createBlockFromLine(initialState.doc, 2),
+            targetPos: initialState.doc.line(1).from,
+            targetLineNumberOverride: 1,
+            sourceView,
+            sourceDocumentRelation: 'same_document',
+        });
+
+        expect(getState().doc.toString()).toBe('beta\nalpha\ngamma');
+        expect(targetDispatch).toHaveBeenCalledTimes(1);
+        expect(sourceDispatch).not.toHaveBeenCalled();
         setTimeoutSpy.mockRestore();
     });
 

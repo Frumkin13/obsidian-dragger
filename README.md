@@ -68,6 +68,7 @@ Restart Obsidian and enable the plugin.
 | **Indicator color** | Follow theme accent or pick a custom color | Theme |
 | **Multi-line selection** | Enable range-select-then-drag workflow | On |
 | **Mobile text long-press drag** | On mobile, long-press a text line or rendered block content to drag a single block directly | On |
+| **Cross-file drag** | Allow dragging blocks into another open file editor | Off |
 | **Drag source visual style** | Shared style set used by drag-source and list-drop highlights (Outline only / Subtle highlight / Filled highlight) | Subtle highlight |
 | **Drag source highlight** | Toggle highlight for the block being dragged | On |
 | **List drop highlight** | Toggle highlight for list drop target area | On |

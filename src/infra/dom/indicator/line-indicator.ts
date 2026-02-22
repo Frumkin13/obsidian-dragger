@@ -22,6 +22,7 @@ interface DropIndicatorManagerOptions {
 }
 
 export class DropIndicatorManager {
+    private static readonly instances = new Set<DropIndicatorManager>();
     private readonly indicatorEl: HTMLDivElement;
     private readonly highlightEl: HTMLDivElement;
     private pendingDragInfo: { x: number; y: number; dragSource: BlockInfo | null; pointerType: string | null } | null = null;
@@ -34,6 +35,7 @@ export class DropIndicatorManager {
         private readonly resolveDropTarget: DropTargetResolver,
         private readonly options?: DropIndicatorManagerOptions
     ) {
+        DropIndicatorManager.instances.add(this);
         this.indicatorEl = document.createElement('div');
         this.indicatorEl.className = `${DROP_INDICATOR_CLASS} dnd-hidden`;
         document.body.appendChild(this.indicatorEl);
@@ -70,6 +72,7 @@ export class DropIndicatorManager {
         this.hide();
         this.indicatorEl.remove();
         this.highlightEl.remove();
+        DropIndicatorManager.instances.delete(this);
     }
 
     private updateFromPoint(info: { x: number; y: number; dragSource: BlockInfo | null; pointerType: string | null }): void {
@@ -116,6 +119,7 @@ export class DropIndicatorManager {
     }
 
     private renderTargetInfo(targetInfo: DropTargetInfo): void {
+        this.hideOtherInstancesVisuals();
         const editorRect = this.view.dom.getBoundingClientRect();
         const indicatorY = targetInfo.indicatorY;
         const indicatorLeft = targetInfo.lineRect ? targetInfo.lineRect.left : editorRect.left + 35;
@@ -141,6 +145,13 @@ export class DropIndicatorManager {
             });
         } else {
             this.highlightEl.classList.add('dnd-hidden');
+        }
+    }
+
+    private hideOtherInstancesVisuals(): void {
+        for (const instance of DropIndicatorManager.instances) {
+            if (instance === this) continue;
+            instance.hide();
         }
     }
 

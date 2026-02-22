@@ -1,4 +1,4 @@
-import type { BlockInfo } from './block-types';
+import type { BlockInfo } from '../block-types';
 
 export type DragLifecycleState =
     | 'idle'

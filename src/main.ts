@@ -10,7 +10,7 @@ import {
     normalizeMultiLineSelectionLongPressMs,
     normalizeDragSourceVisualStyle,
 } from './settings';
-import { DragLifecycleEvent, DragLifecycleListener } from './shared/types/drag-events';
+import { DragLifecycleEvent, DragLifecycleListener } from './shared/types/drag';
 
 export default class DragNDropPlugin extends Plugin {
     settings: DragNDropSettings;
@@ -50,12 +50,10 @@ export default class DragNDropPlugin extends Plugin {
         }
         this.settings.enableDragSourceHighlight = this.settings.enableDragSourceHighlight !== false;
         this.settings.enableListDropHighlight = this.settings.enableListDropHighlight !== false;
+        this.settings.enableCrossFileDrag = this.settings.enableCrossFileDrag === true;
         this.settings.multiLineSelectionLongPressMs = normalizeMultiLineSelectionLongPressMs(
             this.settings.multiLineSelectionLongPressMs
         );
-        if (this.settings.enableCrossFileDrag) {
-            this.settings.enableCrossFileDrag = false;
-        }
         await this.saveData(this.settings);
         this.applySettings();
     }

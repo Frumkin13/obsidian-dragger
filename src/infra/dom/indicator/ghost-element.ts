@@ -5,6 +5,7 @@ import {
     clearAllActiveDragSourceBlocks,
     clearActiveDragSourceBlock,
     getActiveDragSourceBlock,
+    getActiveDragSourceView,
     hideDropVisuals,
     setActiveDragSourceBlock,
 } from '../../../core/services/state/drag-session';
@@ -58,14 +59,17 @@ export function startDragFromHandle(
     return startDragWithBlockInfo(e, blockInfo, view, handle ?? null);
 }
 
-export function getDragSourceBlockFromEvent(e: DragEvent, view?: EditorView): BlockInfo | null {
-    if (!e.dataTransfer) return getActiveDragSourceBlock(view);
+export function getDragSourceBlockFromEvent(e: DragEvent, _view?: EditorView): BlockInfo | null {
+    const activeSourceView = getActiveDragSourceView();
+    if (!activeSourceView) return null;
+    const fallbackSource = getActiveDragSourceBlock(activeSourceView);
+    if (!e.dataTransfer) return fallbackSource;
     const data = e.dataTransfer.getData('application/dnd-block');
-    if (!data) return getActiveDragSourceBlock(view);
+    if (!data) return fallbackSource;
     try {
         return JSON.parse(data) as BlockInfo;
     } catch {
-        return getActiveDragSourceBlock(view);
+        return fallbackSource;
     }
 }
 
