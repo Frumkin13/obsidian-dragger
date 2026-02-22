@@ -18,7 +18,6 @@ export type {
 export const DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS = 900;
 const MIN_MULTI_LINE_SELECTION_LONG_PRESS_MS = 300;
 const MAX_MULTI_LINE_SELECTION_LONG_PRESS_MS = 2000;
-const MULTI_LINE_SELECTION_LONG_PRESS_STEP_MS = 50;
 
 export function normalizeMultiLineSelectionLongPressMs(value: unknown): number {
     if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -223,19 +222,36 @@ export class DragNDropSettingTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName(i.multiLineSelectionLongPressMs)
             .setDesc(i.multiLineSelectionLongPressMsDesc)
-            .addSlider((slider) => slider
-                .setLimits(
-                    MIN_MULTI_LINE_SELECTION_LONG_PRESS_MS,
-                    MAX_MULTI_LINE_SELECTION_LONG_PRESS_MS,
-                    MULTI_LINE_SELECTION_LONG_PRESS_STEP_MS,
-                )
-                .setDynamicTooltip()
-                .setValue(this.plugin.settings.multiLineSelectionLongPressMs)
-                .onChange(async (value) => {
-                    this.plugin.settings.multiLineSelectionLongPressMs =
-                        normalizeMultiLineSelectionLongPressMs(value);
+            .addText((text) => {
+                const commit = async () => {
+                    const normalized = normalizeMultiLineSelectionLongPressMs(Number(text.inputEl.value));
+                    const normalizedValue = String(normalized);
+                    if (text.inputEl.value !== normalizedValue) {
+                        text.setValue(normalizedValue);
+                    }
+                    if (this.plugin.settings.multiLineSelectionLongPressMs === normalized) {
+                        return;
+                    }
+                    this.plugin.settings.multiLineSelectionLongPressMs = normalized;
                     await this.plugin.saveSettings();
-                }));
+                };
+
+                text.inputEl.type = 'number';
+                text.inputEl.inputMode = 'numeric';
+                text.inputEl.min = String(MIN_MULTI_LINE_SELECTION_LONG_PRESS_MS);
+                text.inputEl.max = String(MAX_MULTI_LINE_SELECTION_LONG_PRESS_MS);
+                text.inputEl.step = '1';
+                text.setPlaceholder(`${MIN_MULTI_LINE_SELECTION_LONG_PRESS_MS}-${MAX_MULTI_LINE_SELECTION_LONG_PRESS_MS}`);
+                text.setValue(String(this.plugin.settings.multiLineSelectionLongPressMs));
+                text.inputEl.addEventListener('blur', () => {
+                    void commit();
+                });
+                text.inputEl.addEventListener('keydown', (event: KeyboardEvent) => {
+                    if (event.key !== 'Enter') return;
+                    event.preventDefault();
+                    text.inputEl.blur();
+                });
+            });
 
         new Setting(containerEl)
             .setName(i.mobileTextLongPressDrag)

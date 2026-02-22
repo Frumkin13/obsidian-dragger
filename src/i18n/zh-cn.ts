@@ -49,7 +49,7 @@ export const zhCn = {
     multiLineSelection: '多行选取',
     multiLineSelectionDesc: '关闭后仅保留单块拖拽，不进入多行选取流程',
     multiLineSelectionLongPressMs: '多选模式长按时长',
-    multiLineSelectionLongPressMsDesc: '移动端长按多少毫秒后进入多文本块选择模式',
+    multiLineSelectionLongPressMsDesc: '输入毫秒数（300-2000），移动端长按达到该时长后进入多文本块选择模式',
     mobileTextLongPressDrag: '移动端文本长按拖拽',
     mobileTextLongPressDragDesc: '移动端在文本整行或块内容区域长按可直接拖拽当前块，无需左侧手柄',
     enableCrossFileDrag: '跨文件拖拽',

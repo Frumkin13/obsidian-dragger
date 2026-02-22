@@ -43,7 +43,7 @@ export const en: ZhCnStrings = {
     multiLineSelection: 'Multi-line selection',
     multiLineSelectionDesc: 'Disable to keep single-block drag only',
     multiLineSelectionLongPressMs: 'Multi-line selection long-press duration',
-    multiLineSelectionLongPressMsDesc: 'On mobile, hold for this duration before entering multi-block selection mode',
+    multiLineSelectionLongPressMsDesc: 'Enter milliseconds (300-2000). On mobile, hold for this duration before entering multi-block selection mode',
     mobileTextLongPressDrag: 'Mobile text long-press drag',
     mobileTextLongPressDragDesc: 'On mobile, long-press a text line or rendered block content to drag the current block directly without using the left handle',
     enableCrossFileDrag: 'Cross-file drag',
