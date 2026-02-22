@@ -203,7 +203,7 @@ afterEach(() => {
 });
 
 describe('DragEventHandler', () => {
-    it('commits range selection from mobile hotzone long-press without immediate drag', () => {
+    it('does not commit range selection from mobile hotzone long-press without movement', () => {
         const view = createViewStub();
         const sourceBlock = createBlock();
         const beginPointerDragSession = vi.fn();
@@ -244,8 +244,7 @@ describe('DragEventHandler', () => {
 
         expect(beginPointerDragSession).not.toHaveBeenCalled();
         const link = view.dom.querySelector<HTMLElement>('.dnd-range-selection-link');
-        expect(link).not.toBeNull();
-        expect(link?.classList.contains('is-active')).toBe(true);
+        expect(link).toBeNull();
         handler.destroy();
     });
 
@@ -1081,7 +1080,7 @@ describe('DragEventHandler', () => {
         handler.destroy();
     });
 
-    it('supports touch thresholds: shorter long-press drags single block, longer long-press enters range selection', () => {
+    it('uses unified touch long-press drag flow for handle interactions', () => {
         const view = createViewStub(8);
         const handle = document.createElement('div');
         handle.className = 'dnd-drag-handle';
@@ -1130,6 +1129,7 @@ describe('DragEventHandler', () => {
         });
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(performDropAtPoint).toHaveBeenCalledTimes(1);
+        expect(view.dom.querySelector('.dnd-range-selection-link')).toBeNull();
         beginPointerDragSession.mockClear();
         performDropAtPoint.mockClear();
         finishDragSession.mockClear();
@@ -1154,47 +1154,22 @@ describe('DragEventHandler', () => {
             clientX: 12,
             clientY: 105,
         });
-        expect(beginPointerDragSession).not.toHaveBeenCalled();
-
-        const link = view.dom.querySelector<HTMLElement>('.dnd-range-selection-link');
-        expect(link).not.toBeNull();
-        dispatchPointer(link!, 'pointerdown', {
-            pointerId: 19,
-            pointerType: 'touch',
-            clientX: 12,
-            clientY: 80,
-        });
-        vi.advanceTimersByTime(220);
-        dispatchPointer(window, 'pointermove', {
-            pointerId: 19,
-            pointerType: 'touch',
-            clientX: 90,
-            clientY: 105,
-        });
-
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         const selectedBlock = beginPointerDragSession.mock.calls[0][0] as BlockInfo;
         expect(selectedBlock.startLine).toBe(1);
-        expect(selectedBlock.endLine).toBe(5);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 105, expect.objectContaining({
+        expect(selectedBlock.endLine).toBe(1);
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(12, 105, expect.objectContaining({
             startLine: 1,
-            endLine: 5,
+            endLine: 1,
         }), 'touch');
-
-        dispatchPointer(window, 'pointerup', {
-            pointerId: 19,
-            pointerType: 'touch',
-            clientX: 90,
-            clientY: 105,
-        });
-
         expect(performDropAtPoint).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
+        expect(view.dom.querySelector('.dnd-range-selection-link')).toBeNull();
         expect(handle.getAttribute('draggable')).toBe('true');
         handler.destroy();
     });
 
-    it('uses configured touch long-press duration for multi-line selection mode', () => {
+    it('keeps mobile handle long-press duration aligned with drag flow', () => {
         const view = createViewStub(8);
         const handle = document.createElement('div');
         handle.className = 'dnd-drag-handle';
@@ -1209,7 +1184,7 @@ describe('DragEventHandler', () => {
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => null,
             isBlockInsideRenderedTableCell: () => false,
-            getMultiLineSelectionLongPressMs: () => 400,
+            getMultiLineSelectionLongPressMs: () => 1200,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
             scheduleDropIndicatorUpdate: vi.fn(),
@@ -1224,26 +1199,24 @@ describe('DragEventHandler', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(450);
+        vi.advanceTimersByTime(260);
 
         dispatchPointer(window, 'pointermove', {
             pointerId: 170,
             pointerType: 'touch',
-            clientX: 12,
+            clientX: 90,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 170,
             pointerType: 'touch',
-            clientX: 12,
+            clientX: 90,
             clientY: 105,
         });
 
-        expect(beginPointerDragSession).not.toHaveBeenCalled();
-        expect(performDropAtPoint).not.toHaveBeenCalled();
-        const link = view.dom.querySelector<HTMLElement>('.dnd-range-selection-link');
-        expect(link).not.toBeNull();
-        expect(link?.classList.contains('is-active')).toBe(true);
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(performDropAtPoint).toHaveBeenCalledTimes(1);
+        expect(view.dom.querySelector('.dnd-range-selection-link')).toBeNull();
         handler.destroy();
     });
 
@@ -1329,21 +1302,21 @@ describe('DragEventHandler', () => {
         handler.attach();
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 61,
-            pointerType: 'touch',
-            clientX: 32,
+            pointerType: 'mouse',
+            clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(940);
+        vi.advanceTimersByTime(280);
         dispatchPointer(window, 'pointermove', {
             pointerId: 61,
-            pointerType: 'touch',
-            clientX: 32,
+            pointerType: 'mouse',
+            clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 61,
-            pointerType: 'touch',
-            clientX: 32,
+            pointerType: 'mouse',
+            clientX: 12,
             clientY: 105,
         });
 
@@ -1821,7 +1794,7 @@ describe('DragEventHandler', () => {
         handler.destroy();
     });
 
-    it('triggers vibration when dragging from committed touch selection on second long-press', () => {
+    it('triggers vibration when mobile long-press drag starts', () => {
         const view = createViewStub();
         const handle = document.createElement('div');
         handle.className = 'dnd-drag-handle';
@@ -1856,37 +1829,19 @@ describe('DragEventHandler', () => {
             clientX: 32,
             clientY: 12,
         });
-        vi.advanceTimersByTime(940);
+        vi.advanceTimersByTime(220);
         dispatchPointer(window, 'pointermove', {
             pointerId: 2,
             pointerType: 'touch',
-            clientX: 32,
+            clientX: 45,
             clientY: 12,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 2,
             pointerType: 'touch',
-            clientX: 32,
-            clientY: 12,
-        });
-        expect(beginPointerDragSession).not.toHaveBeenCalled();
-
-        const link = view.dom.querySelector<HTMLElement>('.dnd-range-selection-link');
-        expect(link).not.toBeNull();
-        dispatchPointer(link!, 'pointerdown', {
-            pointerId: 3,
-            pointerType: 'touch',
-            clientX: 32,
-            clientY: 12,
-        });
-        vi.advanceTimersByTime(220);
-        dispatchPointer(window, 'pointermove', {
-            pointerId: 3,
-            pointerType: 'touch',
             clientX: 45,
             clientY: 12,
         });
-
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(45, 12, expect.objectContaining({
             startLine: 0,
@@ -1896,20 +1851,15 @@ describe('DragEventHandler', () => {
         handler.destroy();
     });
 
-    it('allows touch drag from committed selection when pressing hotzone over selected range', () => {
+    it('allows touch drag from hotzone long-press with a single selection stage', () => {
         const view = createViewStub(8);
-        const handle = document.createElement('div');
-        handle.className = 'dnd-drag-handle';
-        handle.setAttribute('draggable', 'true');
-        view.dom.appendChild(handle);
-
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
         const scheduleDropIndicatorUpdate = vi.fn();
         const handler = new DragEventHandler(view, {
             getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            getBlockInfoAtPoint: () => sourceBlock,
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -1919,26 +1869,6 @@ describe('DragEventHandler', () => {
         });
 
         handler.attach();
-        dispatchPointer(handle, 'pointerdown', {
-            pointerId: 51,
-            pointerType: 'touch',
-            clientX: 32,
-            clientY: 30,
-        });
-        vi.advanceTimersByTime(940);
-        dispatchPointer(window, 'pointermove', {
-            pointerId: 51,
-            pointerType: 'touch',
-            clientX: 32,
-            clientY: 105,
-        });
-        dispatchPointer(window, 'pointerup', {
-            pointerId: 51,
-            pointerType: 'touch',
-            clientX: 32,
-            clientY: 105,
-        });
-
         dispatchPointer(view.contentDOM, 'pointerdown', {
             pointerId: 52,
             pointerType: 'touch',

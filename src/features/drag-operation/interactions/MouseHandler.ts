@@ -141,11 +141,7 @@ export class DragEventHandler {
         const useHotzonePath = inMobileHotzoneBand
             && this.mobile.isWithinMobileDragHotzone(blockInfo, e.clientX);
         if (useHotzonePath) {
-            if (multiLineSelectionEnabled) {
-                this.beginRangeSelectionSession(blockInfo, e, null);
-            } else {
-                this.beginPressPendingDrag(blockInfo, e);
-            }
+            this.beginPressPendingDrag(blockInfo, e);
             return;
         }
 
@@ -268,11 +264,7 @@ export class DragEventHandler {
         }
 
         if (this.isMobileEnvironment()) {
-            if (multiLineSelectionEnabled) {
-                this.beginRangeSelectionSession(blockInfo, e, handle);
-            } else {
-                this.beginPressPendingDrag(blockInfo, e);
-            }
+            this.beginPressPendingDrag(blockInfo, e);
             return;
         }
 
