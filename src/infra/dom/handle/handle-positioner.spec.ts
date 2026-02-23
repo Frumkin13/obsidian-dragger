@@ -11,6 +11,10 @@ import {
     viewportYToEditorLocalY,
 } from './handle-positioner';
 import { setAlignToLineNumber } from '../../../shared/constants';
+import {
+    HANDLE_GUTTER_CLASS,
+    HANDLE_GUTTER_MARKER_CLASS,
+} from './handle-gutter';
 
 type RectLike = {
     left: number;
@@ -52,18 +56,18 @@ afterEach(() => {
 });
 
 describe('handle-position', () => {
-    it('anchors to the current editor line-number gutter and centers inside gutterElement paddings', () => {
+    it('anchors to the current editor custom handle gutter center', () => {
         const root = document.createElement('div');
         root.className = 'cm-editor';
 
         const nestedEditor = document.createElement('div');
         nestedEditor.className = 'cm-editor';
         const nestedGutter = document.createElement('div');
-        nestedGutter.className = 'cm-gutter cm-lineNumbers';
-        const nestedRow = document.createElement('div');
-        nestedRow.className = 'cm-gutterElement';
-        nestedRow.textContent = '1';
-        nestedGutter.appendChild(nestedRow);
+        nestedGutter.className = `cm-gutter ${HANDLE_GUTTER_CLASS}`;
+        const nestedMarker = document.createElement('div');
+        nestedMarker.className = HANDLE_GUTTER_MARKER_CLASS;
+        nestedMarker.setAttribute('data-line-number', '1');
+        nestedGutter.appendChild(nestedMarker);
         nestedEditor.appendChild(nestedGutter);
         root.appendChild(nestedEditor);
 
@@ -71,17 +75,13 @@ describe('handle-position', () => {
         scroller.className = 'cm-scroller';
         const gutters = document.createElement('div');
         gutters.className = 'cm-gutters';
-        const mainGutter = document.createElement('div');
-        mainGutter.className = 'cm-gutter cm-lineNumbers';
-        const mainRow = document.createElement('div');
-        mainRow.className = 'cm-gutterElement';
-        mainRow.textContent = '7';
-        mainRow.setCssStyles({
-            paddingLeft: '12px',
-            paddingRight: '4px',
-        });
-        mainGutter.appendChild(mainRow);
-        gutters.appendChild(mainGutter);
+        const handleGutter = document.createElement('div');
+        handleGutter.className = `cm-gutter ${HANDLE_GUTTER_CLASS}`;
+        const marker = document.createElement('div');
+        marker.className = HANDLE_GUTTER_MARKER_CLASS;
+        marker.setAttribute('data-line-number', '1');
+        handleGutter.appendChild(marker);
+        gutters.appendChild(handleGutter);
         scroller.appendChild(gutters);
         root.appendChild(scroller);
 
@@ -92,9 +92,9 @@ describe('handle-position', () => {
         setRect(root, 0, 0, 400, 220);
         setRect(content, 80, 0, 280, 220);
         setRect(nestedGutter, 10, 0, 30, 220);
-        setRect(nestedRow, 10, 20, 30, 20);
-        setRect(mainGutter, 96, 0, 52, 220);
-        setRect(mainRow, 100, 20, 40, 20);
+        setRect(nestedMarker, 10, 20, 30, 20);
+        setRect(handleGutter, 96, 0, 52, 220);
+        setRect(marker, 104, 20, 40, 20);
 
         const view = {
             dom: root,
@@ -104,6 +104,112 @@ describe('handle-position', () => {
         expect(getHandleColumnCenterX(view)).toBeCloseTo(124, 3);
         setHandleHorizontalOffsetPx(6);
         expect(getHandleColumnCenterX(view)).toBeCloseTo(130, 3);
+    });
+
+    it('prefers custom handle gutter center when available', () => {
+        const root = document.createElement('div');
+        root.className = 'cm-editor';
+        const customGutter = document.createElement('div');
+        customGutter.className = `cm-gutter ${HANDLE_GUTTER_CLASS}`;
+        const marker = document.createElement('div');
+        marker.className = HANDLE_GUTTER_MARKER_CLASS;
+        marker.setAttribute('data-line-number', '1');
+        customGutter.appendChild(marker);
+        root.appendChild(customGutter);
+        const lineNumberGutter = document.createElement('div');
+        lineNumberGutter.className = 'cm-gutter cm-lineNumbers';
+        root.appendChild(lineNumberGutter);
+        const content = document.createElement('div');
+        root.appendChild(content);
+        document.body.appendChild(root);
+
+        setRect(root, 0, 0, 400, 200);
+        setRect(content, 120, 0, 260, 200);
+        setRect(customGutter, 40, 0, 24, 200);
+        setRect(marker, 42, 20, 20, 20);
+        setRect(lineNumberGutter, 70, 0, 40, 200);
+
+        const view = {
+            dom: root,
+            contentDOM: content,
+        } as unknown as EditorView;
+
+        expect(getHandleColumnCenterX(view)).toBeCloseTo(52, 3);
+        setHandleHorizontalOffsetPx(5);
+        expect(getHandleColumnCenterX(view)).toBeCloseTo(57, 3);
+    });
+
+    it('uses zero-width handle gutter as x baseline when align-to-line-number is disabled', () => {
+        setAlignToLineNumber(false);
+
+        const root = document.createElement('div');
+        root.className = 'cm-editor';
+        const customGutter = document.createElement('div');
+        customGutter.className = `cm-gutter ${HANDLE_GUTTER_CLASS}`;
+        const marker = document.createElement('div');
+        marker.className = HANDLE_GUTTER_MARKER_CLASS;
+        marker.setAttribute('data-line-number', '1');
+        customGutter.appendChild(marker);
+        root.appendChild(customGutter);
+        const content = document.createElement('div');
+        root.appendChild(content);
+        document.body.appendChild(root);
+
+        setRect(root, 0, 0, 400, 200);
+        setRect(content, 120, 0, 260, 200);
+        setRect(customGutter, 40, 0, 0, 200);
+        setRect(marker, 40, 20, 0, 20);
+
+        const view = {
+            dom: root,
+            contentDOM: content,
+        } as unknown as EditorView;
+
+        expect(getHandleColumnCenterX(view)).toBeCloseTo(40, 3);
+        setHandleHorizontalOffsetPx(6);
+        expect(getHandleColumnCenterX(view)).toBeCloseTo(46, 3);
+    });
+
+    it('uses line-number gutter center when align-to-line-number is enabled', () => {
+        setAlignToLineNumber(true);
+
+        const root = document.createElement('div');
+        root.className = 'cm-editor';
+        const customGutter = document.createElement('div');
+        customGutter.className = `cm-gutter ${HANDLE_GUTTER_CLASS}`;
+        const marker = document.createElement('div');
+        marker.className = HANDLE_GUTTER_MARKER_CLASS;
+        marker.setAttribute('data-line-number', '1');
+        customGutter.appendChild(marker);
+        root.appendChild(customGutter);
+
+        const lineNumberGutter = document.createElement('div');
+        lineNumberGutter.className = 'cm-gutter cm-lineNumbers';
+        const lineNumberRow = document.createElement('div');
+        lineNumberRow.className = 'cm-gutterElement';
+        lineNumberRow.textContent = '1';
+        lineNumberGutter.appendChild(lineNumberRow);
+        root.appendChild(lineNumberGutter);
+
+        const content = document.createElement('div');
+        root.appendChild(content);
+        document.body.appendChild(root);
+
+        setRect(root, 0, 0, 400, 200);
+        setRect(content, 120, 0, 260, 200);
+        setRect(customGutter, 40, 0, 24, 200);
+        setRect(marker, 42, 20, 20, 20);
+        setRect(lineNumberGutter, 96, 0, 48, 200);
+        setRect(lineNumberRow, 100, 20, 40, 20);
+
+        const view = {
+            dom: root,
+            contentDOM: content,
+        } as unknown as EditorView;
+
+        expect(getHandleColumnCenterX(view)).toBeCloseTo(120, 3);
+        setHandleHorizontalOffsetPx(4);
+        expect(getHandleColumnCenterX(view)).toBeCloseTo(124, 3);
     });
 
     it('converts viewport coordinates into local editor coordinates with scale and client border', () => {

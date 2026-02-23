@@ -2,6 +2,7 @@ import { Extension } from '@codemirror/state';
 import { ViewPlugin } from '@codemirror/view';
 import DragNDropPlugin from '../../main';
 import { createDragHandleViewPluginClass } from './ViewPlugin';
+import { createHandleGutterExtension } from './HandleGutterExtension';
 
 function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
     return ViewPlugin.fromClass(
@@ -14,5 +15,5 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
  * 创建拖拽手柄编辑器扩展
  */
 export function dragHandleExtension(plugin: DragNDropPlugin): Extension {
-    return [createDragHandleViewPlugin(plugin)];
+    return [createHandleGutterExtension(), createDragHandleViewPlugin(plugin)];
 }

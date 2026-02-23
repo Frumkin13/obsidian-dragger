@@ -1,6 +1,11 @@
 import { BlockInfo as ViewBlockInfo, BlockType, EditorView } from '@codemirror/view';
 import { getHandleSizePx, getHandleHorizontalOffsetPx, getAlignToLineNumber } from '../../../shared/constants';
 import { getMainContentLineElementForLine } from '../probe/line-dom';
+import {
+    getHandleGutterElementCenterX,
+    getHandleGutterElementForLine,
+    getHandleGutterRect,
+} from './handle-gutter';
 
 type RectLike = {
     left: number;
@@ -65,13 +70,6 @@ function getLineNumberGutterRect(view: EditorView): RectLike | null {
     const lineNumberGutter = getLineNumberGutter(view);
     if (!lineNumberGutter) return null;
     const rect = lineNumberGutter.getBoundingClientRect();
-    return isUsableRect(rect) ? rect : null;
-}
-
-function getAnyGutterRect(view: EditorView): RectLike | null {
-    const gutters = view.dom.querySelector('.cm-gutters');
-    if (!gutters || !isElementVisible(gutters)) return null;
-    const rect = gutters.getBoundingClientRect();
     return isUsableRect(rect) ? rect : null;
 }
 
@@ -400,22 +398,31 @@ function getHandleCenterForLine(view: EditorView, lineNumber: number): { x: numb
     if (lineNumber < 1 || lineNumber > view.state.doc.lines) return null;
 
     const horizontalOffset = getHandleHorizontalOffsetPx();
-    const alignToLineNumber = getAlignToLineNumber();
     const centerY = getViewportMidYForLine(view, lineNumber);
     if (centerY === null) return null;
-    const lineNumberEl = getLineNumberElementForLine(view, lineNumber);
-    const lineNumberRect = lineNumberEl?.getBoundingClientRect() ?? null;
 
-    if (alignToLineNumber) {
-        if (lineNumberEl && lineNumberRect && isLineNumberRowRect(lineNumberRect)) {
-            const centerX = (getGutterElementInnerCenterX(lineNumberEl) ?? (lineNumberRect.left + lineNumberRect.width / 2)) + horizontalOffset;
+    if (getAlignToLineNumber()) {
+        const lineNumberEl = getLineNumberElementForLine(view, lineNumber);
+        if (lineNumberEl) {
+            const lineNumberRect = lineNumberEl.getBoundingClientRect();
+            if (isLineNumberRowRect(lineNumberRect)) {
+                const centerX = (getGutterElementInnerCenterX(lineNumberEl) ?? (lineNumberRect.left + lineNumberRect.width / 2))
+                    + horizontalOffset;
+                return { x: centerX, y: centerY };
+            }
+        }
+    }
+
+    const handleGutterEl = getHandleGutterElementForLine(view, lineNumber);
+    if (handleGutterEl) {
+        const handleGutterRect = handleGutterEl.getBoundingClientRect();
+        if (isLineNumberRowRect(handleGutterRect)) {
             return {
-                x: centerX,
+                x: handleGutterRect.left + handleGutterRect.width / 2 + horizontalOffset,
                 y: centerY,
             };
         }
     }
-
     return {
         x: getHandleColumnCenterX(view),
         y: centerY,
@@ -424,22 +431,19 @@ function getHandleCenterForLine(view: EditorView, lineNumber: number): { x: numb
 
 export function getHandleColumnCenterX(view: EditorView): number {
     const horizontalOffset = getHandleHorizontalOffsetPx();
-    const alignToLineNumber = getAlignToLineNumber();
-
-    if (alignToLineNumber) {
+    if (getAlignToLineNumber()) {
         const lineNumberElementCenterX = getLineNumberElementCenterX(view);
         if (lineNumberElementCenterX !== null) return lineNumberElementCenterX + horizontalOffset;
-
-        const lineNumberRect = getLineNumberGutterRect(view);
-        if (lineNumberRect) return lineNumberRect.left + rectWidth(lineNumberRect) / 2 + horizontalOffset;
     }
 
-    const gutterRect = getAnyGutterRect(view);
-    if (gutterRect) return gutterRect.left + rectWidth(gutterRect) / 2 + horizontalOffset;
+    const handleGutterCenterX = getHandleGutterElementCenterX(view);
+    if (handleGutterCenterX !== null) return handleGutterCenterX + horizontalOffset;
+    const handleGutterRect = getHandleGutterRect(view);
+    if (handleGutterRect) return handleGutterRect.left + rectWidth(handleGutterRect) / 2 + horizontalOffset;
 
     // 手柄完全悬浮在编辑器左侧边缘，不依赖文档内容
     const contentRect = view.contentDOM.getBoundingClientRect();
-    return contentRect.left - getHandleSizePx() + horizontalOffset;
+    return contentRect.left - getHandleSizePx() / 2 + horizontalOffset;
 }
 
 export function getHandleColumnLeftPx(view: EditorView): number {

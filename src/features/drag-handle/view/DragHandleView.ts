@@ -1,18 +1,17 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo, BlockType } from '../../../shared/types/block-types';
 import { detectBlock, getListItemOwnRangeForHandle } from '../../../core/model/block/block-factory';
-import {
-    getHandleLeftPxForLine,
-    getHandleTopPxForLine,
-    viewportXToEditorLocalX,
-    viewportYToEditorLocalY,
-} from '../../../infra/dom/handle/handle-positioner';
+import { getHandleGutterElementForLine } from '../../../infra/dom/handle/handle-gutter';
+import { getHandleLeftPxForLine, getHandleTopPxForLine } from '../../../infra/dom/handle/handle-positioner';
+import { getHandleSizePx } from '../../../shared/constants';
 import { LINE_HANDLE_CLASS } from '../../../shared/dom-selectors';
 
 type LineHandleEntry = {
     handle: HTMLElement;
     lineNumber: number;
 };
+
+const GUTTER_BOUND_CLASS = 'dnd-handle-gutter-bound';
 
 export interface LineHandleManagerDeps {
     createHandleElement: (getBlockInfo: () => BlockInfo | null) => HTMLElement;
@@ -95,7 +94,6 @@ export class LineHandleManager {
                     if (!entry) {
                         const handle = this.deps.createHandleElement(getBlockInfo);
                         handle.classList.add(LINE_HANDLE_CLASS);
-                        this.view.dom.appendChild(handle);
                         entry = { handle, lineNumber: handleLineNumber };
                         this.lineHandles.set(handleLineNumber, entry);
                         this.handleSet.add(handle);
@@ -104,7 +102,7 @@ export class LineHandleManager {
                     // Always update attributes with fresh block info
                     entry.handle.setAttribute('data-block-start', String(block.startLine));
                     entry.handle.setAttribute('data-block-end', String(block.endLine));
-                    this.positionHandle(entry.handle, handleLineNumber);
+                    this.mountHandle(entry.handle, handleLineNumber);
 
                     // Mark processed lines based on block type
                     if (block.type === BlockType.ListItem) {
@@ -144,7 +142,7 @@ export class LineHandleManager {
     updateHandlePositions(): void {
         if (!this.shouldRenderLineHandles()) return;
         for (const entry of this.lineHandles.values()) {
-            this.positionHandle(entry.handle, entry.lineNumber);
+            this.mountHandle(entry.handle, entry.lineNumber);
         }
     }
 
@@ -166,17 +164,16 @@ export class LineHandleManager {
         return this.handleSet.has(handle);
     }
 
-    private positionHandle(handle: HTMLElement, lineNumber: number): void {
+    private mountHandle(handle: HTMLElement, lineNumber: number): void {
         // Check if line is in visible range
         if (lineNumber < 1 || lineNumber > this.view.state.doc.lines) {
             handle.classList.add('dnd-hidden');
             return;
         }
 
-        const left = getHandleLeftPxForLine(this.view, lineNumber);
-        const top = getHandleTopPxForLine(this.view, lineNumber);
+        const parent = getHandleGutterElementForLine(this.view, lineNumber);
 
-        if (left === null || top === null) {
+        if (!parent) {
             handle.classList.add('dnd-hidden');
             // [Fix] Verify positioning in the next frame if immediate positioning fails.
             if (!this.pendingScan && !this.destroyed) {
@@ -185,12 +182,36 @@ export class LineHandleManager {
             return;
         }
 
-        handle.classList.remove('dnd-hidden');
-        const localLeft = viewportXToEditorLocalX(this.view, left);
-        const localTop = viewportYToEditorLocalY(this.view, top);
+        const top = getHandleTopPxForLine(this.view, lineNumber);
+        const left = getHandleLeftPxForLine(this.view, lineNumber);
+        if (top === null) {
+            handle.classList.add('dnd-hidden');
+            if (!this.pendingScan && !this.destroyed) {
+                this.scheduleScan();
+            }
+            return;
+        }
+        if (left === null) {
+            handle.classList.add('dnd-hidden');
+            if (!this.pendingScan && !this.destroyed) {
+                this.scheduleScan();
+            }
+            return;
+        }
+
+        if (handle.parentElement !== parent) {
+            parent.appendChild(handle);
+        }
+        const parentRect = parent.getBoundingClientRect();
+        const anchorCenterX = left + getHandleSizePx() / 2;
+        const anchorCenterY = top + getHandleSizePx() / 2;
+        const localAnchorX = anchorCenterX - parentRect.left;
+        const localAnchorY = anchorCenterY - parentRect.top;
         handle.setCssStyles({
-            left: `${Math.round(localLeft)}px`,
-            top: `${Math.round(localTop)}px`,
+            left: `${Math.round(localAnchorX)}px`,
+            top: `${Math.round(localAnchorY)}px`,
         });
+        handle.classList.remove('dnd-hidden');
+        handle.classList.add(GUTTER_BOUND_CLASS);
     }
 }
