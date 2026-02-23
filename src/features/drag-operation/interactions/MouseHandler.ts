@@ -9,6 +9,7 @@ import {
     EMBED_HANDLE_CLASS,
     RANGE_SELECTED_HANDLE_CLASS,
     RANGE_SELECTION_LINK_CLASS,
+    RANGE_SELECTION_DELETE_BUTTON_CLASS,
 } from '../../../shared/dom-selectors';
 import { RangeSelectionVisualManager } from '../../drag-handle/view/HandleEvents';
 import { MobileGestureController } from './TouchHandler';
@@ -75,6 +76,7 @@ export interface DragEventHandlerDeps {
     getBlockInfoAtPoint: (clientX: number, clientY: number) => BlockInfo | null;
     isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
     isMultiLineSelectionEnabled?: () => boolean;
+    isRangeSelectionDeleteEnabled?: () => boolean;
     getMultiLineSelectionLongPressMs?: () => number;
     isMobileTextLongPressDragEnabled?: () => boolean;
     isCrossEditorDragActive?: () => boolean;
@@ -97,6 +99,7 @@ export class DragEventHandler {
     private readonly onEditorPointerDown = (e: PointerEvent) => {
         const target = e.target instanceof HTMLElement ? e.target : null;
         if (!target) return;
+        if (target.closest(`.${RANGE_SELECTION_DELETE_BUTTON_CLASS}`)) return;
         const pointerType = e.pointerType || null;
         const multiLineSelectionEnabled = this.isMultiLineSelectionEnabled();
         if (!multiLineSelectionEnabled) {
@@ -221,7 +224,12 @@ export class DragEventHandler {
         private readonly view: EditorView,
         private readonly deps: DragEventHandlerDeps
     ) {
-        this.rangeVisual = new RangeSelectionVisualManager(this.view, () => this.refreshRangeSelectionVisual());
+        this.rangeVisual = new RangeSelectionVisualManager(
+            this.view,
+            () => this.refreshRangeSelectionVisual(),
+            () => this.deleteCommittedRangeSelection(),
+            () => this.deps.isRangeSelectionDeleteEnabled?.() === true
+        );
         this.mobile = new MobileGestureController(this.view, (e) => this.handleDocumentFocusIn(e));
         this.pointer = new PointerSessionController(this.view, {
             onPointerMove: (e) => this.handlePointerMove(e),
@@ -719,6 +727,27 @@ export class DragEventHandler {
         if (!this.committedRangeSelection) return;
         this.committedRangeSelection = null;
         this.rangeVisual.clear();
+    }
+
+    private deleteCommittedRangeSelection(): void {
+        if (!this.committedRangeSelection) return;
+        const doc = this.view.state.doc;
+        const ranges = mergeLineRanges(doc.lines, this.committedRangeSelection.ranges);
+        const changes = ranges.map((range) => {
+            const startLineNumber = Math.max(1, Math.min(doc.lines, range.startLineNumber));
+            const endLineNumber = Math.max(startLineNumber, Math.min(doc.lines, range.endLineNumber));
+            const from = doc.line(startLineNumber).from;
+            const endLine = doc.line(endLineNumber);
+            const to = endLineNumber === doc.lines
+                ? doc.length
+                : Math.min(doc.length, endLine.to + 1);
+            return { from, to };
+        }).filter((change) => change.to > change.from);
+
+        if (changes.length > 0) {
+            this.view.dispatch({ changes });
+        }
+        this.clearCommittedRangeSelection();
     }
 
     private getCommittedSelectionBlock(): BlockInfo | null {

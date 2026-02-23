@@ -11,6 +11,7 @@ import {
     RANGE_SELECTED_LINE_CLASS,
     RANGE_SELECTED_HANDLE_CLASS,
     RANGE_SELECTION_LINK_CLASS,
+    RANGE_SELECTION_DELETE_BUTTON_CLASS,
     EMBED_HANDLE_CLASS,
 } from '../../../shared/dom-selectors';
 import { GRAB_HIDDEN_LINE_NUMBER_CLASS } from '../../../shared/constants';
@@ -24,20 +25,48 @@ export class RangeSelectionVisualManager {
     private readonly lineNumberElements = new Set<HTMLElement>();
     private readonly handleElements = new Set<HTMLElement>();
     private readonly linkEls: HTMLElement[] = [];
+    private readonly deleteButtonEl: HTMLButtonElement;
     private refreshRafHandle: number | null = null;
     private scrollContainer: HTMLElement | null = null;
     private readonly onScroll: () => void;
+    private currentRenderedRanges: LineRange[] = [];
+    private readonly onDeleteButtonClick = (event: MouseEvent): void => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!this.isDeleteButtonEnabled()) return;
+        if (!this.onDeleteSelectionClick) return;
+        if (this.currentRenderedRanges.length === 0) return;
+        const ranges = this.currentRenderedRanges.map((range) => ({
+            startLineNumber: range.startLineNumber,
+            endLineNumber: range.endLineNumber,
+        }));
+        this.onDeleteSelectionClick(ranges);
+    };
 
     constructor(
         private readonly view: EditorView,
-        private readonly onRefreshRequested: () => void
+        private readonly onRefreshRequested: () => void,
+        private readonly onDeleteSelectionClick?: (ranges: LineRange[]) => void,
+        private readonly isDeleteButtonEnabledRef?: () => boolean
     ) {
+        this.deleteButtonEl = document.createElement('button');
+        this.deleteButtonEl.type = 'button';
+        this.deleteButtonEl.className = RANGE_SELECTION_DELETE_BUTTON_CLASS;
+        this.deleteButtonEl.setAttribute('aria-label', 'Delete selected blocks');
+        this.deleteButtonEl.textContent = 'Delete';
+        this.deleteButtonEl.addEventListener('click', this.onDeleteButtonClick);
+        this.view.dom.appendChild(this.deleteButtonEl);
+
         this.onScroll = () => this.scheduleRefresh();
         this.bindScrollListener();
     }
 
     render(ranges: LineRange[]): void {
         const normalizedRanges = mergeLineRanges(this.view.state.doc.lines, ranges);
+        this.currentRenderedRanges = normalizedRanges.map((range) => ({
+            startLineNumber: range.startLineNumber,
+            endLineNumber: range.endLineNumber,
+        }));
         const nextLineElements = new Set<HTMLElement>();
         const nextLineNumberElements = new Set<HTMLElement>();
         const nextHandleElements = new Set<HTMLElement>();
@@ -102,6 +131,8 @@ export class RangeSelectionVisualManager {
         for (const link of this.linkEls) {
             link.classList.remove('is-active');
         }
+        this.currentRenderedRanges = [];
+        this.hideDeleteButton();
     }
 
     scheduleRefresh(): void {
@@ -174,6 +205,8 @@ export class RangeSelectionVisualManager {
             link.remove();
         }
         this.linkEls.length = 0;
+        this.deleteButtonEl.removeEventListener('click', this.onDeleteButtonClick);
+        this.deleteButtonEl.remove();
         this.cancelScheduledRefresh();
         this.unbindScrollListener();
     }
@@ -218,6 +251,7 @@ export class RangeSelectionVisualManager {
         const centerX = getHandleColumnCenterX(this.view);
         const left = viewportXToEditorLocalX(this.view, centerX);
         const localViewportHeight = Math.max(0, this.view.dom.clientHeight || editorRect.height);
+        let buttonAnchorTop: number | null = null;
 
         for (let i = 0; i < ranges.length; i++) {
             const range = ranges[i];
@@ -234,6 +268,9 @@ export class RangeSelectionVisualManager {
             const bottom = viewportYToEditorLocalY(this.view, bottomY);
             const clampedTop = Math.max(0, Math.min(localViewportHeight, top));
             const clampedBottom = Math.max(clampedTop + 2, Math.min(localViewportHeight, bottom));
+            if (buttonAnchorTop === null || clampedTop < buttonAnchorTop) {
+                buttonAnchorTop = clampedTop;
+            }
             link.classList.add('is-active');
             link.setCssStyles({
                 left: `${left.toFixed(2)}px`,
@@ -244,6 +281,27 @@ export class RangeSelectionVisualManager {
         for (let i = ranges.length; i < this.linkEls.length; i++) {
             this.linkEls[i].classList.remove('is-active');
         }
+
+        if (!this.isDeleteButtonEnabled() || ranges.length === 0 || buttonAnchorTop === null) {
+            this.hideDeleteButton();
+            return;
+        }
+
+        const buttonTop = Math.max(0, buttonAnchorTop - 10);
+        this.deleteButtonEl.classList.add('is-active');
+        this.deleteButtonEl.setCssStyles({
+            left: `${left.toFixed(2)}px`,
+            top: `${buttonTop.toFixed(2)}px`,
+        });
+    }
+
+    private hideDeleteButton(): void {
+        this.deleteButtonEl.classList.remove('is-active');
+    }
+
+    private isDeleteButtonEnabled(): boolean {
+        if (!this.onDeleteSelectionClick) return false;
+        return this.isDeleteButtonEnabledRef?.() === true;
     }
 
     private ensureLinkEl(index: number): HTMLElement {

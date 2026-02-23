@@ -1279,6 +1279,125 @@ describe('DragEventHandler', () => {
         handler.destroy();
     });
 
+    it('shows delete button for committed selection and removes selected blocks on click', () => {
+        const view = createViewStub(8);
+        const handle = document.createElement('div');
+        handle.className = 'dnd-drag-handle';
+        handle.setAttribute('draggable', 'true');
+        view.dom.appendChild(handle);
+
+        const sourceBlock = createBlock('- item', 1, 1);
+        const viewRef = view as unknown as {
+            state: EditorState;
+            visibleRanges: Array<{ from: number; to: number }>;
+            dispatch: (spec: { changes: Array<{ from: number; to: number }> }) => void;
+        };
+        viewRef.dispatch = (spec) => {
+            const next = viewRef.state.update({ changes: spec.changes });
+            viewRef.state = next.state;
+            viewRef.visibleRanges = [{ from: 0, to: viewRef.state.doc.length }];
+        };
+
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => null,
+            isBlockInsideRenderedTableCell: () => false,
+            isRangeSelectionDeleteEnabled: () => true,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 51,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(280);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 51,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 105,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 51,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 105,
+        });
+
+        const deleteButton = view.dom.querySelector<HTMLElement>('.dnd-range-selection-delete-btn');
+        expect(deleteButton).not.toBeNull();
+        expect(deleteButton?.classList.contains('is-active')).toBe(true);
+
+        dispatchPointer(deleteButton!, 'pointerdown', {
+            pointerId: 52,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 80,
+        });
+        deleteButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+        expect(viewRef.state.doc.toString()).toBe('line 1\nline 7\nline 8');
+        const link = view.dom.querySelector<HTMLElement>('.dnd-range-selection-link');
+        expect(link?.classList.contains('is-active')).toBe(false);
+        expect(deleteButton?.classList.contains('is-active')).toBe(false);
+        handler.destroy();
+    });
+
+    it('keeps delete button hidden when multi-selection delete feature is disabled', () => {
+        const view = createViewStub(8);
+        const handle = document.createElement('div');
+        handle.className = 'dnd-drag-handle';
+        handle.setAttribute('draggable', 'true');
+        view.dom.appendChild(handle);
+
+        const sourceBlock = createBlock('- item', 1, 1);
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => null,
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 53,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(280);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 53,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 105,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 53,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 105,
+        });
+
+        const deleteButton = view.dom.querySelector<HTMLElement>('.dnd-range-selection-delete-btn');
+        expect(deleteButton).not.toBeNull();
+        expect(deleteButton?.classList.contains('is-active')).toBe(false);
+        handler.destroy();
+    });
+
     it('keeps committed selection on touch content tap and clears it when editor input gains focus', () => {
         const view = createViewStub(8);
         const handle = document.createElement('div');

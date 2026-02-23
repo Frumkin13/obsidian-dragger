@@ -39,6 +39,7 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     indicatorColor: '#7a7a7a',
     enableCrossFileDrag: false,
     enableMultiLineSelection: true,
+    enableMultiSelectionDeleteButton: false,
     multiLineSelectionLongPressMs: DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS,
     enableMobileTextLongPressDrag: true,
     enableDragSourceHighlight: true,
@@ -216,6 +217,16 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.enableMultiLineSelection)
                 .onChange(async (value) => {
                     this.plugin.settings.enableMultiLineSelection = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName(i.enableMultiSelectionDeleteButton)
+            .setDesc(i.enableMultiSelectionDeleteButtonDesc)
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableMultiSelectionDeleteButton)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableMultiSelectionDeleteButton = value;
                     await this.plugin.saveSettings();
                 }));
 

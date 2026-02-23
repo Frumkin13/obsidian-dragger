@@ -344,6 +344,33 @@ body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-edi
     background: transparent;
 }
 
+.dnd-range-selection-delete-btn {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    min-height: 20px;
+    padding: 2px 8px;
+    border: 1px solid color-mix(in srgb, var(--dnd-handle-color, var(--interactive-accent)) 38%, transparent);
+    border-radius: 999px;
+    background: var(--background-primary);
+    color: var(--dnd-handle-color, var(--interactive-accent));
+    font-size: 11px;
+    line-height: 1.1;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--dnd-handle-color, var(--interactive-accent)) 22%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    cursor: pointer;
+    z-index: 10003;
+}
+
+.dnd-range-selection-delete-btn.is-active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.dnd-range-selection-delete-btn:hover {
+    filter: brightness(1.08);
+}
+
 /* 常态显示拖拽手柄 */
 body.dnd-handles-always .dnd-drag-handle {
     opacity: 0.6;

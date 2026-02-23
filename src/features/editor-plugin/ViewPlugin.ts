@@ -149,6 +149,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 isBlockInsideRenderedTableCell: (blockInfo) =>
                     isPosInsideRenderedTableCell(this.view, blockInfo.from, { skipLayoutRead: true }),
                 isMultiLineSelectionEnabled: () => plugin.settings.enableMultiLineSelection,
+                isRangeSelectionDeleteEnabled: () => plugin.settings.enableMultiSelectionDeleteButton === true,
                 getMultiLineSelectionLongPressMs: () => plugin.settings.multiLineSelectionLongPressMs,
                 isMobileTextLongPressDragEnabled: () => plugin.settings.enableMobileTextLongPressDrag,
                 isCrossEditorDragActive: () => this.resolveDragSourceScope() === 'cross_editor',

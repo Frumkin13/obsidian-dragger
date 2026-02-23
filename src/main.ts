@@ -51,6 +51,7 @@ export default class DragNDropPlugin extends Plugin {
         this.settings.enableDragSourceHighlight = this.settings.enableDragSourceHighlight !== false;
         this.settings.enableListDropHighlight = this.settings.enableListDropHighlight !== false;
         this.settings.enableCrossFileDrag = this.settings.enableCrossFileDrag === true;
+        this.settings.enableMultiSelectionDeleteButton = this.settings.enableMultiSelectionDeleteButton === true;
         this.settings.multiLineSelectionLongPressMs = normalizeMultiLineSelectionLongPressMs(
             this.settings.multiLineSelectionLongPressMs
         );
