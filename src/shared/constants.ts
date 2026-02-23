@@ -30,7 +30,7 @@ export const HANDLE_INTERACTION_ZONE_PX = 64;
  */
 const handleConfig = {
     sizePx: 16,
-    horizontalOffsetPx: 0,
+    horizontalOffsetPx: -8,
     alignToLineNumber: true,
 };
 

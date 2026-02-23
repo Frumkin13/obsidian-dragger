@@ -44,7 +44,7 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     enableDragSourceHighlight: true,
     enableListDropHighlight: true,
     dragSourceVisualStyle: 'subtle',
-    handleHorizontalOffsetPx: 0,
+    handleHorizontalOffsetPx: -8,
     alignHandleToLineNumber: true,
 };
 

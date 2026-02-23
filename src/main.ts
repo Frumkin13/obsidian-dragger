@@ -81,7 +81,7 @@ export default class DragNDropPlugin extends Plugin {
         const rawHandleOffset = Number(this.settings.handleHorizontalOffsetPx);
         const handleOffset = Number.isFinite(rawHandleOffset)
             ? Math.max(-80, Math.min(80, Math.round(rawHandleOffset)))
-            : 0;
+            : DEFAULT_SETTINGS.handleHorizontalOffsetPx;
         this.settings.handleHorizontalOffsetPx = handleOffset;
         setHandleHorizontalOffsetPx(handleOffset);
         setAlignToLineNumber(this.settings.alignHandleToLineNumber ?? true);

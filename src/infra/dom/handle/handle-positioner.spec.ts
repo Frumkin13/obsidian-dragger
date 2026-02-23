@@ -2,7 +2,7 @@
 
 import { BlockType, type EditorView } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
     getHandleColumnCenterX,
     getHandleTopPxForLine,
@@ -49,9 +49,17 @@ function setRect(el: HTMLElement, left: number, top: number, width: number, heig
     });
 }
 
-afterEach(() => {
+function resetHandleConfigForTest(): void {
     setHandleHorizontalOffsetPx(0);
     setAlignToLineNumber(true);
+}
+
+beforeEach(() => {
+    resetHandleConfigForTest();
+});
+
+afterEach(() => {
+    resetHandleConfigForTest();
     document.body.innerHTML = '';
 });
 
