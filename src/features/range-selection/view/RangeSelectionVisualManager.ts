@@ -18,7 +18,7 @@ import { resolveBlockBoundaryAtLine } from '../../../core/services/state/selecti
 import {
     resolveRangeAnchorSpan as resolveRangeAnchorSpanFromHandles,
     type RangeAnchorSpan,
-} from './range-selection-anchor';
+} from './anchor';
 
 const RANGE_SELECTED_LINE_NUMBER_HIDDEN_CLASS = GRAB_HIDDEN_LINE_NUMBER_CLASS;
 

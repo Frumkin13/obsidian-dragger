@@ -1,9 +1,9 @@
-import type { CommittedRangeSelection, LineRange } from '../../../../core/services/state/selection-model';
+import type { CommittedRangeSelection, LineRange } from '../../../core/services/state/selection-model';
 import {
     DRAG_HANDLE_CLASS,
     RANGE_SELECTED_HANDLE_CLASS,
     RANGE_SELECTION_LINK_CLASS,
-} from '../../../../shared/dom-selectors';
+} from '../../../shared/dom-selectors';
 
 export const RANGE_SELECTION_GRIP_HIT_PADDING_PX = 20;
 export const RANGE_SELECTION_GRIP_HIT_X_PADDING_PX = 28;

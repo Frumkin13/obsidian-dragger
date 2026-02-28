@@ -6,32 +6,33 @@ import {
     EMBED_HANDLE_CLASS,
     RANGE_SELECTION_DELETE_BUTTON_CLASS,
 } from '../../../shared/dom-selectors';
-import { RangeSelectionVisualManager } from '../../drag-handle/view/HandleEvents';
+import { RangeSelectionVisualManager } from '../../range-selection/view/RangeSelectionVisualManager';
 import { MobileGestureController } from './TouchHandler';
 import { PointerSessionController } from './pointer-session-controller';
 import {
     type RangeSelectionBoundary,
-    type RangeSelectConfig,
     type CommittedRangeSelection,
     type MouseRangeSelectState,
-    normalizeLineRange,
-    mergeLineRanges,
     cloneLineRanges,
     cloneBlockInfo,
-    buildDragSourceBlockFromRanges,
     resolveBlockBoundaryAtLine,
 } from '../../../core/services/state/selection-model';
-import { resolveRangeBoundaryAtPoint } from './range-selection-hit';
+import { resolveRangeBoundaryAtPoint } from '../../range-selection/interaction/hit-boundary';
 import { resolveDragTransferGuard as resolveDragTransferGuardDecision } from './drag-transfer-guard';
 import {
     shouldClearCommittedSelectionOnPointerDown as shouldClearCommittedSelectionOnPointerDownByGrip,
     isCommittedSelectionGripHit as isCommittedSelectionGripHitByGrip,
-} from './range-selection/grip-hit';
+} from '../../range-selection/interaction/grip-hit';
 import {
     computeUpdatedSelectionState,
     buildCommittedRangeSelection,
     buildCommittedRangeDeletionChanges,
-} from './range-selection/selection-state';
+} from '../../range-selection/interaction/selection-state';
+import {
+    resolveRangeSelectConfig,
+    createInitialRangeSelectionState,
+    autoScrollRangeSelection,
+} from '../../range-selection/interaction/session-flow';
 
 const MOBILE_DRAG_LONG_PRESS_MS = 200;
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
@@ -335,38 +336,27 @@ export class DragEventHandler {
         return this.view.state.selection.main.empty;
     }
 
-    private getRangeSelectConfig(pointerType: string | null): RangeSelectConfig {
-        if (pointerType === 'mouse') {
-            return {
-                longPressMs: MOUSE_RANGE_SELECT_LONG_PRESS_MS,
-            };
-        }
-
-        return {
-            longPressMs: this.getTouchRangeSelectLongPressMs(),
-        };
-    }
-
     private beginRangeSelectionSession(blockInfo: BlockInfo, e: PointerEvent, handle: HTMLElement | null): void {
-        const anchorStartLineNumber = blockInfo.startLine + 1;
-        const anchorEndLineNumber = blockInfo.endLine + 1;
-        if (
-            anchorStartLineNumber < 1
-            || anchorEndLineNumber > this.view.state.doc.lines
-            || anchorStartLineNumber > anchorEndLineNumber
-        ) {
-            return;
-        }
-
         const committedRangesSnapshot = cloneLineRanges(this.committedRangeSelection?.ranges ?? []);
-        const docLines = this.view.state.doc.lines;
-        const anchorRange = normalizeLineRange(docLines, anchorStartLineNumber, anchorEndLineNumber);
-        const initialRanges = mergeLineRanges(docLines, [...committedRangesSnapshot, anchorRange]);
-        const anchorBlock = buildDragSourceBlockFromRanges(this.view.state.doc, initialRanges, blockInfo);
         const pointerType = e.pointerType || null;
-        const config = this.getRangeSelectConfig(pointerType);
-        const sourceHandleDraggableAttr = handle?.getAttribute('draggable') ?? null;
+        const config = resolveRangeSelectConfig(
+            pointerType,
+            MOUSE_RANGE_SELECT_LONG_PRESS_MS,
+            () => this.getTouchRangeSelectLongPressMs()
+        );
         const shouldDeferInterception = pointerType === 'mouse';
+        const initialRangeSelectState = createInitialRangeSelectionState({
+            blockInfo,
+            doc: this.view.state.doc,
+            committedRangesSnapshot,
+            pointerId: e.pointerId,
+            startX: e.clientX,
+            startY: e.clientY,
+            pointerType,
+            sourceHandle: handle,
+        });
+        if (!initialRangeSelectState) return;
+
         let dragTimeoutId: number | null = null;
         if (pointerType !== 'mouse') {
             dragTimeoutId = window.setTimeout(() => {
@@ -396,29 +386,13 @@ export class DragEventHandler {
             this.updateMouseRangeSelectionFromLine(state, state.currentLineNumber);
         }, config.longPressMs);
 
-        this.gesture = { phase: 'range_selecting', rangeSelect: {
-            anchorSelectionBlock: anchorBlock,
-            directDragSourceBlock: cloneBlockInfo(blockInfo),
-            activeSelectionBlock: anchorBlock,
-            pointerId: e.pointerId,
-            startX: e.clientX,
-            startY: e.clientY,
-            latestX: e.clientX,
-            latestY: e.clientY,
-            pointerType,
-            dragReady: pointerType === 'mouse',
-            longPressReady: false,
-            isIntercepting: !shouldDeferInterception,
-            timeoutId,
-            dragTimeoutId,
-            sourceHandle: handle,
-            sourceHandleDraggableAttr,
-            anchorStartLineNumber,
-            anchorEndLineNumber,
-            currentLineNumber: anchorEndLineNumber,
-            committedRangesSnapshot,
-            selectionRanges: initialRanges,
-        } };
+        initialRangeSelectState.isIntercepting = !shouldDeferInterception;
+        initialRangeSelectState.timeoutId = timeoutId;
+        initialRangeSelectState.dragTimeoutId = dragTimeoutId;
+        this.gesture = {
+            phase: 'range_selecting',
+            rangeSelect: initialRangeSelectState,
+        };
         this.pointer.attachPointerListeners();
         this.emitPressPendingLifecycle(blockInfo, pointerType, false);
     }
@@ -662,17 +636,7 @@ export class DragEventHandler {
             ?? this.view.dom.querySelector<HTMLElement>('.cm-scroller')
             ?? null;
         if (!scroller) return;
-
-        const rect = scroller.getBoundingClientRect();
-        const edgeZone = 44;
-        let delta = 0;
-        if (clientY < rect.top + edgeZone) {
-            delta = -Math.min(22, ((rect.top + edgeZone) - clientY) * 0.35 + 2);
-        } else if (clientY > rect.bottom - edgeZone) {
-            delta = Math.min(22, (clientY - (rect.bottom - edgeZone)) * 0.35 + 2);
-        }
-        if (delta === 0) return;
-        scroller.scrollTop += delta;
+        autoScrollRangeSelection(scroller, clientY);
     }
 
     private updateMouseRangeSelectionFromLine(state: MouseRangeSelectState, lineNumber: number): void {

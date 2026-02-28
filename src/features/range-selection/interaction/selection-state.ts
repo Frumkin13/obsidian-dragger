@@ -1,5 +1,5 @@
 import type { Text } from '@codemirror/state';
-import type { BlockInfo, LineRange } from '../../../../shared/types/block-types';
+import type { BlockInfo, LineRange } from '../../../shared/types/block-types';
 import {
     type RangeSelectionBoundary,
     type MouseRangeSelectState,
@@ -8,7 +8,7 @@ import {
     mergeLineRanges,
     buildDragSourceBlockFromRanges,
     expandToBlockAlignedRange,
-} from '../../../../core/services/state/selection-model';
+} from '../../../core/services/state/selection-model';
 
 export function computeUpdatedSelectionState(
     editorState: { doc: Text },
