@@ -823,11 +823,10 @@ export class DragEventHandler {
         }
 
         for (const range of committedSelection.ranges) {
-            const startAnchorY = this.rangeVisual.getAnchorY(range.startLineNumber);
-            const endAnchorY = this.rangeVisual.getAnchorY(range.endLineNumber);
-            if (startAnchorY === null || endAnchorY === null) continue;
-            const top = Math.min(startAnchorY, endAnchorY) - RANGE_SELECTION_GRIP_HIT_PADDING_PX;
-            const bottom = Math.max(startAnchorY, endAnchorY) + RANGE_SELECTION_GRIP_HIT_PADDING_PX;
+            const anchorSpan = this.rangeVisual.resolveRangeAnchorSpan(range);
+            if (!anchorSpan) continue;
+            const top = anchorSpan.topY - RANGE_SELECTION_GRIP_HIT_PADDING_PX;
+            const bottom = anchorSpan.bottomY + RANGE_SELECTION_GRIP_HIT_PADDING_PX;
             if (clientY >= top && clientY <= bottom) {
                 return true;
             }
