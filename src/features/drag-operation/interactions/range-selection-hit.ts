@@ -123,6 +123,12 @@ export function resolveRangeBoundaryAtPoint(
         clientY + lineHeight * 1.2,
     ].map((y) => Math.max(contentRect.top + 1, Math.min(contentRect.bottom - 1, y)));
 
+    const probePoints: Array<{ x: number; y: number }> = [];
+    const basePoint = clampToContentRect(clientX, clientY, contentRect);
+    for (const point of collectDomProbePoints(view, basePoint, contentRect)) {
+        pushProbePoint(probePoints, point);
+    }
+
     for (const y of probeYs) {
         for (const x of probeXs) {
             pushProbePoint(probePoints, { x, y });

@@ -1944,7 +1944,7 @@ describe('DragEventHandler', () => {
         const handler = new DragEventHandler(view, {
             getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            getBlockInfoAtPoint: (_x, y) => (y >= 82 && y <= 138 ? calloutBlock : null),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
