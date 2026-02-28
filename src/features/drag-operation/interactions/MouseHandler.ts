@@ -2,13 +2,8 @@ import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../../shared/types/block-types';
 import { DragLifecycleEvent } from '../../../shared/types/drag';
 import {
-    getHandleColumnCenterX,
-} from '../../../infra/dom/handle/handle-positioner';
-import {
     DRAG_HANDLE_CLASS,
     EMBED_HANDLE_CLASS,
-    RANGE_SELECTED_HANDLE_CLASS,
-    RANGE_SELECTION_LINK_CLASS,
     RANGE_SELECTION_DELETE_BUTTON_CLASS,
 } from '../../../shared/dom-selectors';
 import { RangeSelectionVisualManager } from '../../drag-handle/view/HandleEvents';
@@ -24,11 +19,19 @@ import {
     cloneLineRanges,
     cloneBlockInfo,
     buildDragSourceBlockFromRanges,
-    expandToBlockAlignedRange,
     resolveBlockBoundaryAtLine,
 } from '../../../core/services/state/selection-model';
 import { resolveRangeBoundaryAtPoint } from './range-selection-hit';
 import { resolveDragTransferGuard as resolveDragTransferGuardDecision } from './drag-transfer-guard';
+import {
+    shouldClearCommittedSelectionOnPointerDown as shouldClearCommittedSelectionOnPointerDownByGrip,
+    isCommittedSelectionGripHit as isCommittedSelectionGripHitByGrip,
+} from './range-selection/grip-hit';
+import {
+    computeUpdatedSelectionState,
+    buildCommittedRangeSelection,
+    buildCommittedRangeDeletionChanges,
+} from './range-selection/selection-state';
 
 const MOBILE_DRAG_LONG_PRESS_MS = 200;
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
@@ -38,8 +41,6 @@ const MIN_TOUCH_RANGE_SELECT_LONG_PRESS_MS = 300;
 const MAX_TOUCH_RANGE_SELECT_LONG_PRESS_MS = 2000;
 const MOUSE_RANGE_SELECT_LONG_PRESS_MS = 260;
 const MOUSE_RANGE_SELECT_CANCEL_MOVE_THRESHOLD_PX = 12;
-const RANGE_SELECTION_GRIP_HIT_PADDING_PX = 20;
-const RANGE_SELECTION_GRIP_HIT_X_PADDING_PX = 28;
 
 type PointerDragData = {
     sourceBlock: BlockInfo;
@@ -685,42 +686,21 @@ export class DragEventHandler {
     }
 
     private updateMouseRangeSelection(state: MouseRangeSelectState, target: RangeSelectionBoundary): void {
-        state.currentLineNumber = target.representativeLineNumber;
-        const {
-            startLineNumber: rangeStartLineNumber,
-            endLineNumber: rangeEndLineNumber,
-        } = expandToBlockAlignedRange(
-            this.view.state,
-            state.anchorStartLineNumber,
-            state.anchorEndLineNumber,
-            target.startLineNumber,
-            target.endLineNumber
-        );
-
-        const docLines = this.view.state.doc.lines;
-        const activeRange = normalizeLineRange(docLines, rangeStartLineNumber, rangeEndLineNumber);
-        state.selectionRanges = mergeLineRanges(docLines, [
-            ...state.committedRangesSnapshot,
-            activeRange,
-        ]);
-        state.activeSelectionBlock = buildDragSourceBlockFromRanges(
-            this.view.state.doc,
-            state.selectionRanges,
-            state.anchorSelectionBlock
-        );
+        const next = computeUpdatedSelectionState(this.view.state, state, target);
+        state.currentLineNumber = next.currentLineNumber;
+        state.selectionRanges = next.selectionRanges;
+        state.activeSelectionBlock = next.activeSelectionBlock;
 
         this.rangeVisual.render(state.selectionRanges);
     }
 
     private commitRangeSelection(state: MouseRangeSelectState): void {
-        const docLines = this.view.state.doc.lines;
-        const committedRanges = mergeLineRanges(docLines, state.selectionRanges);
-        const committedBlock = buildDragSourceBlockFromRanges(this.view.state.doc, committedRanges, state.anchorSelectionBlock);
-        this.committedRangeSelection = {
-            selectedBlock: committedBlock,
-            ranges: committedRanges,
-        };
-        this.rangeVisual.render(committedRanges);
+        this.committedRangeSelection = buildCommittedRangeSelection(
+            this.view.state.doc,
+            state.selectionRanges,
+            state.anchorSelectionBlock
+        );
+        this.rangeVisual.render(this.committedRangeSelection.ranges);
     }
 
     private clearCommittedRangeSelection(): void {
@@ -732,17 +712,7 @@ export class DragEventHandler {
     private deleteCommittedRangeSelection(): void {
         if (!this.committedRangeSelection) return;
         const doc = this.view.state.doc;
-        const ranges = mergeLineRanges(doc.lines, this.committedRangeSelection.ranges);
-        const changes = ranges.map((range) => {
-            const startLineNumber = Math.max(1, Math.min(doc.lines, range.startLineNumber));
-            const endLineNumber = Math.max(startLineNumber, Math.min(doc.lines, range.endLineNumber));
-            const from = doc.line(startLineNumber).from;
-            const endLine = doc.line(endLineNumber);
-            const to = endLineNumber === doc.lines
-                ? doc.length
-                : Math.min(doc.length, endLine.to + 1);
-            return { from, to };
-        }).filter((change) => change.to > change.from);
+        const changes = buildCommittedRangeDeletionChanges(doc, this.committedRangeSelection.ranges);
 
         if (changes.length > 0) {
             this.view.dispatch({ changes });
@@ -779,21 +749,15 @@ export class DragEventHandler {
         clientX: number,
         pointerType: string | null
     ): boolean {
-        if (!this.committedRangeSelection) return false;
-        if (target.closest(`.${RANGE_SELECTION_LINK_CLASS}`)) return false;
-        if (target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`)) return false;
-        if (target.closest(`.${DRAG_HANDLE_CLASS}`)) return false;
-
-        if (pointerType && pointerType !== 'mouse') {
-            if (!this.mobile.isWithinContentTolerance(clientX)) {
-                return true;
-            }
-            const inContent = this.view.contentDOM.contains(target) || !!target.closest('.cm-content');
-            const inGutter = !!target.closest('.cm-gutters');
-            return !inContent && !inGutter;
-        }
-        const centerX = getHandleColumnCenterX(this.view);
-        return clientX > centerX + RANGE_SELECTION_GRIP_HIT_X_PADDING_PX;
+        return shouldClearCommittedSelectionOnPointerDownByGrip({
+            committedSelection: this.committedRangeSelection,
+            target,
+            clientX,
+            pointerType,
+            resolveAnchorSpan: (range) => this.rangeVisual.resolveRangeAnchorSpan(range),
+            isWithinContentTolerance: (x) => this.mobile.isWithinContentTolerance(x),
+            contentDOM: this.view.contentDOM,
+        });
     }
 
     private isCommittedSelectionGripHit(
@@ -802,36 +766,15 @@ export class DragEventHandler {
         clientY: number,
         pointerType: string | null
     ): boolean {
-        const committedSelection = this.committedRangeSelection;
-        if (!committedSelection) return false;
-
-        const hitLink = target.closest(`.${RANGE_SELECTION_LINK_CLASS}`);
-        if (hitLink) return true;
-
-        const hitHandle = target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`);
-        if (hitHandle) return true;
-
-        if (pointerType && pointerType !== 'mouse') {
-            if (!this.mobile.isWithinMobileDragHotzoneBand(clientX)) {
-                return false;
-            }
-        } else {
-            const centerX = getHandleColumnCenterX(this.view);
-            if (Math.abs(clientX - centerX) > RANGE_SELECTION_GRIP_HIT_X_PADDING_PX) {
-                return false;
-            }
-        }
-
-        for (const range of committedSelection.ranges) {
-            const anchorSpan = this.rangeVisual.resolveRangeAnchorSpan(range);
-            if (!anchorSpan) continue;
-            const top = anchorSpan.topY - RANGE_SELECTION_GRIP_HIT_PADDING_PX;
-            const bottom = anchorSpan.bottomY + RANGE_SELECTION_GRIP_HIT_PADDING_PX;
-            if (clientY >= top && clientY <= bottom) {
-                return true;
-            }
-        }
-        return false;
+        return isCommittedSelectionGripHitByGrip({
+            committedSelection: this.committedRangeSelection,
+            target,
+            clientX,
+            clientY,
+            pointerType,
+            resolveAnchorSpan: (range) => this.rangeVisual.resolveRangeAnchorSpan(range),
+            isWithinMobileDragHotzoneBand: (x) => this.mobile.isWithinMobileDragHotzoneBand(x),
+        });
     }
 
     private finishPointerDrag(e: PointerEvent, shouldDrop: boolean): void {

@@ -1,10 +1,9 @@
 import { EditorView } from '@codemirror/view';
 import { LineRange } from '../../../shared/types/block-types';
 import {
-    getHandleColumnCenterX,
     getLineNumberElementForLine,
-    viewportXToEditorLocalX,
     viewportYToEditorLocalY,
+    viewportXToEditorLocalX,
 } from '../../../infra/dom/handle/handle-positioner';
 import {
     DRAG_HANDLE_CLASS,
@@ -16,6 +15,10 @@ import {
 import { GRAB_HIDDEN_LINE_NUMBER_CLASS } from '../../../shared/constants';
 import { mergeLineRanges, isLineNumberInRanges } from '../../../core/services/parser/line-range-utils';
 import { resolveBlockBoundaryAtLine } from '../../../core/services/state/selection-model';
+import {
+    resolveRangeAnchorSpan as resolveRangeAnchorSpanFromHandles,
+    type RangeAnchorSpan,
+} from './range-selection-anchor';
 
 const RANGE_SELECTED_LINE_NUMBER_HIDDEN_CLASS = GRAB_HIDDEN_LINE_NUMBER_CLASS;
 
@@ -53,7 +56,6 @@ export class RangeSelectionVisualManager {
         this.deleteButtonEl.setAttribute('aria-label', 'Delete selected blocks');
         this.deleteButtonEl.textContent = 'Delete';
         this.deleteButtonEl.addEventListener('click', this.onDeleteButtonClick);
-        this.view.dom.appendChild(this.deleteButtonEl);
 
         this.onScroll = () => this.scheduleRefresh();
         this.bindScrollListener();
@@ -132,15 +134,6 @@ export class RangeSelectionVisualManager {
         this.refreshRafHandle = null;
     }
 
-    getAnchorY(lineNumber: number): number | null {
-        const anchorLineNumber = this.resolveAnchorLineNumber(lineNumber);
-        const handle = this.getInlineHandleForLine(anchorLineNumber);
-        if (!handle) return null;
-        const rect = handle.getBoundingClientRect();
-        if (rect.height <= 0) return null;
-        return rect.top + rect.height / 2;
-    }
-
     getInlineHandleForLine(lineNumber: number): HTMLElement | null {
         const blockStart = lineNumber - 1;
         if (blockStart < 0) return null;
@@ -198,11 +191,7 @@ export class RangeSelectionVisualManager {
     }
 
     private updateLinks(ranges: LineRange[]): void {
-        const editorRect = this.view.dom.getBoundingClientRect();
-        const centerX = getHandleColumnCenterX(this.view);
-        const left = viewportXToEditorLocalX(this.view, centerX);
-        const localViewportHeight = Math.max(0, this.view.dom.clientHeight || editorRect.height);
-        let buttonAnchorTop: number | null = null;
+        let buttonAnchor: { topY: number; x: number; host: HTMLElement } | null = null;
 
         for (let i = 0; i < ranges.length; i++) {
             const range = ranges[i];
@@ -212,35 +201,45 @@ export class RangeSelectionVisualManager {
                 link.classList.remove('is-active');
                 continue;
             }
-            const topY = anchorSpan.topY;
-            const bottomY = anchorSpan.bottomY;
-            const top = viewportYToEditorLocalY(this.view, topY);
-            const bottom = viewportYToEditorLocalY(this.view, bottomY);
-            const clampedTop = Math.max(0, Math.min(localViewportHeight, top));
-            const clampedBottom = Math.max(clampedTop + 2, Math.min(localViewportHeight, bottom));
-            if (buttonAnchorTop === null || clampedTop < buttonAnchorTop) {
-                buttonAnchorTop = clampedTop;
+            if (link.parentElement !== anchorSpan.host) {
+                anchorSpan.host.appendChild(link);
             }
+
+            const top = this.viewportYToHostLocalY(anchorSpan.host, anchorSpan.topY);
+            const bottom = this.viewportYToHostLocalY(anchorSpan.host, anchorSpan.bottomY);
+            const linkTop = Math.min(top, bottom);
+            const linkHeight = Math.max(2, Math.abs(bottom - top));
+            const left = this.viewportXToHostLocalX(anchorSpan.host, anchorSpan.x);
+
+            if (!buttonAnchor || anchorSpan.topY < buttonAnchor.topY) {
+                buttonAnchor = { topY: anchorSpan.topY, x: anchorSpan.x, host: anchorSpan.host };
+            }
+
             link.classList.add('is-active');
             link.setCssStyles({
                 left: `${left.toFixed(2)}px`,
-                top: `${clampedTop.toFixed(2)}px`,
-                height: `${Math.max(2, clampedBottom - clampedTop).toFixed(2)}px`,
+                top: `${linkTop.toFixed(2)}px`,
+                height: `${linkHeight.toFixed(2)}px`,
             });
         }
         for (let i = ranges.length; i < this.linkEls.length; i++) {
             this.linkEls[i].classList.remove('is-active');
         }
 
-        if (!this.isDeleteButtonEnabled() || ranges.length === 0 || buttonAnchorTop === null) {
+        if (!this.isDeleteButtonEnabled() || ranges.length === 0 || !buttonAnchor) {
             this.hideDeleteButton();
             return;
         }
 
-        const buttonTop = Math.max(0, buttonAnchorTop - 10);
+        if (this.deleteButtonEl.parentElement !== buttonAnchor.host) {
+            buttonAnchor.host.appendChild(this.deleteButtonEl);
+        }
+
+        const buttonTop = this.viewportYToHostLocalY(buttonAnchor.host, buttonAnchor.topY) - 10;
+        const buttonLeft = this.viewportXToHostLocalX(buttonAnchor.host, buttonAnchor.x);
         this.deleteButtonEl.classList.add('is-active');
         this.deleteButtonEl.setCssStyles({
-            left: `${left.toFixed(2)}px`,
+            left: `${buttonLeft.toFixed(2)}px`,
             top: `${buttonTop.toFixed(2)}px`,
         });
     }
@@ -256,15 +255,13 @@ export class RangeSelectionVisualManager {
         return Math.max(1, Math.min(docLines, boundary.startLineNumber));
     }
 
-    resolveRangeAnchorSpan(range: LineRange): { topY: number; bottomY: number } | null {
-        const startAnchorY = this.getAnchorY(range.startLineNumber);
-        const endAnchorY = this.getAnchorY(range.endLineNumber);
-        if (startAnchorY === null && endAnchorY === null) {
-            return null;
-        }
-        const startY = startAnchorY ?? endAnchorY!;
-        const endY = endAnchorY ?? startAnchorY!;
-        return { topY: Math.min(startY, endY), bottomY: Math.max(startY, endY) };
+    resolveRangeAnchorSpan(range: LineRange): RangeAnchorSpan | null {
+        return resolveRangeAnchorSpanFromHandles({
+            range,
+            resolveAnchorLineNumber: (lineNumber) => this.resolveAnchorLineNumber(lineNumber),
+            resolveInlineHandleForLine: (lineNumber) => this.getInlineHandleForLine(lineNumber),
+            visibleHandles: this.handleElements,
+        });
     }
 
     private isDeleteButtonEnabled(): boolean {
@@ -274,13 +271,24 @@ export class RangeSelectionVisualManager {
 
     private ensureLinkEl(index: number): HTMLElement {
         const existing = this.linkEls[index];
-        if (existing && existing.isConnected) {
+        if (existing) {
             return existing;
         }
         const link = document.createElement('div');
         link.className = RANGE_SELECTION_LINK_CLASS;
-        this.view.dom.appendChild(link);
         this.linkEls[index] = link;
         return link;
+    }
+
+    private viewportXToHostLocalX(host: HTMLElement, viewportX: number): number {
+        const hostRect = host.getBoundingClientRect();
+        const hostX = viewportXToEditorLocalX(this.view, hostRect.left);
+        return viewportXToEditorLocalX(this.view, viewportX) - hostX;
+    }
+
+    private viewportYToHostLocalY(host: HTMLElement, viewportY: number): number {
+        const hostRect = host.getBoundingClientRect();
+        const hostY = viewportYToEditorLocalY(this.view, hostRect.top);
+        return viewportYToEditorLocalY(this.view, viewportY) - hostY;
     }
 }

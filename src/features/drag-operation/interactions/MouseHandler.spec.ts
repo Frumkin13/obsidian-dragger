@@ -112,18 +112,32 @@ function createViewStub(lineCountOrLines: number | string[] = 1): EditorView {
 function appendHandleForBlockStart(
     view: EditorView,
     blockStart: number,
-    resolveTop?: () => number
+    resolveTop?: () => number,
+    blockEnd?: number
 ): HTMLElement {
+    const lineNumber = blockStart + 1;
+    const gutter = ensureHandleGutter(view);
+    let marker = gutter.querySelector<HTMLElement>(`.dnd-handle-gutter-marker[data-line-number="${lineNumber}"]`);
+    if (!marker) {
+        marker = document.createElement('div');
+        marker.className = 'dnd-handle-gutter-marker';
+        marker.setAttribute('data-line-number', String(lineNumber));
+        Object.defineProperty(marker, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(8, blockStart * 20, 2, 20),
+        });
+        gutter.appendChild(marker);
+    }
     const handle = document.createElement('div');
     handle.className = 'dnd-drag-handle';
     handle.setAttribute('draggable', 'true');
     handle.setAttribute('data-block-start', String(blockStart));
-    handle.setAttribute('data-block-end', String(blockStart));
+    handle.setAttribute('data-block-end', String(blockEnd ?? blockStart));
     Object.defineProperty(handle, 'getBoundingClientRect', {
         configurable: true,
         value: () => createRect(8, resolveTop ? resolveTop() : (blockStart * 20 + 2), 16, 16),
     });
-    view.dom.appendChild(handle);
+    marker.appendChild(handle);
     return handle;
 }
 
@@ -925,10 +939,7 @@ describe('DragEventHandler', () => {
 
     it('supports mouse two-stage flow: first select range, then long-press selected bar to drag', () => {
         const view = createViewStub(8);
-        const handle = document.createElement('div');
-        handle.className = 'dnd-drag-handle';
-        handle.setAttribute('draggable', 'true');
-        view.dom.appendChild(handle);
+        const handle = appendHandleForBlockStart(view, 1);
 
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
@@ -1073,27 +1084,8 @@ describe('DragEventHandler', () => {
             '```',
             'tail',
         ]);
-        const anchorHandle = document.createElement('div');
-        anchorHandle.className = 'dnd-drag-handle';
-        anchorHandle.setAttribute('draggable', 'true');
-        anchorHandle.setAttribute('data-block-start', '1');
-        anchorHandle.setAttribute('data-block-end', '1');
-        Object.defineProperty(anchorHandle, 'getBoundingClientRect', {
-            configurable: true,
-            value: () => createRect(8, 22, 16, 16), // centerY = 30
-        });
-        view.dom.appendChild(anchorHandle);
-
-        const codeBlockHandle = document.createElement('div');
-        codeBlockHandle.className = 'dnd-drag-handle';
-        codeBlockHandle.setAttribute('draggable', 'true');
-        codeBlockHandle.setAttribute('data-block-start', '4');
-        codeBlockHandle.setAttribute('data-block-end', '6');
-        Object.defineProperty(codeBlockHandle, 'getBoundingClientRect', {
-            configurable: true,
-            value: () => createRect(8, 82, 16, 16), // centerY = 90
-        });
-        view.dom.appendChild(codeBlockHandle);
+        const anchorHandle = appendHandleForBlockStart(view, 1, () => 22, 1);
+        const codeBlockHandle = appendHandleForBlockStart(view, 4, () => 82, 6);
 
         const sourceBlock = createBlock('anchor', 1, 1);
         const codeBlock = createBlock('```ts', 4, 6);
@@ -1143,7 +1135,7 @@ describe('DragEventHandler', () => {
         const link = view.dom.querySelector<HTMLElement>('.dnd-range-selection-link');
         expect(link).not.toBeNull();
         expect(link?.classList.contains('is-active')).toBe(true);
-        expect(Number(link?.style.top.replace('px', '') || '0')).toBeCloseTo(30, 2);
+        expect(Number(link?.style.top.replace('px', '') || '0')).toBeCloseTo(10, 2);
         expect(Number(link?.style.height.replace('px', '') || '0')).toBeCloseTo(60, 2);
         handler.destroy();
     });
@@ -1243,10 +1235,7 @@ describe('DragEventHandler', () => {
 
     it('starts dragging committed mouse selection immediately on move without second long-press', () => {
         const view = createViewStub(8);
-        const handle = document.createElement('div');
-        handle.className = 'dnd-drag-handle';
-        handle.setAttribute('draggable', 'true');
-        view.dom.appendChild(handle);
+        const handle = appendHandleForBlockStart(view, 1);
 
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
@@ -1620,10 +1609,7 @@ describe('DragEventHandler', () => {
 
     it('keeps delete button hidden when multi-selection delete feature is disabled', () => {
         const view = createViewStub(8);
-        const handle = document.createElement('div');
-        handle.className = 'dnd-drag-handle';
-        handle.setAttribute('draggable', 'true');
-        view.dom.appendChild(handle);
+        const handle = appendHandleForBlockStart(view, 1);
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
@@ -1660,8 +1646,7 @@ describe('DragEventHandler', () => {
         });
 
         const deleteButton = view.dom.querySelector<HTMLElement>('.dnd-range-selection-delete-btn');
-        expect(deleteButton).not.toBeNull();
-        expect(deleteButton?.classList.contains('is-active')).toBe(false);
+        expect(deleteButton).toBeNull();
         handler.destroy();
     });
 
@@ -1786,6 +1771,70 @@ describe('DragEventHandler', () => {
         handler.destroy();
     });
 
+    it('keeps link active when boundary handles are missing but middle selected handle is visible', () => {
+        const view = createViewStub(12);
+        (view as unknown as { scrollDOM?: HTMLElement }).scrollDOM = view.dom;
+        const topHandle = appendHandleForBlockStart(view, 1, () => 22);
+        const middleHandle = appendHandleForBlockStart(view, 4, () => 82);
+        const bottomHandle = appendHandleForBlockStart(view, 7, () => 142);
+
+        const sourceBlock = createBlock('line 2', 1, 1);
+        const middleBlock = createBlock('line 5', 4, 4);
+        const endBlock = createBlock('line 8', 7, 7);
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: (handle) => {
+                if (handle === topHandle) return sourceBlock;
+                if (handle === middleHandle) return middleBlock;
+                if (handle === bottomHandle) return endBlock;
+                return null;
+            },
+            getBlockInfoAtPoint: (_x, y) => (y >= 140 ? endBlock : sourceBlock),
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        dispatchPointer(topHandle, 'pointerdown', {
+            pointerId: 440,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(280);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 440,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 150,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 440,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 150,
+        });
+
+        const linkBefore = view.dom.querySelector<HTMLElement>('.dnd-range-selection-link');
+        expect(linkBefore).not.toBeNull();
+        expect(linkBefore?.classList.contains('is-active')).toBe(true);
+
+        topHandle.remove();
+        bottomHandle.remove();
+        view.dom.dispatchEvent(new Event('scroll'));
+        vi.advanceTimersByTime(20);
+
+        const linkAfter = view.dom.querySelector<HTMLElement>('.dnd-range-selection-link');
+        expect(linkAfter).not.toBeNull();
+        expect(linkAfter?.classList.contains('is-active')).toBe(true);
+        expect(Number(linkAfter?.style.height.replace('px', '') || '0')).toBeCloseTo(2, 1);
+        handler.destroy();
+    });
+
     it('expands selection to whole list block when range touches any list line', () => {
         const view = createViewStub([
             'intro',
@@ -1794,10 +1843,7 @@ describe('DragEventHandler', () => {
             'after',
             'tail',
         ]);
-        const handle = document.createElement('div');
-        handle.className = 'dnd-drag-handle';
-        handle.setAttribute('draggable', 'true');
-        view.dom.appendChild(handle);
+        const handle = appendHandleForBlockStart(view, 0);
 
         const sourceBlock: BlockInfo = {
             type: BlockType.Paragraph,
@@ -2010,14 +2056,8 @@ describe('DragEventHandler', () => {
 
     it('keeps disjoint committed ranges and drags them as one ordered composite source', () => {
         const view = createViewStub(12);
-        const handleA = document.createElement('div');
-        handleA.className = 'dnd-drag-handle';
-        handleA.setAttribute('draggable', 'true');
-        const handleB = document.createElement('div');
-        handleB.className = 'dnd-drag-handle';
-        handleB.setAttribute('draggable', 'true');
-        view.dom.appendChild(handleA);
-        view.dom.appendChild(handleB);
+        const handleA = appendHandleForBlockStart(view, 1);
+        const handleB = appendHandleForBlockStart(view, 7);
 
         const blockA = createBlock('line 2', 1, 1);
         const blockB = createBlock('line 8', 7, 7);
