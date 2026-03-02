@@ -57,9 +57,3 @@ export function getAlignToLineNumber(): boolean {
 export function setAlignToLineNumber(align: boolean): void {
     handleConfig.alignToLineNumber = align;
 }
-
-/**
- * CSS class names
- */
-export const HOVER_HIDDEN_LINE_NUMBER_CLASS = 'dnd-line-number-hover-hidden';
-export const GRAB_HIDDEN_LINE_NUMBER_CLASS = 'dnd-line-number-grab-hidden';

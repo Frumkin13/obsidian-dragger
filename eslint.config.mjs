@@ -41,4 +41,37 @@ export default tseslint.config(
             'obsidianmd/ui/sentence-case': 'error',
         },
     }
+    ,
+    {
+        files: ['src/core/**/*.ts'],
+        rules: {
+            'no-restricted-imports': ['error', {
+                patterns: [
+                    '**/features/**',
+                    '**/platform/**',
+                ],
+            }],
+        },
+    },
+    {
+        files: ['src/platform/**/*.ts'],
+        rules: {
+            'no-restricted-imports': ['error', {
+                patterns: [
+                    '**/features/**',
+                    '**/core/**',
+                ],
+            }],
+        },
+    },
+    {
+        files: ['src/plugin/**/*.ts'],
+        rules: {
+            'no-restricted-imports': ['error', {
+                patterns: [
+                    '**/core/**',
+                ],
+            }],
+        },
+    }
 );

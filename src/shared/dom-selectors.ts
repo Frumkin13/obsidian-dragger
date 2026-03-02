@@ -3,6 +3,8 @@ export const MAIN_EDITOR_CONTENT_CLASS = 'dnd-main-content';
 export const EMBED_BLOCK_SELECTOR = '.cm-embed-block, .cm-callout, .cm-preview-code-block, .cm-math, .MathJax_Display, .callout, .MathJax, .mjx-container';
 export const DROP_INDICATOR_SELECTOR = '.dnd-drop-indicator';
 export const DROP_HIGHLIGHT_SELECTOR = '.dnd-drop-highlight';
+export const HIDDEN_CLASS = 'dnd-hidden';
+export const NO_GUTTER_CLASS = 'dnd-no-gutter';
 
 export const DRAG_HANDLE_CLASS = 'dnd-drag-handle';
 export const LINE_HANDLE_CLASS = 'dnd-line-handle';
@@ -23,3 +25,5 @@ export const RANGE_SELECTED_HANDLE_CLASS = 'dnd-range-selected-handle';
 export const RANGE_SELECTION_LINK_CLASS = 'dnd-range-selection-link';
 export const RANGE_SELECTION_DELETE_BUTTON_CLASS = 'dnd-range-selection-delete-btn';
 export const MOBILE_GESTURE_LOCK_CLASS = 'dnd-mobile-gesture-lock';
+export const HOVER_HIDDEN_LINE_NUMBER_CLASS = 'dnd-line-number-hover-hidden';
+export const GRAB_HIDDEN_LINE_NUMBER_CLASS = 'dnd-line-number-grab-hidden';

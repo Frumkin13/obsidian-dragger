@@ -18,7 +18,7 @@ function copyManifest() {
 }
 
 const context = await esbuild.context({
-    entryPoints: ["src/main.ts"],
+    entryPoints: ["src/plugin/main.ts"],
     bundle: true,
     external: [
         "obsidian",
