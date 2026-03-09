@@ -3,6 +3,7 @@ import { InsertionSlotContext } from '../../core/container-rules/insertion-rules
 import { LineMap } from '../../core/parser/line-map';
 import { BlockInfo } from '../../core/block/block-types';
 import { DocLike, ListContext, ParsedLine } from '../../shared/types/protocol-types';
+import { BlockFoldStateManager } from './block-fold-state';
 
 export interface BlockMoverDeps {
     view: EditorView;
@@ -27,4 +28,5 @@ export interface BlockMoverDeps {
         listIndentDeltaOverride?: number,
         listTargetIndentWidthOverride?: number
     ) => string;
+    blockFoldState?: BlockFoldStateManager;
 }

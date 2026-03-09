@@ -29,6 +29,7 @@ import { DragLifecycleEvent, DragSourceScope } from '../../shared/types/drag';
 import { DND_DRAG_SOURCE_HIGHLIGHT_ATTR, DND_DRAG_SOURCE_STYLE_ATTR } from '../../shared/dom-attrs';
 import { normalizeDragSourceVisualStyle } from '../../plugin/settings';
 import { resolveEditorDocumentKey } from '../../platform/obsidian/editor-document-key';
+import { createBlockFoldStateManager } from '../mutation/block-fold-state';
 import {
     clearEditorRootClasses,
     ensureEditorRootClasses,
@@ -114,6 +115,10 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
             this.blockMover = new BlockMover({
                 view: this.view,
                 ...this.services.createBlockMoverDeps(),
+                blockFoldState: createBlockFoldStateManager({
+                    app: plugin.app,
+                    parseLineWithQuote: (line) => this.services.textMutation.parseLineWithQuote(line),
+                }),
             });
             this.orchestrator = new DragInteractionOrchestrator({
                 view: this.view,

@@ -8,6 +8,7 @@ import {
     resolveLineNumberFromDomNodes,
 } from '../ui/probe/element-probe';
 import { getRenderedMainLineNumberAtPoint } from '../ui/probe/line-hit';
+import { isEditorLineCollapsed } from '../../platform/obsidian/editor-fold';
 
 const EMBED_HIT_FALLBACK_PADDING_PX = 8;
 
@@ -109,7 +110,7 @@ export class DragSourceResolver {
     private expandHeadingBlockIfCollapsed(block: BlockInfo): BlockInfo {
         if (block.type !== BlockType.Heading) return block;
         const headingLineNumber = block.startLine + 1;
-        if (!this.isHeadingLineCollapsed(headingLineNumber)) return block;
+        if (!isEditorLineCollapsed(this.view, headingLineNumber)) return block;
 
         const range = getHeadingSectionRange(this.view.state.doc, headingLineNumber);
         if (!range || range.endLine <= headingLineNumber) return block;
@@ -127,28 +128,6 @@ export class DragSourceResolver {
             to: endLineObj.to,
             content,
         };
-    }
-
-    private isHeadingLineCollapsed(lineNumber: number): boolean {
-        try {
-            const line = this.view.state.doc.line(lineNumber);
-            const domAtPos = this.view.domAtPos(line.from);
-            const base = domAtPos.node.nodeType === Node.TEXT_NODE ? domAtPos.node.parentElement : domAtPos.node;
-            if (!(base instanceof Element)) return false;
-            const lineEl = base.closest('.cm-line');
-            if (!lineEl) return false;
-
-            if (lineEl.classList.contains('is-collapsed') || lineEl.classList.contains('cm-folded')) {
-                return true;
-            }
-
-            if (lineEl.querySelector('.cm-foldPlaceholder, .cm-fold-indicator.is-collapsed, .collapse-indicator.is-collapsed')) {
-                return true;
-            }
-        } catch {
-            return false;
-        }
-        return false;
     }
 }
 

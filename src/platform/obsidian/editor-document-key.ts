@@ -1,6 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import type { App, MarkdownView } from 'obsidian';
-import { getCodeMirrorView } from './editor-view';
+import { resolveMarkdownViewForEditor } from './editor-markdown-view';
 
 type MarkdownViewWithFile = MarkdownView & {
     file?: {
@@ -9,13 +9,8 @@ type MarkdownViewWithFile = MarkdownView & {
 };
 
 export function resolveEditorDocumentKey(app: App, editorView: EditorView): string | null {
-    for (const leaf of app.workspace.getLeavesOfType('markdown')) {
-        const view = leaf.view;
-        if (view.getViewType?.() !== 'markdown') continue;
-        const markdownView = view as MarkdownViewWithFile;
-        if (getCodeMirrorView(markdownView) !== editorView) continue;
-        const path = markdownView.file?.path;
-        return typeof path === 'string' && path.length > 0 ? path : null;
-    }
+    const markdownView = resolveMarkdownViewForEditor(app, editorView) as MarkdownViewWithFile | null;
+    const path = markdownView?.file?.path;
+    if (typeof path === 'string' && path.length > 0) return path;
     return null;
 }

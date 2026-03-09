@@ -32,6 +32,20 @@ function createListBlock(doc: EditorState['doc'], startLine: number, endLine: nu
     };
 }
 
+function createHeadingBlock(doc: EditorState['doc'], startLine: number, endLine: number): BlockInfo {
+    const start = doc.line(startLine);
+    const end = doc.line(endLine);
+    return {
+        type: BlockType.Heading,
+        startLine: startLine - 1,
+        endLine: endLine - 1,
+        from: start.from,
+        to: end.to,
+        indentLevel: 0,
+        content: doc.sliceString(start.from, end.to),
+    };
+}
+
 function createMutableView(state: EditorState): {
     view: EditorView;
     dispatch: ReturnType<typeof vi.fn>;
@@ -176,6 +190,76 @@ describe('BlockMover', () => {
         setTimeoutSpy.mockRestore();
     });
 
+    it('restores list fold state at the shifted target line after a downward same-editor move', () => {
+        const initialState = EditorState.create({ doc: '- alpha\n- beta\n- gamma' });
+        const { view } = createMutableView(initialState);
+        const blockFoldState = {
+            capture: vi.fn(() => ({ collapsedRelativeLineOffsets: [0] })),
+            restore: vi.fn(),
+        };
+        const mover = new BlockMover({
+            view,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            blockFoldState,
+        });
+
+        mover.moveBlock({
+            sourceBlock: createListBlock(initialState.doc, 1, 1),
+            targetPos: initialState.doc.line(3).from,
+            targetLineNumberOverride: 3,
+        });
+
+        expect(blockFoldState.capture).toHaveBeenCalledTimes(1);
+        expect(blockFoldState.restore).toHaveBeenCalledWith(
+            view,
+            2,
+            { collapsedRelativeLineOffsets: [0] }
+        );
+    });
+
+    it('restores heading fold state at the shifted target line after a downward same-editor move', () => {
+        const initialState = EditorState.create({ doc: '# parent\nbody\n## child\nchild body\nafter\nlast' });
+        const { view } = createMutableView(initialState);
+        const blockFoldState = {
+            capture: vi.fn(() => ({ collapsedRelativeLineOffsets: [0, 2] })),
+            restore: vi.fn(),
+        };
+        const mover = new BlockMover({
+            view,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            blockFoldState,
+        });
+
+        mover.moveBlock({
+            sourceBlock: createHeadingBlock(initialState.doc, 1, 4),
+            targetPos: initialState.doc.line(6).from,
+            targetLineNumberOverride: 6,
+        });
+
+        expect(blockFoldState.capture).toHaveBeenCalledTimes(1);
+        expect(blockFoldState.restore).toHaveBeenCalledWith(
+            view,
+            2,
+            { collapsedRelativeLineOffsets: [0, 2] }
+        );
+    });
+
     it('moves a composite source across editor views', () => {
         const sourceInitialState = EditorState.create({ doc: 'alpha\nbeta\ngamma\ndelta\nepsilon' });
         const targetInitialState = EditorState.create({ doc: 'one\ntwo' });
@@ -221,6 +305,44 @@ describe('BlockMover', () => {
         expect(getTargetState().doc.toString()).toBe('one\nbeta\ndelta\ntwo');
         expect(getSourceState().doc.toString()).toBe('alpha\ngamma\nepsilon');
         setTimeoutSpy.mockRestore();
+    });
+
+    it('restores list fold state at the target line for cross-editor moves', () => {
+        const sourceInitialState = EditorState.create({ doc: '- alpha\n- beta\n- gamma' });
+        const targetInitialState = EditorState.create({ doc: 'one\ntwo' });
+        const { view: sourceView } = createMutableView(sourceInitialState);
+        const { view: targetView } = createMutableView(targetInitialState);
+        const blockFoldState = {
+            capture: vi.fn(() => ({ collapsedRelativeLineOffsets: [0] })),
+            restore: vi.fn(),
+        };
+        const mover = new BlockMover({
+            view: targetView,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            blockFoldState,
+        });
+
+        mover.moveBlock({
+            sourceBlock: createListBlock(sourceInitialState.doc, 2, 2),
+            targetPos: targetInitialState.doc.line(2).from,
+            targetLineNumberOverride: 2,
+            sourceView,
+        });
+
+        expect(blockFoldState.capture).toHaveBeenCalledTimes(1);
+        expect(blockFoldState.restore).toHaveBeenCalledWith(
+            targetView,
+            2,
+            { collapsedRelativeLineOffsets: [0] }
+        );
     });
 
     it('uses a single-document transaction for same-file cross-window moves', () => {

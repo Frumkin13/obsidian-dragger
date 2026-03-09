@@ -8,6 +8,7 @@ import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
 import { moveBlockAcrossEditors } from './cross-editor-move';
 import { DragDocumentRelation } from '../../shared/types/drag';
 import { BlockMoverDeps } from './block-mover-deps';
+import { CapturedBlockFoldState } from './block-fold-state';
 
 export class BlockMover {
     private readonly listRenumberer: ListRenumberer;
@@ -41,6 +42,7 @@ export class BlockMover {
         } = params;
 
         if (sourceView && sourceView !== this.deps.view && sourceDocumentRelation !== 'same_document') {
+            const capturedBlockFoldState = this.captureBlockFoldState(sourceView, sourceBlock);
             moveBlockAcrossEditors({
                 sourceView,
                 targetView: this.deps.view,
@@ -50,6 +52,7 @@ export class BlockMover {
                 listContextLineNumberOverride,
                 listIndentDeltaOverride,
                 listTargetIndentWidthOverride,
+                capturedBlockFoldState,
                 deps: {
                     getAdjustedTargetLocation: this.deps.getAdjustedTargetLocation,
                     resolveDropRuleAtInsertion: this.deps.resolveDropRuleAtInsertion,
@@ -57,14 +60,20 @@ export class BlockMover {
                     getListContext: this.deps.getListContext,
                     getIndentUnitWidth: this.deps.getIndentUnitWidth,
                     buildInsertText: this.deps.buildInsertText,
+                    blockFoldState: this.deps.blockFoldState,
                 },
             });
             return;
         }
 
         const compositeRanges = sourceBlock.compositeSelection?.ranges ?? [];
+        const sourceEditorView = sourceView ?? this.deps.view;
+        const capturedBlockFoldState = this.captureBlockFoldState(sourceEditorView, sourceBlock);
         if (compositeRanges.length > 1) {
-            this.moveCompositeBlock(params);
+            this.moveCompositeBlock({
+                ...params,
+                capturedBlockFoldState,
+            });
             return;
         }
 
@@ -132,6 +141,10 @@ export class BlockMover {
         });
         const insertPos = insertion.pos;
 
+        const targetStartLineNumber = allowInPlaceIndentChange && insertPos === deleteFrom
+            ? sourceBlock.startLine + 1
+            : this.resolveFinalInsertedStartLineNumber(sourceBlock, targetLineNumber);
+
         if (allowInPlaceIndentChange && insertPos === deleteFrom) {
             view.dispatch({
                 changes: { from: deleteFrom, to: deleteTo, insert: insertion.text },
@@ -148,10 +161,9 @@ export class BlockMover {
         }
 
         const sourceLineNumber = sourceBlock.startLine + 1;
-        setTimeout(() => {
-            this.listRenumberer.renumberOrderedListAround(sourceLineNumber);
-            this.listRenumberer.renumberOrderedListAround(targetLineNumber);
-        }, 0);
+        this.listRenumberer.renumberOrderedListAround(sourceLineNumber);
+        this.listRenumberer.renumberOrderedListAround(targetLineNumber);
+        this.deps.blockFoldState?.restore(view, targetStartLineNumber, capturedBlockFoldState);
     }
 
     private moveCompositeBlock(params: {
@@ -161,8 +173,14 @@ export class BlockMover {
         listContextLineNumberOverride?: number;
         listIndentDeltaOverride?: number;
         listTargetIndentWidthOverride?: number;
+        capturedBlockFoldState?: CapturedBlockFoldState | null;
     }): void {
-        const { sourceBlock, targetPos, targetLineNumberOverride } = params;
+        const {
+            sourceBlock,
+            targetPos,
+            targetLineNumberOverride,
+            capturedBlockFoldState,
+        } = params;
         const view = this.deps.view;
         const doc = view.state.doc as unknown as DocLikeWithRange;
         const normalizedRanges = this.normalizeCompositeRanges(
@@ -239,15 +257,15 @@ export class BlockMover {
             scrollIntoView: false,
         });
 
+        const targetStartLineNumber = this.resolveFinalCompositeInsertedStartLineNumber(targetLineNumber, normalizedRanges);
         const renumberTargets = new Set<number>([targetLineNumber]);
         for (const segment of segments) {
             renumberTargets.add(segment.startLineNumber);
         }
-        setTimeout(() => {
-            for (const lineNumber of renumberTargets) {
-                this.listRenumberer.renumberOrderedListAround(lineNumber);
-            }
-        }, 0);
+        for (const lineNumber of renumberTargets) {
+            this.listRenumberer.renumberOrderedListAround(lineNumber);
+        }
+        this.deps.blockFoldState?.restore(view, targetStartLineNumber, capturedBlockFoldState ?? null);
     }
 
     private normalizeCompositeRanges(
@@ -285,6 +303,34 @@ export class BlockMover {
             }
         }
         return false;
+    }
+
+    private captureBlockFoldState(sourceView: EditorView, sourceBlock: BlockInfo): CapturedBlockFoldState | null {
+        return this.deps.blockFoldState?.capture(sourceView, sourceBlock) ?? null;
+    }
+
+    private resolveFinalInsertedStartLineNumber(sourceBlock: BlockInfo, targetLineNumber: number): number {
+        const sourceStartLineNumber = sourceBlock.startLine + 1;
+        const sourceLineCount = sourceBlock.endLine - sourceBlock.startLine + 1;
+        if (sourceStartLineNumber < targetLineNumber) {
+            return Math.max(1, targetLineNumber - sourceLineCount);
+        }
+        return targetLineNumber;
+    }
+
+    private resolveFinalCompositeInsertedStartLineNumber(
+        targetLineNumber: number,
+        ranges: Array<{ startLine: number; endLine: number }>
+    ): number {
+        let removedLineCountBeforeTarget = 0;
+        for (const range of ranges) {
+            const startLineNumber = range.startLine + 1;
+            const endLineNumber = range.endLine + 1;
+            if (endLineNumber < targetLineNumber) {
+                removedLineCountBeforeTarget += endLineNumber - startLineNumber + 1;
+            }
+        }
+        return Math.max(1, targetLineNumber - removedLineCountBeforeTarget);
     }
 
     private resolveInsertionChange(

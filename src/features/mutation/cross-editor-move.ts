@@ -5,6 +5,7 @@ import { getLineMap, LineMap } from '../../core/parser/line-map';
 import { DocLike, DocLikeWithRange, ListContext, ParsedLine } from '../../shared/types/protocol-types';
 import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
 import { ListRenumberer } from './list-renumberer';
+import { BlockFoldStateManager, CapturedBlockFoldState } from './block-fold-state';
 
 export interface CrossEditorMoveDeps {
     getAdjustedTargetLocation: (lineNumber: number, options?: { clientY?: number }) => { lineNumber: number; blockAdjusted: boolean };
@@ -28,6 +29,7 @@ export interface CrossEditorMoveDeps {
         listIndentDeltaOverride?: number,
         listTargetIndentWidthOverride?: number
     ) => string;
+    blockFoldState?: Pick<BlockFoldStateManager, 'restore'>;
 }
 
 export type CrossEditorMoveParams = {
@@ -39,6 +41,7 @@ export type CrossEditorMoveParams = {
     listContextLineNumberOverride?: number;
     listIndentDeltaOverride?: number;
     listTargetIndentWidthOverride?: number;
+    capturedBlockFoldState?: CapturedBlockFoldState | null;
     deps: CrossEditorMoveDeps;
 };
 
@@ -67,6 +70,7 @@ function moveSingleRangeAcrossEditors(params: CrossEditorMoveParams): void {
         listContextLineNumberOverride,
         listIndentDeltaOverride,
         listTargetIndentWidthOverride,
+        capturedBlockFoldState,
         deps,
     } = params;
     const sourceDoc = sourceView.state.doc as unknown as DocLikeWithRange;
@@ -109,12 +113,13 @@ function moveSingleRangeAcrossEditors(params: CrossEditorMoveParams): void {
         scrollIntoView: false,
     });
 
-    scheduleRenumber({
+    finalizeMove({
         sourceView,
         targetView,
         sourceLineNumbers: [sourceStartLineNumber],
         targetLineNumbers: [targetLineNumber],
         parseLineWithQuote: deps.parseLineWithQuote,
+        restoreTargetBlockFoldState: () => deps.blockFoldState?.restore(targetView, targetLineNumber, capturedBlockFoldState ?? null),
     });
 }
 
@@ -123,6 +128,7 @@ function moveCompositeAcrossEditors(params: CrossEditorMoveParams): void {
         sourceView,
         targetView,
         sourceBlock,
+        capturedBlockFoldState,
         deps,
     } = params;
     const sourceDoc = sourceView.state.doc as unknown as DocLikeWithRange;
@@ -180,12 +186,13 @@ function moveCompositeAcrossEditors(params: CrossEditorMoveParams): void {
     });
 
     const sourceLineNumbers = segments.map((segment) => segment.startLineNumber);
-    scheduleRenumber({
+    finalizeMove({
         sourceView,
         targetView,
         sourceLineNumbers,
         targetLineNumbers: [targetLineNumber],
         parseLineWithQuote: deps.parseLineWithQuote,
+        restoreTargetBlockFoldState: () => deps.blockFoldState?.restore(targetView, targetLineNumber, capturedBlockFoldState ?? null),
     });
 }
 
@@ -210,12 +217,13 @@ function resolveTargetLineNumber(params: CrossEditorMoveParams): number {
     return clampTargetLineNumber(targetDoc.lines, targetLineNumber);
 }
 
-function scheduleRenumber(params: {
+function finalizeMove(params: {
     sourceView: EditorView;
     targetView: EditorView;
     sourceLineNumbers: number[];
     targetLineNumbers: number[];
     parseLineWithQuote: (line: string) => ParsedLine;
+    restoreTargetBlockFoldState?: () => void;
 }): void {
     const {
         sourceView,
@@ -223,20 +231,20 @@ function scheduleRenumber(params: {
         sourceLineNumbers,
         targetLineNumbers,
         parseLineWithQuote,
+        restoreTargetBlockFoldState,
     } = params;
     const sourceRenumberer = new ListRenumberer({ view: sourceView, parseLineWithQuote });
     const targetRenumberer = new ListRenumberer({ view: targetView, parseLineWithQuote });
     const sourceTargets = new Set<number>(sourceLineNumbers);
     const targetTargets = new Set<number>(targetLineNumbers);
 
-    setTimeout(() => {
-        for (const lineNumber of sourceTargets) {
-            sourceRenumberer.renumberOrderedListAround(lineNumber);
-        }
-        for (const lineNumber of targetTargets) {
-            targetRenumberer.renumberOrderedListAround(lineNumber);
-        }
-    }, 0);
+    for (const lineNumber of sourceTargets) {
+        sourceRenumberer.renumberOrderedListAround(lineNumber);
+    }
+    for (const lineNumber of targetTargets) {
+        targetRenumberer.renumberOrderedListAround(lineNumber);
+    }
+    restoreTargetBlockFoldState?.();
 }
 
 function normalizeCompositeRanges(
