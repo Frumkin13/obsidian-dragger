@@ -4,7 +4,7 @@ import {
     getIndentUnitWidth as getIndentUnitWidthFromIndentSample,
 } from '../parser/indent-helpers';
 
-export type MarkerConversionScope = 'root' | 'all';
+export type MarkerConversionScope = 'none' | 'root' | 'all';
 
 export function buildTargetMarker(
     target: Pick<ListContextValue, 'markerType'>,
@@ -247,9 +247,11 @@ export function adjustListToTargetContext(params: {
             parsed.indentWidth + indentPlan.indentDelta
         );
         let marker = parsed.marker;
-        const shouldConvertMarker = markerScope === 'all'
-            ? !!indentPlan.targetContext
-            : !!indentPlan.targetContext && parsed.indentWidth === sourceBase.indentWidth;
+        const shouldConvertMarker = markerScope === 'none'
+            ? false
+            : markerScope === 'all'
+                ? !!indentPlan.targetContext
+                : !!indentPlan.targetContext && parsed.indentWidth === sourceBase.indentWidth;
         if (shouldConvertMarker && indentPlan.targetContext) {
             marker = buildTargetMarkerFn(indentPlan.targetContext, parsed);
         }

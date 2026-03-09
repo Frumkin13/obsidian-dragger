@@ -37,13 +37,22 @@ describe('TextMutationPolicy', () => {
         expect(insertText).toBe('> [!TIP]\n> keep marker\n');
     });
 
-    it('adapts list marker to task context', () => {
+    it('keeps source list marker type when inserting into task context', () => {
         const { policy, doc } = createPolicy('- [ ] existing task');
         const sourceBlock = createBlock(BlockType.ListItem, '- moved item');
 
         const insertText = policy.buildInsertText(doc, sourceBlock, 2, sourceBlock.content);
 
-        expect(insertText).toBe('- [ ] moved item\n');
+        expect(insertText).toBe('- moved item\n');
+    });
+
+    it('keeps task marker when inserting near unordered list context', () => {
+        const { policy, doc } = createPolicy('- existing bullet');
+        const sourceBlock = createBlock(BlockType.ListItem, '- [ ] keep task');
+
+        const insertText = policy.buildInsertText(doc, sourceBlock, 2, sourceBlock.content);
+
+        expect(insertText).toBe('- [ ] keep task\n');
     });
 });
 

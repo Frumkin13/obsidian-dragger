@@ -2,7 +2,6 @@ import { BlockInfo } from '../block/block-types';
 import {
     adjustListToTargetContext,
     buildInsertText as buildInsertTextByPolicy,
-    buildTargetMarker,
     getListContext,
 } from './structure-mutation';
 import { DocLike, ListContext, ParsedLine } from '../../shared/types/protocol-types';
@@ -49,8 +48,8 @@ export class TextMutationPolicy {
                 getIndentUnitWidth: (sample) => this.getIndentUnitWidth(sample),
                 buildIndentStringFromSample: (sample, width) =>
                     this.lineParsingService.buildIndentStringFromSample(sample, width),
-                buildTargetMarker,
-                markerConversionScope: 'root',
+                buildTargetMarker: (_target, source) => source.marker,
+                markerConversionScope: 'none',
                 getListContext: (activeDoc, lineNumber) => this.getListContext(activeDoc, lineNumber),
                 listContextLineNumberOverride,
                 listIndentDeltaOverride,
