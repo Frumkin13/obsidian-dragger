@@ -61,12 +61,16 @@ export function commitSelectionRange(
     view: EditorView,
     state: MouseRangeSelectState,
     rangeVisual: RangeSelectionVisualManager
-): CommittedRangeSelection {
+): CommittedRangeSelection | null {
     const committed = buildCommittedRangeSelection(
         view.state.doc,
         state.selectionRanges,
         state.anchorSelectionBlock
     );
+    if (!committed) {
+        rangeVisual.clear();
+        return null;
+    }
     rangeVisual.render(committed.ranges);
     return committed;
 }

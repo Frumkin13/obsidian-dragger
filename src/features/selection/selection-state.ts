@@ -1,7 +1,7 @@
 import type { EditorState, Text } from '@codemirror/state';
 import type { BlockInfo } from '../../core/block/block-types';
 import type { LineRange } from '../../shared/types/line-range';
-import { normalizeLineRange, mergeLineRanges } from '../../shared/utils/line-range';
+import { normalizeLineRange, mergeLineRanges, subtractLineRange } from '../../shared/utils/line-range';
 import {
     type RangeSelectionBoundary,
     type MouseRangeSelectState,
@@ -32,10 +32,12 @@ export function computeUpdatedSelectionState(
 
     const docLines = editorState.doc.lines;
     const activeRange = normalizeLineRange(docLines, rangeStartLineNumber, rangeEndLineNumber);
-    const selectionRanges = mergeLineRanges(docLines, [
-        ...state.committedRangesSnapshot,
-        activeRange,
-    ]);
+    const selectionRanges = state.operation === 'remove'
+        ? subtractLineRange(docLines, state.committedRangesSnapshot, activeRange)
+        : mergeLineRanges(docLines, [
+            ...state.committedRangesSnapshot,
+            activeRange,
+        ]);
     const activeSelectionBlock = buildDragSourceBlockFromRanges(
         editorState.doc,
         selectionRanges,
@@ -53,8 +55,11 @@ export function buildCommittedRangeSelection(
     doc: Text,
     selectionRanges: LineRange[],
     templateBlock: BlockInfo
-): CommittedRangeSelection {
+): CommittedRangeSelection | null {
     const committedRanges = mergeLineRanges(doc.lines, selectionRanges);
+    if (committedRanges.length === 0) {
+        return null;
+    }
     const selectedBlock = buildDragSourceBlockFromRanges(doc, committedRanges, templateBlock);
     return {
         selectedBlock,

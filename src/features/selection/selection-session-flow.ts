@@ -1,9 +1,15 @@
 import type { Text } from '@codemirror/state';
 import type { BlockInfo } from '../../core/block/block-types';
 import type { LineRange } from '../../shared/types/line-range';
-import { normalizeLineRange, mergeLineRanges } from '../../shared/utils/line-range';
+import {
+    normalizeLineRange,
+    mergeLineRanges,
+    isLineRangeCoveredByRanges,
+    subtractLineRange,
+} from '../../shared/utils/line-range';
 import {
     type MouseRangeSelectState,
+    type RangeSelectionOperation,
     type RangeSelectConfig,
     buildDragSourceBlockFromRanges,
     cloneBlockInfo,
@@ -50,7 +56,14 @@ export function createInitialRangeSelectionState(
     }
 
     const anchorRange = normalizeLineRange(options.doc.lines, anchorStartLineNumber, anchorEndLineNumber);
-    const selectionRanges = mergeLineRanges(options.doc.lines, [...options.committedRangesSnapshot, anchorRange]);
+    const operation: RangeSelectionOperation = isLineRangeCoveredByRanges(
+        options.doc.lines,
+        anchorRange,
+        options.committedRangesSnapshot
+    ) ? 'remove' : 'add';
+    const selectionRanges = operation === 'remove'
+        ? subtractLineRange(options.doc.lines, options.committedRangesSnapshot, anchorRange)
+        : mergeLineRanges(options.doc.lines, [...options.committedRangesSnapshot, anchorRange]);
     const anchorSelectionBlock = buildDragSourceBlockFromRanges(options.doc, selectionRanges, options.blockInfo);
     const sourceHandleDraggableAttr = options.sourceHandle?.getAttribute('draggable') ?? null;
 
@@ -58,6 +71,9 @@ export function createInitialRangeSelectionState(
         anchorSelectionBlock,
         directDragSourceBlock: cloneBlockInfo(options.blockInfo),
         activeSelectionBlock: anchorSelectionBlock,
+        operation,
+        preferLongPressDrag: false,
+        selectionGestureStarted: false,
         pointerId: options.pointerId,
         startX: options.startX,
         startY: options.startY,

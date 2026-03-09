@@ -1,23 +1,8 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../core/block/block-types';
 import { normalizeEmbedRoot } from '../ui/probe/embed-probe';
-import { clampLineNumber } from '../../shared/utils/line-number';
 import { EMBED_BLOCK_SELECTOR } from '../../shared/dom-selectors';
-import { type RangeSelectionBoundary } from './selection-model';
-
-function buildBoundaryFromBlock(doc: EditorView['state']['doc'], block: BlockInfo): RangeSelectionBoundary {
-    const startLineNumber = clampLineNumber(doc.lines, block.startLine + 1);
-    const endLineNumber = clampLineNumber(doc.lines, block.endLine + 1);
-    const representativeLineNumber = Math.max(
-        startLineNumber,
-        Math.min(endLineNumber, doc.lineAt(block.from).number)
-    );
-    return {
-        startLineNumber,
-        endLineNumber,
-        representativeLineNumber,
-    };
-}
+import { buildRangeSelectionBoundaryFromBlock, type RangeSelectionBoundary } from './selection-model';
 
 function safeGetBlockInfoAtPoint(
     getBlockInfoAtPoint: (clientX: number, clientY: number) => BlockInfo | null,
@@ -137,7 +122,7 @@ export function resolveRangeBoundaryAtPoint(
     for (const point of probePoints) {
         const block = safeGetBlockInfoAtPoint(getBlockInfoAtPoint, point.x, point.y);
         if (!block) continue;
-        return buildBoundaryFromBlock(doc, block);
+        return buildRangeSelectionBoundaryFromBlock(doc, block);
     }
 
     return null;

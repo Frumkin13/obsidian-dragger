@@ -39,3 +39,52 @@ export function isLineNumberInRanges(lineNumber: number, ranges: LineRange[]): b
     }
     return false;
 }
+
+export function isLineRangeCoveredByRanges(docLines: number, target: LineRange, ranges: LineRange[]): boolean {
+    const normalizedTarget = normalizeLineRange(
+        docLines,
+        target.startLineNumber,
+        target.endLineNumber
+    );
+    const merged = mergeLineRanges(docLines, ranges);
+    return merged.some((range) =>
+        range.startLineNumber <= normalizedTarget.startLineNumber
+        && range.endLineNumber >= normalizedTarget.endLineNumber
+    );
+}
+
+export function subtractLineRange(
+    docLines: number,
+    sourceRanges: LineRange[],
+    rangeToSubtract: LineRange
+): LineRange[] {
+    const normalizedSource = mergeLineRanges(docLines, sourceRanges);
+    const target = normalizeLineRange(
+        docLines,
+        rangeToSubtract.startLineNumber,
+        rangeToSubtract.endLineNumber
+    );
+
+    const result: LineRange[] = [];
+    for (const source of normalizedSource) {
+        if (target.endLineNumber < source.startLineNumber || target.startLineNumber > source.endLineNumber) {
+            result.push({ ...source });
+            continue;
+        }
+
+        if (target.startLineNumber > source.startLineNumber) {
+            result.push({
+                startLineNumber: source.startLineNumber,
+                endLineNumber: target.startLineNumber - 1,
+            });
+        }
+        if (target.endLineNumber < source.endLineNumber) {
+            result.push({
+                startLineNumber: target.endLineNumber + 1,
+                endLineNumber: source.endLineNumber,
+            });
+        }
+    }
+
+    return mergeLineRanges(docLines, result);
+}

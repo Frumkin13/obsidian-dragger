@@ -326,7 +326,8 @@ body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-edi
     opacity: 0;
     pointer-events: none;
     cursor: grab;
-    z-index: 10002;
+    /* Keep selection connector below drag handles to avoid blocking handle interactions. */
+    z-index: 2;
 }
 
 .dnd-range-selection-link.is-active {

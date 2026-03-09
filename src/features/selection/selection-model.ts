@@ -11,6 +11,8 @@ export type RangeSelectionBoundary = {
     representativeLineNumber: number;
 };
 
+export type RangeSelectionOperation = 'add' | 'remove';
+
 export type RangeSelectConfig = {
     longPressMs: number;
 };
@@ -24,6 +26,9 @@ export type MouseRangeSelectState = {
     anchorSelectionBlock: BlockInfo;
     directDragSourceBlock: BlockInfo;
     activeSelectionBlock: BlockInfo;
+    operation: RangeSelectionOperation;
+    preferLongPressDrag: boolean;
+    selectionGestureStarted: boolean;
     pointerId: number;
     startX: number;
     startY: number;
@@ -146,6 +151,23 @@ export function resolveBlockBoundaryAtLine(
     return {
         startLineNumber: Math.max(1, block.startLine + 1),
         endLineNumber: Math.min(doc.lines, block.endLine + 1),
+    };
+}
+
+export function buildRangeSelectionBoundaryFromBlock(
+    doc: EditorState['doc'],
+    block: BlockInfo
+): RangeSelectionBoundary {
+    const startLineNumber = clampLineNumber(doc.lines, block.startLine + 1);
+    const endLineNumber = clampLineNumber(doc.lines, block.endLine + 1);
+    const representativeLineNumber = Math.max(
+        startLineNumber,
+        Math.min(endLineNumber, doc.lineAt(block.from).number)
+    );
+    return {
+        startLineNumber,
+        endLineNumber,
+        representativeLineNumber,
     };
 }
 
