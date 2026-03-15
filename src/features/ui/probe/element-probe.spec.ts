@@ -27,6 +27,7 @@ function createRect(left: number, top: number, width: number, height: number): D
 describe('dom-probe', () => {
     it('safeCoordsAtPos returns null when coordsAtPos throws', () => {
         const view = {
+            viewport: { from: 0, to: 1000 },
             coordsAtPos: (pos: number) => {
                 if (pos === 2) throw new Error('boom');
                 return createRect(10, 20, 30, 10);

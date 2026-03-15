@@ -1,91 +1,79 @@
 import { EditorView } from '@codemirror/view';
 
-export interface GeometryFrameCache {
-    coordsByPos: Map<number, ReturnType<EditorView['coordsAtPos']> | null>;
-    lineRectByLine: Map<number, { left: number; width: number } | undefined>;
-    insertionAnchorYByLine: Map<number, number | null>;
-    blockRectByRange: Map<string, { top: number; left: number; width: number; height: number } | undefined>;
-}
-
-export function createGeometryFrameCache(): GeometryFrameCache {
-    return {
-        coordsByPos: new Map<number, ReturnType<EditorView['coordsAtPos']> | null>(),
-        lineRectByLine: new Map<number, { left: number; width: number } | undefined>(),
-        insertionAnchorYByLine: new Map<number, number | null>(),
-        blockRectByRange: new Map<string, { top: number; left: number; width: number; height: number } | undefined>(),
-    };
-}
+// Removed GeometryFrameCache declarations
 
 export function getCoordsAtPos(
     view: EditorView,
     pos: number,
-    frameCache?: GeometryFrameCache
+    side?: -1 | 1
 ): ReturnType<EditorView['coordsAtPos']> | null {
-    if (!frameCache) {
-        try {
-            return view.coordsAtPos(pos);
-        } catch {
-            return null;
-        }
-    }
-    if (frameCache.coordsByPos.has(pos)) {
-        return frameCache.coordsByPos.get(pos) ?? null;
-    }
-    let coords: ReturnType<EditorView['coordsAtPos']> | null = null;
     try {
-        coords = view.coordsAtPos(pos);
+        const { from, to } = view.viewport;
+        const margin = 500; 
+
+        if (pos >= Math.max(0, from - margin) && pos <= to + margin) {
+            return typeof side !== 'undefined' ? view.coordsAtPos(pos, side) : view.coordsAtPos(pos);
+        }
+
+        const lineBlock = view.lineBlockAt(pos);
+        const editorRect = view.dom.getBoundingClientRect();
+        const doc = view.state.doc;
+        
+        if (pos < 0 || pos > doc.length) return null;
+
+        const line = doc.lineAt(pos);
+        const col = pos - line.from;
+        
+        const defaultCharWidth = view.defaultCharacterWidth || 7;
+        const estimatedLeft = editorRect.left + (col * defaultCharWidth);
+        const estimatedRight = estimatedLeft + defaultCharWidth;
+
+        const documentTop = view.documentTop;
+        const screenTop = documentTop + lineBlock.top;
+        const screenBottom = documentTop + lineBlock.bottom;
+
+        return {
+            left: estimatedLeft,
+            right: estimatedRight,
+            top: screenTop,
+            bottom: screenBottom
+        };
     } catch {
-        coords = null;
+        return null;
     }
-    frameCache.coordsByPos.set(pos, coords);
-    return coords;
 }
 
 export function getLineRect(
     view: EditorView,
-    lineNumber: number,
-    frameCache?: GeometryFrameCache
+    lineNumber: number
 ): { left: number; width: number } | undefined {
     const doc = view.state.doc;
     if (lineNumber < 1 || lineNumber > doc.lines) return undefined;
-    if (frameCache && frameCache.lineRectByLine.has(lineNumber)) {
-        return frameCache.lineRectByLine.get(lineNumber);
-    }
     const line = doc.line(lineNumber);
-    const start = getCoordsAtPos(view, line.from, frameCache);
-    const end = getCoordsAtPos(view, line.to, frameCache);
-    if (!start || !end) {
-        if (frameCache) frameCache.lineRectByLine.set(lineNumber, undefined);
-        return undefined;
-    }
+    const start = getCoordsAtPos(view, line.from);
+    const end = getCoordsAtPos(view, line.to);
+    if (!start || !end) return undefined;
     const left = Math.min(start.left, end.left);
     const right = Math.max(start.left, end.left);
-    const rect = { left, width: Math.max(8, right - left) };
-    if (frameCache) frameCache.lineRectByLine.set(lineNumber, rect);
-    return rect;
+    return { left, width: Math.max(8, right - left) };
 }
 
 export function getInsertionAnchorY(
     view: EditorView,
-    lineNumber: number,
-    frameCache?: GeometryFrameCache
+    lineNumber: number
 ): number | null {
     const doc = view.state.doc;
-    if (frameCache && frameCache.insertionAnchorYByLine.has(lineNumber)) {
-        return frameCache.insertionAnchorYByLine.get(lineNumber) ?? null;
-    }
     let y: number | null = null;
     if (lineNumber <= 1) {
         const first = doc.line(1);
-        const coords = getCoordsAtPos(view, first.from, frameCache);
+        const coords = getCoordsAtPos(view, first.from);
         y = coords ? coords.top : null;
     } else {
         const anchorLineNumber = Math.min(lineNumber - 1, doc.lines);
         const anchorLine = doc.line(anchorLineNumber);
-        const coords = getCoordsAtPos(view, anchorLine.to, frameCache);
+        const coords = getCoordsAtPos(view, anchorLine.to);
         y = coords ? coords.bottom : null;
     }
-    if (frameCache) frameCache.insertionAnchorYByLine.set(lineNumber, y);
     return y;
 }
 
@@ -118,15 +106,10 @@ export function getLineIndentPosByWidth(
 export function getBlockRect(
     view: EditorView,
     startLineNumber: number,
-    endLineNumber: number,
-    frameCache?: GeometryFrameCache
+    endLineNumber: number
 ): { top: number; left: number; width: number; height: number } | undefined {
     const doc = view.state.doc;
     if (startLineNumber < 1 || endLineNumber > doc.lines) return undefined;
-    const cacheKey = `${startLineNumber}:${endLineNumber}`;
-    if (frameCache && frameCache.blockRectByRange.has(cacheKey)) {
-        return frameCache.blockRectByRange.get(cacheKey);
-    }
     let minLeft = Number.POSITIVE_INFINITY;
     let maxRight = 0;
     let top = 0;
@@ -134,8 +117,8 @@ export function getBlockRect(
 
     for (let i = startLineNumber; i <= endLineNumber; i++) {
         const line = doc.line(i);
-        const start = getCoordsAtPos(view, line.from, frameCache);
-        const end = getCoordsAtPos(view, line.to, frameCache);
+        const start = getCoordsAtPos(view, line.from);
+        const end = getCoordsAtPos(view, line.to);
         if (!start || !end) continue;
         if (i === startLineNumber) top = start.top;
         if (i === endLineNumber) bottom = end.bottom;
@@ -145,11 +128,6 @@ export function getBlockRect(
         maxRight = Math.max(maxRight, right);
     }
 
-    if (!isFinite(minLeft) || maxRight === 0 || bottom <= top) {
-        if (frameCache) frameCache.blockRectByRange.set(cacheKey, undefined);
-        return undefined;
-    }
-    const rect = { top, left: minLeft, width: Math.max(8, maxRight - minLeft), height: bottom - top };
-    if (frameCache) frameCache.blockRectByRange.set(cacheKey, rect);
-    return rect;
+    if (!isFinite(minLeft) || maxRight === 0 || bottom <= top) return undefined;
+    return { top, left: minLeft, width: Math.max(8, maxRight - minLeft), height: bottom - top };
 }

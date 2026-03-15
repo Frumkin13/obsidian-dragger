@@ -16,13 +16,8 @@ describe('block-mutation', () => {
             const adjustBlockquoteDepth = vi.fn((text: string) => `> ${text}`);
             const adjustListToTargetContext = vi.fn((text: string) => text);
             const result = buildInsertText({
-                doc: createDoc(['> quote context']),
                 sourceBlockType: type,
                 sourceContent: 'content line',
-                targetLineNumber: 2,
-                getBlockquoteDepthContext: () => 1,
-                getContentQuoteDepth: () => 0,
-                adjustBlockquoteDepth,
                 adjustListToTargetContext,
             });
 
@@ -34,13 +29,8 @@ describe('block-mutation', () => {
     it('does not auto-adjust quote depth for callout blocks', () => {
         const adjustBlockquoteDepth = vi.fn((text: string) => text.replace(/^> /gm, ''));
         const result = buildInsertText({
-            doc: createDoc(['plain context']),
             sourceBlockType: BlockType.Callout,
             sourceContent: '> [!TIP]\n> inside',
-            targetLineNumber: 2,
-            getBlockquoteDepthContext: () => 0,
-            getContentQuoteDepth: () => 1,
-            adjustBlockquoteDepth,
             adjustListToTargetContext: (text) => text,
         });
 
@@ -51,13 +41,8 @@ describe('block-mutation', () => {
     it('does not auto-adjust quote depth for normal paragraph moves', () => {
         const adjustBlockquoteDepth = vi.fn((text: string, targetDepth: number) => `${'> '.repeat(targetDepth)}${text}`);
         const result = buildInsertText({
-            doc: createDoc(['plain context']),
             sourceBlockType: BlockType.Paragraph,
             sourceContent: 'plain',
-            targetLineNumber: 2,
-            getBlockquoteDepthContext: () => 2,
-            getContentQuoteDepth: () => 0,
-            adjustBlockquoteDepth,
             adjustListToTargetContext: (text) => text,
         });
 
@@ -67,13 +52,8 @@ describe('block-mutation', () => {
 
     it('does not add trailing blank separation for table rows', () => {
         const result = buildInsertText({
-            doc: createDoc(['| a |', '| b |']),
             sourceBlockType: BlockType.Table,
             sourceContent: '| moved |',
-            targetLineNumber: 2,
-            getBlockquoteDepthContext: () => 0,
-            getContentQuoteDepth: () => 0,
-            adjustBlockquoteDepth: (text) => text,
             adjustListToTargetContext: (text) => text,
         });
 
@@ -94,13 +74,8 @@ describe('block-mutation', () => {
     it('does not reset quote depth after callout when spacing mutation is removed', () => {
         const adjustBlockquoteDepth = vi.fn((text: string, targetDepth: number) => `${'> '.repeat(targetDepth)}${text}`);
         const result = buildInsertText({
-            doc: createDoc(['> [!TIP]', '> inside callout']),
             sourceBlockType: BlockType.Paragraph,
             sourceContent: 'outside paragraph',
-            targetLineNumber: 3,
-            getBlockquoteDepthContext: () => 1,
-            getContentQuoteDepth: () => 0,
-            adjustBlockquoteDepth,
             adjustListToTargetContext: (text) => text,
         });
 
@@ -111,13 +86,8 @@ describe('block-mutation', () => {
     it('does not force quote reset when inserting between quote lines', () => {
         const adjustBlockquoteDepth = vi.fn((text: string, targetDepth: number) => `${'> '.repeat(targetDepth)}${text}`);
         const result = buildInsertText({
-            doc: createDoc(['> quote A', '> quote B']),
             sourceBlockType: BlockType.Paragraph,
             sourceContent: 'middle plain',
-            targetLineNumber: 2,
-            getBlockquoteDepthContext: () => 1,
-            getContentQuoteDepth: () => 0,
-            adjustBlockquoteDepth,
             adjustListToTargetContext: (text) => text,
         });
 
@@ -129,13 +99,8 @@ describe('block-mutation', () => {
         const adjustBlockquoteDepth = vi.fn((text: string) => text.replace(/^> /gm, ''));
         const adjustListToTargetContext = vi.fn((text: string) => text.replace(/^- /gm, '1. '));
         const result = buildInsertText({
-            doc: createDoc(['> a', '> b']),
             sourceBlockType: BlockType.Blockquote,
             sourceContent: '> c',
-            targetLineNumber: 3,
-            getBlockquoteDepthContext: () => 1,
-            getContentQuoteDepth: () => 1,
-            adjustBlockquoteDepth,
             adjustListToTargetContext,
         });
 
@@ -149,13 +114,8 @@ describe('block-mutation', () => {
         const adjustListToTargetContext = vi.fn((text: string) => text.replace(/- /g, '1. '));
         const source = '> > - keep marker';
         const result = buildInsertText({
-            doc: createDoc(['> context']),
             sourceBlockType: BlockType.Blockquote,
             sourceContent: source,
-            targetLineNumber: 2,
-            getBlockquoteDepthContext: () => 1,
-            getContentQuoteDepth: () => 2,
-            adjustBlockquoteDepth,
             adjustListToTargetContext,
         });
 
@@ -166,13 +126,8 @@ describe('block-mutation', () => {
 
     it('does not add trailing blank separation when inserting plain text before a table', () => {
         const result = buildInsertText({
-            doc: createDoc(['| h |', '| - |', '| v |']),
             sourceBlockType: BlockType.Paragraph,
             sourceContent: 'before table',
-            targetLineNumber: 1,
-            getBlockquoteDepthContext: () => 0,
-            getContentQuoteDepth: () => 0,
-            adjustBlockquoteDepth: (text) => text,
             adjustListToTargetContext: (text) => text,
         });
 
@@ -181,13 +136,8 @@ describe('block-mutation', () => {
 
     it('does not add leading blank separation when inserting plain text after a table', () => {
         const result = buildInsertText({
-            doc: createDoc(['| h |', '| - |', '| v |']),
             sourceBlockType: BlockType.Paragraph,
             sourceContent: 'after table',
-            targetLineNumber: 4,
-            getBlockquoteDepthContext: () => 0,
-            getContentQuoteDepth: () => 0,
-            adjustBlockquoteDepth: (text) => text,
             adjustListToTargetContext: (text) => text,
         });
 

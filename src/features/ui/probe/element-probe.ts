@@ -1,5 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { clampLineNumber } from '../../../shared/utils/line-number';
+import { getCoordsAtPos } from '../../targeting/rect-calculator';
 
 type ContentRect = Pick<DOMRect | DOMRectReadOnly, 'left' | 'right' | 'top' | 'bottom'>;
 
@@ -14,14 +15,7 @@ export function safeCoordsAtPos(
     pos: number,
     side?: -1 | 1
 ): ReturnType<EditorView['coordsAtPos']> | null {
-    try {
-        if (typeof side === 'number') {
-            return view.coordsAtPos(pos, side);
-        }
-        return view.coordsAtPos(pos);
-    } catch {
-        return null;
-    }
+    return getCoordsAtPos(view, pos, side);
 }
 
 export function safePosAtCoords(

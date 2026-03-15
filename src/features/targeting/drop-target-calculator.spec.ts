@@ -38,6 +38,9 @@ function createViewStub(docText: string): EditorView {
         dom: root,
         contentDOM: root,
         defaultCharacterWidth: 7,
+        viewport: { from: 0, to: 100000 },
+        documentTop: 0,
+        lineBlockAt: () => ({ top: 0, bottom: 20 }),
         posAtCoords: () => 0,
         coordsAtPos: () => ({ left: 10, right: 110, top: 0, bottom: 20 }),
     };
@@ -258,6 +261,9 @@ describe('DropTargetCalculator', () => {
             dom: root,
             contentDOM: content,
             defaultCharacterWidth: 7,
+            viewport: { from: 0, to: 100000 },
+            documentTop: 0,
+            lineBlockAt: () => ({ top: 0, bottom: 20 }),
             posAtCoords: () => line3.from,
             coordsAtPos: (pos: number) => {
                 if (pos === line1.from || pos === line1.to) return createRect(100, 10, 120, 20);
@@ -362,6 +368,9 @@ describe('DropTargetCalculator', () => {
             dom: root,
             contentDOM: content,
             defaultCharacterWidth: 7,
+            viewport: { from: 0, to: 100000 },
+            documentTop: 0,
+            lineBlockAt: () => ({ top: 0, bottom: 20 }),
             // Simulate hr render overlay mapping bug: y over line 2 still resolves to line 1.
             posAtCoords: () => state.doc.line(1).from,
             coordsAtPos: () => createRect(100, 10, 120, 20),
@@ -420,6 +429,9 @@ describe('DropTargetCalculator', () => {
             dom: root,
             contentDOM: content,
             defaultCharacterWidth: 7,
+            viewport: { from: 0, to: 100000 },
+            documentTop: 0,
+            lineBlockAt: () => ({ top: 0, bottom: 20 }),
             posAtCoords: () => state.doc.line(1).from,
             posAtDOM: (node: Node) => {
                 if (node === line1) return state.doc.line(1).from;

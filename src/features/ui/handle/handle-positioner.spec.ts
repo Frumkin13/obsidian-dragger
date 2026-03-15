@@ -714,6 +714,11 @@ describe('handle-position', () => {
                     if (node === line2El) return line2.from;
                     throw new Error('unknown node');
                 },
+                domAtPos: (pos: number) => {
+                    if (pos === line1.from) return { node: line1El, offset: 0 };
+                    if (pos === line2.from) return { node: line2El, offset: 0 };
+                    throw new Error('unknown pos');
+                },
             } as unknown as EditorView;
 
             const top = getHandleTopPxForLine(view, 1);
@@ -996,6 +1001,11 @@ describe('handle-position', () => {
                     if (node === line1El) return line1.from;
                     if (node === line2El) return line2.from;
                     throw new Error('unknown node');
+                },
+                domAtPos: (pos: number) => {
+                    if (pos === line1.from) return { node: line1El, offset: 0 };
+                    if (pos === line2.from) return { node: line2El, offset: 0 };
+                    throw new Error('unknown pos');
                 },
             } as unknown as EditorView;
 

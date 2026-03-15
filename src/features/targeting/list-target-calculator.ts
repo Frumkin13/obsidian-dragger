@@ -6,9 +6,8 @@ import {
     getNearestListLineAtOrBefore,
     LineMap,
 } from '../../core/parser/line-map';
-import { GeometryFrameCache, getCoordsAtPos } from './rect-calculator';
+import { getCoordsAtPos } from './rect-calculator';
 import { DocLike, ParsedLine } from '../../shared/types/protocol-types';
-import { ListTargetSessionCache } from './list-target-session-cache';
 import { DragSourceScope } from '../../shared/types/drag';
 import { ListDropTargetInfo } from './list-drop-target-calculator-port';
 
@@ -18,8 +17,7 @@ export interface ListDropTargetCalculatorDeps {
     getIndentUnitWidthForDoc: (doc: DocLike) => number;
     getBlockRect: (
         startLineNumber: number,
-        endLineNumber: number,
-        frameCache?: GeometryFrameCache
+        endLineNumber: number
     ) => { top: number; left: number; width: number; height: number } | undefined;
     incrementPerfCounter?: (
         key: 'list_ancestor_scan_steps' | 'list_parent_scan_steps' | 'highlight_scan_lines',
@@ -36,36 +34,24 @@ type ListCalcContext = {
     doc: { line: (n: number) => { text: string; from: number; to: number }; lines: number };
     lineMap: LineMap;
     memo: ListCalcMemo;
-    frameCache?: GeometryFrameCache;
     indentUnit: number;
 };
 
-const LARGE_DOC_HIGHLIGHT_THRESHOLD = 30_000;
-const MAX_PRECISE_HIGHLIGHT_SCAN_LINES = 200;
 export class ListDropTargetCalculator {
-    private readonly cache: ListTargetSessionCache;
-
     constructor(
         private readonly view: EditorView,
         private readonly deps: ListDropTargetCalculatorDeps
-    ) {
-        this.cache = new ListTargetSessionCache(view);
-    }
+    ) {}
 
     getListMarkerBounds(
         lineNumber: number,
-        options?: { frameCache?: GeometryFrameCache; memo?: ListCalcMemo; lineMap?: LineMap }
+        options?: { memo?: ListCalcMemo; lineMap?: LineMap }
     ): { markerStartX: number; contentStartX: number } | null {
         const doc = this.view.state.doc;
         if (lineNumber < 1 || lineNumber > doc.lines) return null;
         const memo = options?.memo;
         if (memo && memo.markerBoundsByLine.has(lineNumber)) {
             return memo.markerBoundsByLine.get(lineNumber) ?? null;
-        }
-        const sessionCached = this.cache.getCachedMarkerBounds(lineNumber);
-        if (sessionCached !== undefined) {
-            if (memo) memo.markerBoundsByLine.set(lineNumber, sessionCached);
-            return sessionCached;
         }
 
         const parsed = this.getParsedLineAtLineNumber(
@@ -76,18 +62,16 @@ export class ListDropTargetCalculator {
         );
         if (!parsed || !parsed.isListItem) {
             if (memo) memo.markerBoundsByLine.set(lineNumber, null);
-            this.cache.setCachedMarkerBounds(lineNumber, null);
             return null;
         }
 
         const line = doc.line(lineNumber);
         const markerStartPos = line.from + parsed.quotePrefix.length + parsed.indentRaw.length;
         const contentStartPos = markerStartPos + parsed.marker.length;
-        const markerStart = getCoordsAtPos(this.view, markerStartPos, options?.frameCache);
-        const contentStart = getCoordsAtPos(this.view, contentStartPos, options?.frameCache);
+        const markerStart = getCoordsAtPos(this.view, markerStartPos);
+        const contentStart = getCoordsAtPos(this.view, contentStartPos);
         if (!markerStart || !contentStart) {
             if (memo) memo.markerBoundsByLine.set(lineNumber, null);
-            this.cache.setCachedMarkerBounds(lineNumber, null);
             return null;
         }
 
@@ -96,7 +80,6 @@ export class ListDropTargetCalculator {
             contentStartX: contentStart.left,
         };
         if (memo) memo.markerBoundsByLine.set(lineNumber, bounds);
-        this.cache.setCachedMarkerBounds(lineNumber, bounds);
         return bounds;
     }
 
@@ -108,7 +91,6 @@ export class ListDropTargetCalculator {
         dragSource: BlockInfo | null;
         sourceScope?: DragSourceScope;
         clientX: number;
-        frameCache?: GeometryFrameCache;
         lineMap?: LineMap;
     }): ListDropTargetInfo {
         const {
@@ -119,25 +101,11 @@ export class ListDropTargetCalculator {
             dragSource,
             sourceScope = 'same_editor',
             clientX,
-            frameCache,
             lineMap: providedLineMap,
         } = params;
         if (!dragSource || dragSource.type !== BlockType.ListItem) return {};
 
-        const cacheKey = this.cache.buildListTargetCacheKey({
-            targetLineNumber,
-            lineNumber,
-            forcedLineNumber,
-            childIntentOnLine,
-            sourceScope,
-            dragSource,
-            clientX,
-        });
-        const cached = this.cache.getCachedListTarget(cacheKey);
-        if (cached) return cached;
-
         const finalize = (result: ListDropTargetInfo): ListDropTargetInfo => {
-            this.cache.setCachedListTarget(cacheKey, result);
             return result;
         };
 
@@ -153,7 +121,6 @@ export class ListDropTargetCalculator {
             doc,
             lineMap,
             memo,
-            frameCache,
             indentUnit,
         };
 
@@ -245,62 +212,39 @@ export class ListDropTargetCalculator {
             mappedSubtreeEnd >= blockStartLineNumber ? mappedSubtreeEnd : blockStartLineNumber
         );
         const bounds = this.getListMarkerBounds(blockStartLineNumber, {
-            frameCache: context.frameCache,
             memo: context.memo,
             lineMap: context.lineMap,
         });
 
-        const lineCount = blockEndLineNumber - blockStartLineNumber + 1;
-        const shouldUseFallbackRect = context.doc.lines > LARGE_DOC_HIGHLIGHT_THRESHOLD
-            || lineCount > MAX_PRECISE_HIGHLIGHT_SCAN_LINES;
-        if (shouldUseFallbackRect) {
-            const startLineObj = context.doc.line(blockStartLineNumber);
-            const startCoords = getCoordsAtPos(this.view, startLineObj.from, context.frameCache);
-            const endCoords = getCoordsAtPos(this.view, startLineObj.to, context.frameCache);
-            if (bounds && startCoords && endCoords) {
-                const right = endCoords.right ?? endCoords.left;
-                return {
-                    lineRectSourceLineNumber,
-                    highlightRect: {
-                        top: startCoords.top,
-                        left: bounds.markerStartX,
-                        width: Math.max(8, right - bounds.markerStartX),
-                        height: Math.max(4, endCoords.bottom - startCoords.top),
-                    },
-                };
-            }
-            return { lineRectSourceLineNumber };
-        }
-
-        if (!shouldUseFallbackRect) {
-            const startLineObj = context.doc.line(blockStartLineNumber);
-            const endLineObj = context.doc.line(blockEndLineNumber);
-            const startCoords = getCoordsAtPos(this.view, startLineObj.from, context.frameCache);
-            const endCoords = getCoordsAtPos(this.view, endLineObj.to, context.frameCache);
-            if (bounds && startCoords && endCoords) {
-                this.deps.incrementPerfCounter?.('highlight_scan_lines', lineCount);
-                const left = bounds.markerStartX;
-                let maxRight = left;
-                for (let i = blockStartLineNumber; i <= blockEndLineNumber; i++) {
-                    const lineObj = context.doc.line(i);
-                    const lineEndCoords = getCoordsAtPos(this.view, lineObj.to, context.frameCache);
-                    if (!lineEndCoords) continue;
-                    const right = lineEndCoords.right ?? lineEndCoords.left;
-                    if (right > maxRight) {
-                        maxRight = right;
-                    }
+        const startLineObj = context.doc.line(blockStartLineNumber);
+        const endLineObj = context.doc.line(blockEndLineNumber);
+        const startCoords = getCoordsAtPos(this.view, startLineObj.from);
+        const endCoords = getCoordsAtPos(this.view, endLineObj.to);
+        
+        if (bounds && startCoords && endCoords) {
+            const lineCount = blockEndLineNumber - blockStartLineNumber + 1;
+            this.deps.incrementPerfCounter?.('highlight_scan_lines', lineCount);
+            const left = bounds.markerStartX;
+            let maxRight = left;
+            for (let i = blockStartLineNumber; i <= blockEndLineNumber; i++) {
+                const lineObj = context.doc.line(i);
+                const lineEndCoords = getCoordsAtPos(this.view, lineObj.to);
+                if (!lineEndCoords) continue;
+                const right = lineEndCoords.right ?? lineEndCoords.left;
+                if (right > maxRight) {
+                    maxRight = right;
                 }
-                const width = Math.max(8, maxRight - left);
-                return {
-                    lineRectSourceLineNumber,
-                    highlightRect: {
-                        top: startCoords.top,
-                        left,
-                        width,
-                        height: Math.max(4, endCoords.bottom - startCoords.top),
-                    },
-                };
             }
+            const width = Math.max(8, maxRight - left);
+            return {
+                lineRectSourceLineNumber,
+                highlightRect: {
+                    top: startCoords.top,
+                    left,
+                    width,
+                    height: Math.max(4, endCoords.bottom - startCoords.top),
+                },
+            };
         }
         return { lineRectSourceLineNumber };
 
@@ -312,9 +256,9 @@ export class ListDropTargetCalculator {
         allowChild: boolean,
         context: ListCalcContext
     ): { lineNumber: number; indentWidth: number; mode: 'child' | 'same' } | null {
-        const { doc, lineMap, memo, frameCache, indentUnit } = context;
+        const { doc, lineMap, memo, indentUnit } = context;
         if (lineNumber < 1 || lineNumber > doc.lines) return null;
-        const bounds = this.getListMarkerBounds(lineNumber, { frameCache, memo, lineMap });
+        const bounds = this.getListMarkerBounds(lineNumber, { memo, lineMap });
         if (!bounds) return null;
 
         const slots: Array<{ x: number; lineNumber: number; indentWidth: number; mode: 'child' | 'same' }> = [];

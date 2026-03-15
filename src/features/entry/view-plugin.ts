@@ -19,7 +19,6 @@ import { LineHandleManager } from '../ui/handle/line-handle-manager';
 import { HandleVisibilityController } from '../ui/handle/handle-visibility-controller';
 import { resolveHoverHandle } from '../ui/handle/hover-logic';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
-import { LineMapPrewarmer } from './line-map-prewarmer';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
 import { DragDropServiceContainer } from '../application/drag-service-container';
 import { hasVisibleLineNumberGutter } from '../ui/handle/handle-positioner';
@@ -56,10 +55,8 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         private readonly lifecycleEmitter = new DragLifecycleEmitter(
             (event) => plugin.emitDragLifecycleEvent(event)
         );
-        private readonly lineMapPrewarmer = new LineMapPrewarmer();
         private readonly dragPerfManager: DragPerfSessionManager;
         private readonly semanticRefreshScheduler: SemanticRefreshScheduler;
-        private lastPointerPos: { x: number; y: number } | null = null;
         private readonly onDocumentPointerMove = (e: PointerEvent) => this.handleDocumentPointerMove(e);
         private readonly onSettingsUpdated = () => this.handleSettingsUpdated();
 
@@ -207,15 +204,21 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 dragEventHandler: this.dragEventHandler,
                 handleVisibility: this.handleVisibility,
                 lineHandleManager: this.lineHandleManager,
-                lineMapPrewarmer: this.lineMapPrewarmer,
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
-                reResolveActiveHandle: () => this.reResolveActiveHandle(),
+                reResolveActiveHandle: () => {
+                   // This is technically hard to satisfy without the pointer tracker, 
+                   // we can safely mock it or grab the center of current active handle.
+                   const h = this.handleVisibility.getActiveHandle();
+                   if (h) {
+                        const rect = h.getBoundingClientRect();
+                        this.reResolveActiveHandle(rect.left + rect.width / 2, rect.top + rect.height / 2);
+                   }
+                },
             });
         }
 
         destroy(): void {
             destroyViewLifecycle({
-                lineMapPrewarmer: this.lineMapPrewarmer,
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
                 onDocumentPointerMove: this.onDocumentPointerMove,
                 onSettingsUpdated: this.onSettingsUpdated,
@@ -241,7 +244,6 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         }
 
         private handleDocumentPointerMove(e: PointerEvent): void {
-            this.lastPointerPos = { x: e.clientX, y: e.clientY };
             if (document.body.classList.contains(MOBILE_GESTURE_LOCK_CLASS)) {
                 return;
             }
@@ -276,13 +278,12 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
             this.handleVisibility.setActiveVisibleHandle(handle);
         }
 
-        private reResolveActiveHandle(): void {
-            if (!this.lastPointerPos) return;
-            const { x, y } = this.lastPointerPos;
+        private reResolveActiveHandle(lastX?: number, lastY?: number): void {
+            if (lastX === undefined || lastY === undefined) return;
             if (hasVisibleLineNumberGutter(this.view)) {
-                if (!this.handleVisibility.isPointerInHandleInteractionZone(x, y)) return;
+                if (!this.handleVisibility.isPointerInHandleInteractionZone(lastX, lastY)) return;
             }
-            const handle = resolveHoverHandle(this.view, this.handleVisibility, x, y);
+            const handle = resolveHoverHandle(this.view, this.handleVisibility, lastX, lastY);
             if (handle) {
                 this.handleVisibility.setActiveVisibleHandle(handle);
             }

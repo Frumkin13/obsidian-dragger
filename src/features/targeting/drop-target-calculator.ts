@@ -3,11 +3,7 @@ import { BlockInfo, BlockType } from '../../core/block/block-types';
 import { validateInPlaceDrop } from '../../core/container-rules/drop-validation';
 import { InsertionRuleRejectReason, InsertionSlotContext } from '../../core/container-rules/insertion-rules';
 import { getLineMap, LineMap } from '../../core/parser/line-map';
-import {
-    createGeometryFrameCache,
-    GeometryFrameCache,
-    getCoordsAtPos,
-} from './rect-calculator';
+import { getCoordsAtPos } from './rect-calculator';
 import { DocLike, DropTargetInfo, ListContext, ParsedLine } from '../../shared/types/protocol-types';
 import { findEmbedElementAtPoint } from '../ui/probe/embed-probe';
 import { resolveLineNumberAtCoords } from '../ui/probe/element-probe';
@@ -15,10 +11,10 @@ import { isPointInsideRenderedTableCell } from '../ui/probe/table-guard';
 import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
 import {
     getLineNumberAtViewportY,
-    getLineNumberElementForLine,
+
 } from '../ui/handle/handle-positioner';
 import { getRenderedMainLineNumberAtPoint } from '../ui/probe/line-hit';
-import { getMainContentLineRectForLine } from '../ui/probe/line-dom';
+
 import { DragSourceScope } from '../../shared/types/drag';
 import { ListDropTargetCalculatorPort } from './list-drop-target-calculator-port';
 
@@ -34,7 +30,7 @@ export interface DropTargetCalculatorDeps {
     parseLineWithQuote: (line: string) => ParsedLine;
     getAdjustedTargetLocation: (
         lineNumber: number,
-        options?: { clientY?: number; frameCache?: GeometryFrameCache }
+        options?: { clientY?: number }
     ) => { lineNumber: number; blockAdjusted: boolean };
     resolveDropRuleAtInsertion: (
         sourceBlock: BlockInfo,
@@ -48,13 +44,12 @@ export interface DropTargetCalculatorDeps {
     getIndentUnitWidth: (sample: string) => number;
     getBlockInfoForEmbed: (embedEl: HTMLElement) => BlockInfo | null;
     getIndentUnitWidthForDoc: (doc: DocLike) => number;
-    getLineRect: (lineNumber: number, frameCache?: GeometryFrameCache) => { left: number; width: number } | undefined;
-    getInsertionAnchorY: (lineNumber: number, frameCache?: GeometryFrameCache) => number | null;
+    getLineRect: (lineNumber: number) => { left: number; width: number } | undefined;
+    getInsertionAnchorY: (lineNumber: number) => number | null;
     getLineIndentPosByWidth: (lineNumber: number, targetIndentWidth: number) => number | null;
     getBlockRect: (
         startLineNumber: number,
-        endLineNumber: number,
-        frameCache?: GeometryFrameCache
+        endLineNumber: number
     ) => { top: number; left: number; width: number; height: number } | undefined;
     listDropTargetCalculator: ListDropTargetCalculatorPort;
     onDragTargetEvaluated?: (info: {
@@ -163,14 +158,12 @@ export class DropTargetCalculator {
         }
         this.deps.incrementPerfCounter?.('resolve_cache_misses', 1);
 
-        const frameCache = createGeometryFrameCache();
         const lineMap = getLineMap(this.view.state);
 
         const result = this.resolveValidatedDropTargetInternal({
             info,
             dragSource,
             sourceScope,
-            frameCache,
             lineMap,
         });
         this.lastResolvedCache = {
@@ -197,10 +190,9 @@ export class DropTargetCalculator {
         };
         dragSource: BlockInfo | null;
         sourceScope: DragSourceScope;
-        frameCache: GeometryFrameCache;
         lineMap: ReturnType<typeof getLineMap>;
     }): DropValidationResult {
-        const { info, dragSource, sourceScope, frameCache, lineMap } = params;
+        const { info, dragSource, sourceScope, lineMap } = params;
 
         if (isPointInsideRenderedTableCell(this.view, info.clientX, info.clientY)) {
             return { allowed: false, reason: 'table_cell' } as const;
@@ -249,7 +241,7 @@ export class DropTargetCalculator {
         }
 
         const verticalStartedAt = this.now();
-        const vertical = this.computeVerticalTarget(info, dragSource, frameCache);
+        const vertical = this.computeVerticalTarget(info, dragSource);
         this.deps.recordPerfDuration?.('vertical', this.now() - verticalStartedAt);
         if (!vertical) {
             return { allowed: false, reason: 'no_target' } as const;
@@ -272,7 +264,6 @@ export class DropTargetCalculator {
             dragSource,
             sourceScope,
             clientX: info.clientX,
-            frameCache,
             lineMap,
         });
         this.deps.recordPerfDuration?.('list_target', this.now() - listStartedAt);
@@ -295,7 +286,7 @@ export class DropTargetCalculator {
         }
 
         const geometryStartedAt = this.now();
-        const indicatorY = this.deps.getInsertionAnchorY(vertical.targetLineNumber, frameCache);
+        const indicatorY = this.deps.getInsertionAnchorY(vertical.targetLineNumber);
         if (indicatorY === null) {
             this.deps.recordPerfDuration?.('geometry', this.now() - geometryStartedAt);
             return { allowed: false, reason: 'no_anchor' } as const;
@@ -303,12 +294,12 @@ export class DropTargetCalculator {
 
         const lineRectSourceLineNumber = listTarget.lineRectSourceLineNumber
             ?? vertical.lineRectSourceLineNumber;
-        let lineRect = this.deps.getLineRect(lineRectSourceLineNumber, frameCache);
+        let lineRect = this.deps.getLineRect(lineRectSourceLineNumber);
         if (typeof listTarget.listTargetIndentWidth === 'number') {
             const indentPos = this.deps.getLineIndentPosByWidth(lineRectSourceLineNumber, listTarget.listTargetIndentWidth);
             if (indentPos !== null) {
-                const start = getCoordsAtPos(this.view, indentPos, frameCache);
-                const end = getCoordsAtPos(this.view, this.view.state.doc.line(lineRectSourceLineNumber).to, frameCache);
+                const start = getCoordsAtPos(this.view, indentPos);
+                const end = getCoordsAtPos(this.view, this.view.state.doc.line(lineRectSourceLineNumber).to);
                 if (start && end) {
                     const left = start.left;
                     const width = Math.max(8, (end.right ?? end.left) - left);
@@ -403,8 +394,7 @@ export class DropTargetCalculator {
 
     private computeVerticalTarget(
         info: { clientX: number; clientY: number },
-        dragSource: BlockInfo | null,
-        frameCache: GeometryFrameCache
+        dragSource: BlockInfo | null
     ): {
         line: { number: number; text: string; from: number; to: number };
         targetLineNumber: number;
@@ -425,7 +415,7 @@ export class DropTargetCalculator {
             line = this.view.state.doc.line(gutterLineNumber);
         }
         const allowListChildIntent = !!dragSource && dragSource.type === BlockType.ListItem;
-        const lineBoundsForSnap = this.listDropTargetCalculator.getListMarkerBounds(line.number, { frameCache });
+        const lineBoundsForSnap = this.listDropTargetCalculator.getListMarkerBounds(line.number);
         const lineParsedForSnap = this.deps.parseLineWithQuote(line.text);
         const childIntentOnLine = allowListChildIntent
             && !!lineBoundsForSnap
@@ -434,7 +424,6 @@ export class DropTargetCalculator {
 
         const adjustedTarget = this.deps.getAdjustedTargetLocation(line.number, {
             clientY: info.clientY,
-            frameCache,
         });
         let forcedLineNumber: number | null = adjustedTarget.blockAdjusted ? adjustedTarget.lineNumber : null;
 
@@ -448,8 +437,8 @@ export class DropTargetCalculator {
                         ? line.number + 1
                         : line.number;
                 } else {
-                    const lineStart = getCoordsAtPos(this.view, line.from, frameCache);
-                    const lineEnd = getCoordsAtPos(this.view, line.to, frameCache);
+                    const lineStart = getCoordsAtPos(this.view, line.from);
+                    const lineEnd = getCoordsAtPos(this.view, line.to);
                     if (lineStart && lineEnd) {
                         const midY = (lineStart.top + lineEnd.bottom) / 2;
                         forcedLineNumber = info.clientY > midY
@@ -465,8 +454,8 @@ export class DropTargetCalculator {
                 if (visualMidY !== null) {
                     showAtBottom = info.clientY > visualMidY;
                 } else {
-                    const lineStart = getCoordsAtPos(this.view, line.from, frameCache);
-                    const lineEnd = getCoordsAtPos(this.view, line.to, frameCache);
+                    const lineStart = getCoordsAtPos(this.view, line.from);
+                    const lineEnd = getCoordsAtPos(this.view, line.to);
                     if (lineStart && lineEnd) {
                         const midY = (lineStart.top + lineEnd.bottom) / 2;
                         showAtBottom = info.clientY > midY;
@@ -493,30 +482,9 @@ export class DropTargetCalculator {
     }
 
     private getVisualLineMidY(lineNumber: number, lineFromPos: number): number | null {
-        const lineNumberEl = getLineNumberElementForLine(this.view, lineNumber);
-        if (lineNumberEl) {
-            const lineNumberRect = lineNumberEl.getBoundingClientRect();
-            if (lineNumberRect.height > 0) {
-                return lineNumberRect.top + lineNumberRect.height / 2;
-            }
-        }
-
-        const lineRect = getMainContentLineRectForLine(this.view, lineNumber);
-        if (lineRect) return (lineRect.top + lineRect.bottom) / 2;
-
-        if (typeof this.view.domAtPos !== 'function') return null;
         try {
-            const domAtPos = this.view.domAtPos(lineFromPos);
-            const base = domAtPos.node.nodeType === Node.TEXT_NODE
-                ? domAtPos.node.parentElement
-                : domAtPos.node;
-            if (!(base instanceof Element)) return null;
-            const lineEl = base.closest<HTMLElement>('.cm-line');
-            if (!lineEl) return null;
-            if (!this.view.contentDOM.contains(lineEl)) return null;
-            const rect = lineEl.getBoundingClientRect();
-            if (!(rect.height > 0)) return null;
-            return (rect.top + rect.bottom) / 2;
+            const block = this.view.lineBlockAt(lineFromPos);
+            return this.view.documentTop + (block.top + block.bottom) / 2;
         } catch {
             return null;
         }

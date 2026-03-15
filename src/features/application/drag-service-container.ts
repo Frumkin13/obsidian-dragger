@@ -34,10 +34,10 @@ export class DragDropServiceContainer {
             ...sharedDeps,
             getBlockInfoForEmbed: (el) => this.dragSource.getBlockInfoForEmbed(el),
             getIndentUnitWidthForDoc: (doc) => this.textMutation.getIndentUnitWidthForDoc(doc),
-            getLineRect: (ln, fc) => this.geometry.getLineRect(ln, fc),
-            getInsertionAnchorY: (ln, fc) => this.geometry.getInsertionAnchorY(ln, fc),
+            getLineRect: (ln) => this.geometry.getLineRect(ln),
+            getInsertionAnchorY: (ln) => this.geometry.getInsertionAnchorY(ln),
             getLineIndentPosByWidth: (ln, w) => this.geometry.getLineIndentPosByWidth(ln, w),
-            getBlockRect: (s, e, fc) => this.geometry.getBlockRect(s, e, fc),
+            getBlockRect: (s, e) => this.geometry.getBlockRect(s, e),
             ...hooks,
         };
     }

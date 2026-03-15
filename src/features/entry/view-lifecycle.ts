@@ -2,7 +2,6 @@ import { EditorView } from '@codemirror/view';
 import { prewarmFenceScan } from '../../core/parser/fence-scanner';
 import { DragEventHandler } from '../interaction/drag-event-handler';
 import { LineHandleManager } from '../ui/handle/line-handle-manager';
-import { LineMapPrewarmer } from './line-map-prewarmer';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 
 export interface ViewLifecycleStartDeps {
@@ -15,7 +14,6 @@ export interface ViewLifecycleStartDeps {
 }
 
 export interface ViewLifecycleDestroyDeps {
-    lineMapPrewarmer: LineMapPrewarmer;
     semanticRefreshScheduler: SemanticRefreshScheduler;
     onDocumentPointerMove: (event: PointerEvent) => void;
     onSettingsUpdated: () => void;
@@ -33,7 +31,6 @@ export function startViewLifecycle(deps: ViewLifecycleStartDeps): void {
 }
 
 export function destroyViewLifecycle(deps: ViewLifecycleDestroyDeps): void {
-    deps.lineMapPrewarmer.clear();
     deps.semanticRefreshScheduler.destroy();
     document.removeEventListener('pointermove', deps.onDocumentPointerMove);
     window.removeEventListener('dnd:settings-updated', deps.onSettingsUpdated);
