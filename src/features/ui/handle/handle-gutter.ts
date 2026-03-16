@@ -1,8 +1,9 @@
 import { EditorView } from '@codemirror/view';
-
-export const HANDLE_GUTTER_CLASS = 'cm-dnd-handle-gutter';
-export const HANDLE_GUTTER_MARKER_CLASS = 'dnd-handle-gutter-marker';
-export const HANDLE_GUTTER_PROBE_CLASS = 'dnd-handle-gutter-probe';
+import {
+    HANDLE_GUTTER_CLASS,
+    HANDLE_GUTTER_MARKER_CLASS,
+    HANDLE_GUTTER_PROBE_CLASS,
+} from '../../../shared/dom-selectors';
 
 function isVisible(el: HTMLElement): boolean {
     const style = getComputedStyle(el);

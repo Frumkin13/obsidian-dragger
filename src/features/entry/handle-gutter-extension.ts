@@ -9,7 +9,7 @@ import {
     HANDLE_GUTTER_CLASS,
     HANDLE_GUTTER_MARKER_CLASS,
     HANDLE_GUTTER_PROBE_CLASS,
-} from '../ui/handle/handle-gutter';
+} from '../../shared/dom-selectors';
 
 class HandleGutterLineMarker extends GutterMarker {
     readonly elementClass = HANDLE_GUTTER_MARKER_CLASS;

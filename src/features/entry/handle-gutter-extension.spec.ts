@@ -4,7 +4,7 @@ import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createHandleGutterExtension } from './handle-gutter-extension';
-import { HANDLE_GUTTER_CLASS, HANDLE_GUTTER_PROBE_CLASS } from '../ui/handle/handle-gutter';
+import { HANDLE_GUTTER_CLASS, HANDLE_GUTTER_PROBE_CLASS } from '../../shared/dom-selectors';
 
 const mountedViews: EditorView[] = [];
 

@@ -3,17 +3,14 @@
 import type { EditorView } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-    getHandleColumnCenterX,
-    getLineNumberElementForLine,
-    viewportXToEditorLocalX,
-    viewportYToEditorLocalY,
-} from './handle-positioner';
+import { getHandleColumnCenterX } from './handle-positioner';
+import { getLineNumberElementForLine } from './line-number-gutter';
+import { viewportXToEditorLocalX, viewportYToEditorLocalY } from '../../selection/editor-local-coordinates';
 import { setAlignToLineNumber, setHandleHorizontalOffsetPx } from '../../../shared/constants';
 import {
     HANDLE_GUTTER_CLASS,
     HANDLE_GUTTER_MARKER_CLASS,
-} from './handle-gutter';
+} from '../../../shared/dom-selectors';
 
 type RectLike = {
     left: number;

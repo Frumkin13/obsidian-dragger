@@ -1,8 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import type { LineRange } from '../../shared/types/line-range';
-import {
-    getLineNumberElementForLine,
-} from '../ui/handle/handle-positioner';
+import { getLineNumberElementForLine } from '../ui/handle/line-number-gutter';
 import {
     DRAG_HANDLE_CLASS,
     RANGE_SELECTED_HANDLE_CLASS,

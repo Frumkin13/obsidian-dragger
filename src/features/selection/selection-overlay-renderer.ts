@@ -4,7 +4,7 @@ import {
     RANGE_SELECTION_DELETE_BUTTON_CLASS,
     RANGE_SELECTION_LINK_CLASS,
 } from '../../shared/dom-selectors';
-import { viewportXToEditorLocalX, viewportYToEditorLocalY } from '../ui/handle/handle-positioner';
+import { viewportXToEditorLocalX, viewportYToEditorLocalY } from './editor-local-coordinates';
 import { RangeAnchorSpan } from './selection-anchor';
 
 export class RangeSelectionOverlayRenderer {

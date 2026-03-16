@@ -17,11 +17,10 @@ import {
 } from '../ui/indicator/ghost-element';
 import { LineHandleManager } from '../ui/handle/line-handle-manager';
 import { HandleVisibilityController } from '../ui/handle/handle-visibility-controller';
-import { resolveHoverHandle } from '../ui/handle/hover-logic';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
 import { DragDropServiceContainer } from '../application/drag-service-container';
-import { hasVisibleLineNumberGutter } from '../ui/handle/handle-positioner';
+import { hasVisibleLineNumberGutter } from '../ui/handle/line-number-gutter';
 import { DragLifecycleEmitter } from '../state/drag-lifecycle-emitter';
 import { DragInteractionOrchestrator } from '../application/interaction-orchestrator';
 import { DragLifecycleEvent, DragSourceScope } from '../../shared/types/drag';
@@ -273,7 +272,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
 
             // Without line numbers, hovering anywhere on the current line's right area
             // should reveal the left handle for that line.
-            const handle = resolveHoverHandle(this.view, this.handleVisibility, e.clientX, e.clientY);
+            const handle = this.handleVisibility.resolveVisibleHandleFromPointerWhenLineNumbersHidden(e.clientX, e.clientY);
             this.handleVisibility.setActiveVisibleHandle(handle);
         }
 
@@ -281,8 +280,9 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
             if (lastX === undefined || lastY === undefined) return;
             if (hasVisibleLineNumberGutter(this.view)) {
                 if (!this.handleVisibility.isPointerInHandleInteractionZone(lastX, lastY)) return;
+                return;
             }
-            const handle = resolveHoverHandle(this.view, this.handleVisibility, lastX, lastY);
+            const handle = this.handleVisibility.resolveVisibleHandleFromPointerWhenLineNumbersHidden(lastX, lastY);
             if (handle) {
                 this.handleVisibility.setActiveVisibleHandle(handle);
             }

@@ -9,10 +9,7 @@ import { findEmbedElementAtPoint } from '../ui/probe/embed-probe';
 import { resolveLineNumberAtCoords } from '../ui/probe/element-probe';
 import { isPointInsideRenderedTableCell } from '../ui/probe/table-guard';
 import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
-import {
-    getLineNumberAtViewportY,
-
-} from '../ui/handle/handle-positioner';
+import { getLineNumberAtViewportY } from '../ui/handle/line-number-gutter';
 import { getRenderedMainLineNumberAtPoint } from '../ui/probe/line-hit';
 
 import { DragSourceScope } from '../../shared/types/drag';

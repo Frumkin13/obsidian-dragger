@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../../core/block/block-types';
-import { getLineNumberElementForLine } from '../handle/handle-positioner';
+import { getLineNumberElementForLine } from '../handle/line-number-gutter';
 import {
     clearAllActiveDragSourceBlocks,
     clearActiveDragSourceBlock,

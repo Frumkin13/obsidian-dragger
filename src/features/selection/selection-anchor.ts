@@ -1,6 +1,5 @@
 import type { LineRange } from '../../shared/types/line-range';
-import { HANDLE_CORE_CLASS } from '../../shared/dom-selectors';
-import { HANDLE_GUTTER_MARKER_CLASS } from '../ui/handle/handle-gutter';
+import { HANDLE_CORE_CLASS, HANDLE_GUTTER_MARKER_CLASS } from '../../shared/dom-selectors';
 
 export type RangeAnchorPoint = {
     x: number;

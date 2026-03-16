@@ -1,10 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../../core/block/block-types';
 import type { LineRange } from '../../../shared/types/line-range';
-import {
-    getLineNumberElementForLine,
-    hasVisibleLineNumberGutter,
-} from './handle-positioner';
+import { getLineNumberElementForLine, hasVisibleLineNumberGutter } from './line-number-gutter';
 import {
     DRAG_HANDLE_CLASS,
     DRAG_SOURCE_LINE_CLASS,
