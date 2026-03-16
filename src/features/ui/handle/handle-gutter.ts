@@ -2,7 +2,7 @@ import { EditorView } from '@codemirror/view';
 
 export const HANDLE_GUTTER_CLASS = 'cm-dnd-handle-gutter';
 export const HANDLE_GUTTER_MARKER_CLASS = 'dnd-handle-gutter-marker';
-export const HANDLE_GUTTER_SPACER_CLASS = 'dnd-handle-gutter-spacer';
+export const HANDLE_GUTTER_PROBE_CLASS = 'dnd-handle-gutter-probe';
 
 function isVisible(el: HTMLElement): boolean {
     const style = getComputedStyle(el);
@@ -31,11 +31,12 @@ export function getHandleGutterRect(view: EditorView): DOMRect | null {
 export function getHandleGutterElementCenterX(view: EditorView): number | null {
     const gutter = getHandleGutter(view);
     if (!gutter) return null;
-    const marker = gutter.querySelector<HTMLElement>(`.${HANDLE_GUTTER_MARKER_CLASS}`);
-    if (marker) {
-        const markerRect = marker.getBoundingClientRect();
-        if (hasUsableRect(markerRect)) {
-            return markerRect.left + markerRect.width / 2;
+    const lineElement = gutter.querySelector<HTMLElement>(`.cm-gutterElement.${HANDLE_GUTTER_MARKER_CLASS}`)
+        ?? gutter.querySelector<HTMLElement>(`.${HANDLE_GUTTER_MARKER_CLASS}`);
+    if (lineElement) {
+        const lineElementRect = lineElement.getBoundingClientRect();
+        if (hasUsableRect(lineElementRect)) {
+            return lineElementRect.left + lineElementRect.width / 2;
         }
     }
     const gutterRect = gutter.getBoundingClientRect();
@@ -47,6 +48,10 @@ export function getHandleGutterElementForLine(view: EditorView, lineNumber: numb
     if (lineNumber < 1 || lineNumber > view.state.doc.lines) return null;
     const gutter = getHandleGutter(view);
     if (!gutter) return null;
-    const selector = `.${HANDLE_GUTTER_MARKER_CLASS}[data-line-number="${lineNumber}"]`;
-    return gutter.querySelector<HTMLElement>(selector);
+    const probeSelector = `.${HANDLE_GUTTER_PROBE_CLASS}[data-line-number="${lineNumber}"]`;
+    const probe = gutter.querySelector<HTMLElement>(probeSelector);
+    if (!probe) return null;
+    if (probe.classList.contains('cm-gutterElement')) return probe;
+    return probe.closest<HTMLElement>(`.cm-gutterElement.${HANDLE_GUTTER_MARKER_CLASS}`)
+        ?? null;
 }

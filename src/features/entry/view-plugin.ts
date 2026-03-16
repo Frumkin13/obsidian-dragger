@@ -203,7 +203,6 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 refreshDecorationsAndEmbeds: () => this.refreshDecorationsAndEmbeds(),
                 dragEventHandler: this.dragEventHandler,
                 handleVisibility: this.handleVisibility,
-                lineHandleManager: this.lineHandleManager,
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
                 reResolveActiveHandle: () => {
                    // This is technically hard to satisfy without the pointer tracker, 

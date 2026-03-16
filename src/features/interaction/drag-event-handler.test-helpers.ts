@@ -133,15 +133,19 @@ export function appendHandleForBlockStart(
 ): HTMLElement {
     const lineNumber = blockStart + 1;
     const gutter = ensureHandleGutter(view);
-    let marker = gutter.querySelector<HTMLElement>(`.dnd-handle-gutter-marker[data-line-number="${lineNumber}"]`);
+    let marker = gutter.querySelector<HTMLElement>(`.cm-gutterElement.dnd-handle-gutter-marker[data-line-number="${lineNumber}"]`);
     if (!marker) {
         marker = document.createElement('div');
-        marker.className = 'dnd-handle-gutter-marker';
+        marker.className = 'cm-gutterElement dnd-handle-gutter-marker';
         marker.setAttribute('data-line-number', String(lineNumber));
         Object.defineProperty(marker, 'getBoundingClientRect', {
             configurable: true,
             value: () => createRect(8, blockStart * 20, 2, 20),
         });
+        const probe = document.createElement('span');
+        probe.className = 'dnd-handle-gutter-probe';
+        probe.setAttribute('data-line-number', String(lineNumber));
+        marker.appendChild(probe);
         gutter.appendChild(marker);
     }
     const handle = document.createElement('div');
@@ -164,12 +168,16 @@ export function appendHandleGutterMarker(
 ): HTMLElement {
     const gutter = ensureHandleGutter(view);
     const marker = document.createElement('div');
-    marker.className = 'dnd-handle-gutter-marker';
+    marker.className = 'cm-gutterElement dnd-handle-gutter-marker';
     marker.setAttribute('data-line-number', String(lineNumber));
     Object.defineProperty(marker, 'getBoundingClientRect', {
         configurable: true,
         value: () => createRect(8, resolveTop ? resolveTop() : ((lineNumber - 1) * 20), 2, 20),
     });
+    const probe = document.createElement('span');
+    probe.className = 'dnd-handle-gutter-probe';
+    probe.setAttribute('data-line-number', String(lineNumber));
+    marker.appendChild(probe);
     gutter.appendChild(marker);
     return marker;
 }

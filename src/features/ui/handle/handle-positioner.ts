@@ -1,6 +1,9 @@
-import { BlockInfo as ViewBlockInfo, BlockType, EditorView } from '@codemirror/view';
-import { getHandleSizePx, getHandleHorizontalOffsetPx, getAlignToLineNumber } from '../../../shared/constants';
-import { getMainContentLineElementForLine } from '../probe/line-dom';
+import { EditorView } from '@codemirror/view';
+import {
+    getAlignToLineNumber,
+    getHandleHorizontalOffsetPx,
+    getHandleSizePx,
+} from '../../../shared/constants';
 import {
     getHandleGutterElementCenterX,
     getHandleGutterElementForLine,
@@ -140,207 +143,21 @@ function resolveLineNumberFromGutterElement(
     return parsed;
 }
 
-function getRenderedAnchorBlockForLine(view: EditorView, lineNumber: number): ReturnType<EditorView['lineBlockAt']> | null {
-    for (const lineBlock of view.viewportLineBlocks) {
-        if (Array.isArray(lineBlock.type)) {
-            let firstSameLineBlock: ViewBlockInfo | null = null;
-            for (const block of lineBlock.type) {
-                if (view.state.doc.lineAt(block.from).number !== lineNumber) continue;
-                firstSameLineBlock ??= block;
-                if (block.type === BlockType.Text) {
-                    return block;
-                }
-            }
-            if (firstSameLineBlock) return firstSameLineBlock;
-            continue;
-        }
-
-        if (view.state.doc.lineAt(lineBlock.from).number !== lineNumber) continue;
-        return lineBlock;
-    }
-    return null;
+function getHandleRowRectForLine(view: EditorView, lineNumber: number): RectLike | null {
+    const row = getHandleGutterElementForLine(view, lineNumber);
+    if (!row) return null;
+    const rect = row.getBoundingClientRect();
+    return isLineNumberRowRect(rect) ? rect : null;
 }
 
-function getFirstTextRowMidY(rootEl: HTMLElement): number | null {
-    const doc = rootEl.ownerDocument;
-    const nodeFilter = doc.defaultView?.NodeFilter;
-    const textRects: DOMRect[] = [];
-
-    const pushRangeRects = (range: Range) => {
-        const rects = range.getClientRects();
-        for (let i = 0; i < rects.length; i++) {
-            const rect = rects.item(i);
-            if (!rect || rect.width <= 0 || rect.height <= 0) continue;
-            textRects.push(rect);
-        }
-    };
-
-    if (nodeFilter) {
-        const walker = doc.createTreeWalker(rootEl, nodeFilter.SHOW_TEXT, {
-            acceptNode(node: Node): number {
-                const text = node.textContent;
-                if (!text || text.trim().length === 0) return nodeFilter.FILTER_SKIP;
-                const parent = node.parentElement;
-                if (!parent) return nodeFilter.FILTER_SKIP;
-                if (parent.closest('.cm-formatting, .cm-foldPlaceholder, .cm-invisible')) {
-                    return nodeFilter.FILTER_SKIP;
-                }
-                if (parent.closest('.table-col-drag-handle, .table-row-drag-handle, .table-row-btn, .table-col-btn, [data-ignore-swipe="true"]')) {
-                    return nodeFilter.FILTER_SKIP;
-                }
-                const style = getComputedStyle(parent);
-                if (style.display === 'none' || style.visibility === 'hidden') {
-                    return nodeFilter.FILTER_SKIP;
-                }
-                if (style.position === 'absolute' || style.position === 'fixed') {
-                    return nodeFilter.FILTER_SKIP;
-                }
-                return nodeFilter.FILTER_ACCEPT;
-            },
-        });
-
-        let node: Node | null = walker.nextNode();
-        while (node) {
-            const range = doc.createRange();
-            range.selectNodeContents(node);
-            pushRangeRects(range);
-            node = walker.nextNode();
-        }
-    }
-
-    if (textRects.length === 0) return null;
-
-    let firstTop = Number.POSITIVE_INFINITY;
-    for (const rect of textRects) {
-        if (rect.top < firstTop) firstTop = rect.top;
-    }
-
-    let top = Number.POSITIVE_INFINITY;
-    let bottom = Number.NEGATIVE_INFINITY;
-    for (const rect of textRects) {
-        if (Math.abs(rect.top - firstTop) > 1) continue;
-        if (rect.top < top) top = rect.top;
-        if (rect.bottom > bottom) bottom = rect.bottom;
-    }
-    if (!(bottom > top)) return null;
-    return (top + bottom) / 2;
-}
-
-const TEXT_BLOCK_PROBE_SELECTOR = '.cm-preview-code-block, .cm-embed-block, .cm-callout, .cm-math, .MathJax_Display, .callout, .MathJax, .mjx-container, .cm-line';
-const CODE_BLOCK_PROBE_SELECTOR = '.cm-preview-code-block, .HyperMD-codeblock';
-const TABLE_WIDGET_SELECTOR = '.cm-table-widget';
-const TABLE_FIRST_ROW_CELL_SELECTOR = '.table-wrapper > .table-editor > thead > tr:first-child > th:first-child > .table-cell-wrapper';
-
-function getTextProbeRootFromLine(lineEl: HTMLElement): HTMLElement {
-    return lineEl.querySelector<HTMLElement>(TEXT_BLOCK_PROBE_SELECTOR) ?? lineEl;
-}
-
-function getTableWidgetFromElement(el: Element): HTMLElement | null {
-    return el.closest<HTMLElement>(TABLE_WIDGET_SELECTOR);
-}
-
-function getTableFirstRowMidY(tableWidget: HTMLElement): number | null {
-    const firstCell = tableWidget.querySelector<HTMLElement>(TABLE_FIRST_ROW_CELL_SELECTOR);
-    if (!firstCell) return null;
-    return getFirstTextRowMidY(firstCell);
-}
-
-type TableAnchorResult = {
-    matched: boolean;
-    midY: number | null;
-};
-
-function getTableWidgetForLine(view: EditorView, lineNumber: number, pos: number): HTMLElement | null {
-    const lineEl = getMainContentLineElementForLine(view, lineNumber);
-    if (lineEl) {
-        const lineWidget = lineEl.matches(TABLE_WIDGET_SELECTOR)
-            ? lineEl
-            : lineEl.querySelector<HTMLElement>(TABLE_WIDGET_SELECTOR);
-        if (lineWidget) return lineWidget;
-    }
-
-    if (typeof view.domAtPos !== 'function') return null;
-    try {
-        const at = view.domAtPos(pos);
-        const base = at.node.nodeType === Node.TEXT_NODE
-            ? at.node.parentElement
-            : at.node;
-        if (!(base instanceof Element)) return null;
-        return getTableWidgetFromElement(base);
-    } catch {
-        return null;
-    }
-}
-
-function getTableAnchorForLine(view: EditorView, lineNumber: number, pos: number): TableAnchorResult {
-    const tableWidget = getTableWidgetForLine(view, lineNumber, pos);
-    if (!tableWidget) return { matched: false, midY: null };
-    return {
-        matched: true,
-        midY: getTableFirstRowMidY(tableWidget),
-    };
-}
-
-function isCodeBlockProbe(probe: Element): boolean {
-    return probe.matches(CODE_BLOCK_PROBE_SELECTOR) || !!probe.querySelector(CODE_BLOCK_PROBE_SELECTOR);
-}
-
-function getTextBlockMidY(view: EditorView, blockFrom: number, lineNumber: number): number | null {
-    const tableAnchor = getTableAnchorForLine(view, lineNumber, blockFrom);
-    if (tableAnchor.matched) return tableAnchor.midY;
-
-    if (typeof view.domAtPos === 'function') {
-        try {
-            const domAtPos = view.domAtPos(blockFrom);
-            const base = domAtPos.node.nodeType === Node.TEXT_NODE
-                ? domAtPos.node.parentElement
-                : domAtPos.node;
-            if (base instanceof Element) {
-                const probe = base.closest<HTMLElement>(TEXT_BLOCK_PROBE_SELECTOR);
-                if (probe) {
-                    if (isCodeBlockProbe(probe)) return null;
-                    const midY = getFirstTextRowMidY(probe);
-                    if (midY !== null) return midY;
-                }
-            }
-        } catch {
-            // Fall through to line-based probe.
-        }
-    }
-
-    const lineEl = getMainContentLineElementForLine(view, lineNumber);
-    if (!lineEl) return null;
-    try {
-        const probe = getTextProbeRootFromLine(lineEl);
-        if (isCodeBlockProbe(probe)) return null;
-        return getFirstTextRowMidY(probe);
-    } catch {
-        return null;
-    }
-}
-
-function getViewportMidYForLine(view: EditorView, lineNumber: number): number | null {
-    if (lineNumber < 1 || lineNumber > view.state.doc.lines) return null;
-
-    const block = getRenderedAnchorBlockForLine(view, lineNumber);
-    if (!block || !(block.height > 0)) return null;
-    if (block.type === BlockType.Text) {
-        const textMidY = getTextBlockMidY(view, block.from, lineNumber);
-        if (textMidY !== null) return textMidY;
-        return view.documentTop + block.top + block.height / 2;
-    }
-    const tableAnchor = getTableAnchorForLine(view, lineNumber, block.from);
-    if (tableAnchor.matched) return tableAnchor.midY;
-    return view.documentTop + block.top + view.defaultLineHeight / 2;
-}
-
-function getClosestLineNumberElementByY(view: EditorView, lineNumber: number): HTMLElement | null {
+function getClosestLineNumberElementByHandleRow(view: EditorView, lineNumber: number): HTMLElement | null {
     if (lineNumber < 1 || lineNumber > view.state.doc.lines) return null;
     const gutter = getLineNumberGutter(view);
     if (!gutter) return null;
 
-    const y = getViewportMidYForLine(view, lineNumber);
-    if (y === null) return null;
+    const handleRowRect = getHandleRowRectForLine(view, lineNumber);
+    if (!handleRowRect) return null;
+    const centerY = (handleRowRect.top + handleRowRect.bottom) / 2;
 
     const candidates = Array.from(gutter.querySelectorAll<HTMLElement>('.cm-gutterElement'));
     let bestEl: HTMLElement | null = null;
@@ -348,9 +165,8 @@ function getClosestLineNumberElementByY(view: EditorView, lineNumber: number): H
     for (const candidate of candidates) {
         const rect = candidate.getBoundingClientRect();
         if (!isLineNumberRowRect(rect)) continue;
-        if (y >= rect.top && y <= rect.bottom) return candidate;
-        const centerY = (rect.top + rect.bottom) / 2;
-        const distance = Math.abs(centerY - y);
+        if (centerY >= rect.top && centerY <= rect.bottom) return candidate;
+        const distance = Math.abs((rect.top + rect.bottom) / 2 - centerY);
         if (distance < bestDistance) {
             bestDistance = distance;
             bestEl = candidate;
@@ -367,7 +183,7 @@ function getLineNumberElementByLineNumber(view: EditorView, lineNumber: number):
 }
 
 export function getLineNumberElementForLine(view: EditorView, lineNumber: number): HTMLElement | null {
-    return getLineNumberElementByLineNumber(view, lineNumber) ?? getClosestLineNumberElementByY(view, lineNumber);
+    return getLineNumberElementByLineNumber(view, lineNumber) ?? getClosestLineNumberElementByHandleRow(view, lineNumber);
 }
 
 export function getLineNumberAtViewportY(view: EditorView, viewportY: number): number | null {
@@ -394,21 +210,17 @@ export function hasVisibleLineNumberGutter(view: EditorView): boolean {
     return getLineNumberGutterRect(view) !== null;
 }
 
-function getHandleCenterForLine(view: EditorView, lineNumber: number): { x: number; y: number } | null {
+function getHandleCenterXForLine(view: EditorView, lineNumber: number): number | null {
     if (lineNumber < 1 || lineNumber > view.state.doc.lines) return null;
 
     const horizontalOffset = getHandleHorizontalOffsetPx();
-    const centerY = getViewportMidYForLine(view, lineNumber);
-    if (centerY === null) return null;
-
     if (getAlignToLineNumber()) {
         const lineNumberEl = getLineNumberElementForLine(view, lineNumber);
         if (lineNumberEl) {
             const lineNumberRect = lineNumberEl.getBoundingClientRect();
             if (isLineNumberRowRect(lineNumberRect)) {
-                const centerX = (getGutterElementInnerCenterX(lineNumberEl) ?? (lineNumberRect.left + lineNumberRect.width / 2))
+                return (getGutterElementInnerCenterX(lineNumberEl) ?? (lineNumberRect.left + lineNumberRect.width / 2))
                     + horizontalOffset;
-                return { x: centerX, y: centerY };
             }
         }
     }
@@ -417,16 +229,10 @@ function getHandleCenterForLine(view: EditorView, lineNumber: number): { x: numb
     if (handleGutterEl) {
         const handleGutterRect = handleGutterEl.getBoundingClientRect();
         if (isLineNumberRowRect(handleGutterRect)) {
-            return {
-                x: handleGutterRect.left + handleGutterRect.width / 2 + horizontalOffset,
-                y: centerY,
-            };
+            return handleGutterRect.left + handleGutterRect.width / 2 + horizontalOffset;
         }
     }
-    return {
-        x: getHandleColumnCenterX(view),
-        y: centerY,
-    };
+    return getHandleColumnCenterX(view);
 }
 
 export function getHandleColumnCenterX(view: EditorView): number {
@@ -446,20 +252,10 @@ export function getHandleColumnCenterX(view: EditorView): number {
     return contentRect.left - getHandleSizePx() / 2 + horizontalOffset;
 }
 
-export function getHandleColumnLeftPx(view: EditorView): number {
-    return Math.round(getHandleColumnCenterX(view) - getHandleSizePx() / 2);
-}
-
 export function getHandleLeftPxForLine(view: EditorView, lineNumber: number): number | null {
-    const center = getHandleCenterForLine(view, lineNumber);
-    if (!center) return null;
-    return Math.round(center.x - getHandleSizePx() / 2);
-}
-
-export function getHandleTopPxForLine(view: EditorView, lineNumber: number): number | null {
-    const center = getHandleCenterForLine(view, lineNumber);
-    if (!center) return null;
-    return Math.round(center.y - getHandleSizePx() / 2);
+    const centerX = getHandleCenterXForLine(view, lineNumber);
+    if (centerX === null) return null;
+    return Math.round(centerX - getHandleSizePx() / 2);
 }
 
 function getEditorAxisScale(rectSize: number, offsetSize: number): number {

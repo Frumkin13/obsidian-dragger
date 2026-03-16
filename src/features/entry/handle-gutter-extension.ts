@@ -8,10 +8,12 @@ import {
 import {
     HANDLE_GUTTER_CLASS,
     HANDLE_GUTTER_MARKER_CLASS,
-    HANDLE_GUTTER_SPACER_CLASS,
+    HANDLE_GUTTER_PROBE_CLASS,
 } from '../ui/handle/handle-gutter';
 
 class HandleGutterLineMarker extends GutterMarker {
+    readonly elementClass = HANDLE_GUTTER_MARKER_CLASS;
+
     constructor(private readonly lineNumber: number) {
         super();
     }
@@ -21,26 +23,12 @@ class HandleGutterLineMarker extends GutterMarker {
     }
 
     toDOM(_view: EditorView): Node {
-        const marker = document.createElement('div');
-        marker.className = HANDLE_GUTTER_MARKER_CLASS;
-        marker.setAttribute('data-line-number', String(this.lineNumber));
-        return marker;
+        const probe = document.createElement('span');
+        probe.className = HANDLE_GUTTER_PROBE_CLASS;
+        probe.setAttribute('data-line-number', String(this.lineNumber));
+        return probe;
     }
 }
-
-class HandleGutterSpacerMarker extends GutterMarker {
-    eq(other: GutterMarker): boolean {
-        return other instanceof HandleGutterSpacerMarker;
-    }
-
-    toDOM(): Node {
-        const spacer = document.createElement('div');
-        spacer.className = HANDLE_GUTTER_SPACER_CLASS;
-        return spacer;
-    }
-}
-
-const spacerMarker = new HandleGutterSpacerMarker();
 
 function resolveLineNumber(view: EditorView, line: BlockInfo): number {
     return view.state.doc.lineAt(line.from).number;
@@ -52,7 +40,5 @@ export function createHandleGutterExtension(): Extension {
         renderEmptyElements: true,
         lineMarker: (view, line) => new HandleGutterLineMarker(resolveLineNumber(view, line)),
         lineMarkerChange: (update) => update.docChanged || update.viewportChanged || update.geometryChanged,
-        initialSpacer: () => spacerMarker,
-        updateSpacer: () => spacerMarker,
     });
 }

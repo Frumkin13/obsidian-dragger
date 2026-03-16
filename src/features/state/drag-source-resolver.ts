@@ -2,6 +2,7 @@ import { EditorView } from '@codemirror/view';
 import { detectBlock, getHeadingSectionRange } from '../../core/block/block-factory';
 import { BlockInfo, BlockType } from '../../core/block/block-types';
 import { findEmbedElementAtPoint } from '../ui/probe/embed-probe';
+import { CODEMIRROR_LINE_SELECTOR, EMBED_ROOT_SELECTOR } from '../../shared/dom-selectors';
 import {
     resolveLineNumberAtCoords,
     resolveLineNumberFromBlockStartAttribute,
@@ -83,8 +84,8 @@ export class DragSourceResolver {
             candidates.push(el);
         };
 
-        push(embedEl.closest<HTMLElement>('.cm-embed-block'));
-        push(embedEl.closest<HTMLElement>('.cm-line'));
+        push(embedEl.closest<HTMLElement>(EMBED_ROOT_SELECTOR));
+        push(embedEl.closest<HTMLElement>(CODEMIRROR_LINE_SELECTOR));
         push(embedEl);
 
         let current: HTMLElement | null = embedEl.parentElement;

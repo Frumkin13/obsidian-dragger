@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { EMBED_BLOCK_SELECTOR } from '../../../shared/dom-selectors';
+import { EMBED_BLOCK_SELECTOR, EMBED_ROOT_SELECTOR } from '../../../shared/dom-selectors';
 
 export type FindEmbedElementAtPointOptions = {
     fallbackPaddingX?: number;
@@ -11,7 +11,7 @@ export type FindEmbedElementAtPointOptions = {
 
 export function normalizeEmbedRoot(el: HTMLElement | null | undefined): HTMLElement | null {
     if (!el) return null;
-    return el.closest<HTMLElement>('.cm-embed-block') ?? el;
+    return el.closest<HTMLElement>(EMBED_ROOT_SELECTOR) ?? el;
 }
 
 export function collectEmbedRoots(

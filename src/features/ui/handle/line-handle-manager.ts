@@ -2,8 +2,7 @@ import { EditorView } from '@codemirror/view';
 import { BlockInfo, BlockType } from '../../../core/block/block-types';
 import { detectBlock, getListItemOwnRangeForHandle } from '../../../core/block/block-factory';
 import { getHandleGutterElementForLine } from './handle-gutter';
-import { getHandleLeftPxForLine, getHandleTopPxForLine } from './handle-positioner';
-import { getHandleSizePx } from '../../../shared/constants';
+import { getHandleLeftPxForLine } from './handle-positioner';
 import { HIDDEN_CLASS, LINE_HANDLE_CLASS } from '../../../shared/dom-selectors';
 
 type LineHandleEntry = {
@@ -45,11 +44,6 @@ export class LineHandleManager {
         if (this.destroyed) return;
         if (this.pendingScan) return;
         this.pendingScan = true;
-
-        // [Root Cause Fix] Always use RAF for updates instead of sync updates.
-        // Sync updates during 'update' cycles (scroll/click) often happen before
-        // browser layout is ready, causing coordsAtPos to fail/return null.
-        // Deferring to RAF ensures stable layout.
         this.rafId = requestAnimationFrame(() => {
             this.rafId = null;
             if (this.destroyed) return;
@@ -175,22 +169,13 @@ export class LineHandleManager {
 
         if (!parent) {
             handle.classList.add(HIDDEN_CLASS);
-            // [Fix] Verify positioning in the next frame if immediate positioning fails.
             if (!this.pendingScan && !this.destroyed) {
                 this.scheduleScan();
             }
             return;
         }
 
-        const top = getHandleTopPxForLine(this.view, lineNumber);
         const left = getHandleLeftPxForLine(this.view, lineNumber);
-        if (top === null) {
-            handle.classList.add(HIDDEN_CLASS);
-            if (!this.pendingScan && !this.destroyed) {
-                this.scheduleScan();
-            }
-            return;
-        }
         if (left === null) {
             handle.classList.add(HIDDEN_CLASS);
             if (!this.pendingScan && !this.destroyed) {
@@ -203,14 +188,10 @@ export class LineHandleManager {
             parent.appendChild(handle);
         }
         const parentRect = parent.getBoundingClientRect();
-        const anchorCenterX = left + getHandleSizePx() / 2;
-        const anchorCenterY = top + getHandleSizePx() / 2;
-        const localAnchorX = anchorCenterX - parentRect.left;
-        const localAnchorY = anchorCenterY - parentRect.top;
-        handle.setCssStyles({
-            left: `${Math.round(localAnchorX)}px`,
-            top: `${Math.round(localAnchorY)}px`,
-        });
+        const localLeft = left - parentRect.left;
+        handle.style.left = `${Math.round(localLeft)}px`;
+        handle.style.removeProperty('top');
+        handle.style.removeProperty('height');
         handle.classList.remove(HIDDEN_CLASS);
         handle.classList.add(GUTTER_BOUND_CLASS);
     }

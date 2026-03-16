@@ -1,3 +1,5 @@
+import { HANDLE_CORE_CLASS } from '../../../shared/dom-selectors';
+
 type DragHandleDomOptions = {
     onDragStart: (e: DragEvent, handle: HTMLElement) => void;
     onDragEnd?: (e: DragEvent, handle: HTMLElement) => void;
@@ -9,7 +11,7 @@ export function createDragHandleElement(options: DragHandleDomOptions): HTMLElem
     handle.className = options.className ?? 'dnd-drag-handle';
     handle.setAttribute('draggable', 'true');
     const core = document.createElement('span');
-    core.className = 'dnd-handle-core';
+    core.className = HANDLE_CORE_CLASS;
     core.setAttribute('aria-hidden', 'true');
     handle.appendChild(core);
     handle.addEventListener('dragstart', (e) => options.onDragStart(e, handle));

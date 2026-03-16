@@ -1,12 +1,19 @@
 export const ROOT_EDITOR_CLASS = 'dnd-root-editor';
 export const MAIN_EDITOR_CONTENT_CLASS = 'dnd-main-content';
+export const CODEMIRROR_LINE_SELECTOR = '.cm-line';
+export const EMBED_ROOT_SELECTOR = '.cm-embed-block';
+export const RENDERED_CODE_BLOCK_SELECTOR = '.cm-preview-code-block, .HyperMD-codeblock';
 export const EMBED_BLOCK_SELECTOR = '.cm-embed-block, .cm-callout, .cm-preview-code-block, .cm-math, .MathJax_Display, .callout, .MathJax, .mjx-container';
+export const TEXT_BLOCK_PROBE_SELECTOR = `${EMBED_BLOCK_SELECTOR}, ${CODEMIRROR_LINE_SELECTOR}`;
+export const TABLE_WIDGET_SELECTOR = '.cm-table-widget';
+export const TABLE_FIRST_ROW_CELL_SELECTOR = '.table-wrapper > .table-editor > thead > tr:first-child > th:first-child > .table-cell-wrapper';
 export const DROP_INDICATOR_SELECTOR = '.dnd-drop-indicator';
 export const DROP_HIGHLIGHT_SELECTOR = '.dnd-drop-highlight';
 export const HIDDEN_CLASS = 'dnd-hidden';
 export const NO_GUTTER_CLASS = 'dnd-no-gutter';
 
 export const DRAG_HANDLE_CLASS = 'dnd-drag-handle';
+export const HANDLE_CORE_CLASS = 'dnd-handle-core';
 export const LINE_HANDLE_CLASS = 'dnd-line-handle';
 export const EMBED_HANDLE_CLASS = 'dnd-embed-handle';
 export const DROP_INDICATOR_CLASS = 'dnd-drop-indicator';

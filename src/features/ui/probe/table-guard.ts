@@ -1,14 +1,15 @@
 import { EditorView } from '@codemirror/view';
+import { CODEMIRROR_LINE_SELECTOR, TABLE_WIDGET_SELECTOR } from '../../../shared/dom-selectors';
 
 export function isElementInsideRenderedTableCell(view: EditorView, el: HTMLElement | null): boolean {
     if (!el) return false;
     if (!view.dom.contains(el)) return false;
 
-    const tableWidget = el.closest('.cm-table-widget');
+    const tableWidget = el.closest(TABLE_WIDGET_SELECTOR);
     if (!tableWidget || !view.dom.contains(tableWidget)) return false;
 
     if (el.closest('td, th, .cm-table-cell, .table-cell-wrapper')) return true;
-    if (el.closest('.cm-line')) return true;
+    if (el.closest(CODEMIRROR_LINE_SELECTOR)) return true;
     return true;
 }
 
