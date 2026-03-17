@@ -8,7 +8,6 @@ export interface ViewLifecycleStartDeps {
     view: EditorView;
     lineHandleManager: LineHandleManager;
     dragEventHandler: DragEventHandler;
-    semanticRefreshScheduler: SemanticRefreshScheduler;
     onDocumentPointerMove: (event: PointerEvent) => void;
     onSettingsUpdated: () => void;
 }
@@ -24,7 +23,6 @@ export interface ViewLifecycleDestroyDeps {
 export function startViewLifecycle(deps: ViewLifecycleStartDeps): void {
     deps.lineHandleManager.start();
     deps.dragEventHandler.attach();
-    deps.semanticRefreshScheduler.bindViewportScrollFallback();
     document.addEventListener('pointermove', deps.onDocumentPointerMove, { passive: true });
     window.addEventListener('dnd:settings-updated', deps.onSettingsUpdated);
     scheduleFenceScanWarmup(deps.view);

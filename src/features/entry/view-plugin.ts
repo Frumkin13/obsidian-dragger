@@ -186,15 +186,12 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
 
             this.semanticRefreshScheduler = new SemanticRefreshScheduler(this.view, {
                 performRefresh: () => this.refreshDecorationsAndEmbeds(),
-                isGestureActive: () => this.dragEventHandler.isGestureActive(),
-                refreshSelectionVisual: () => this.dragEventHandler.refreshSelectionVisual(),
             });
 
             startViewLifecycle({
                 view: this.view,
                 lineHandleManager: this.lineHandleManager,
                 dragEventHandler: this.dragEventHandler,
-                semanticRefreshScheduler: this.semanticRefreshScheduler,
                 onDocumentPointerMove: this.onDocumentPointerMove,
                 onSettingsUpdated: this.onSettingsUpdated,
             });

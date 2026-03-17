@@ -8,17 +8,11 @@ import { DRAGGING_BODY_CLASS } from '../../shared/dom-selectors';
 
 export interface SemanticRefreshDeps {
     performRefresh: () => void;
-    isGestureActive: () => boolean;
-    refreshSelectionVisual: () => void;
 }
 
 export class SemanticRefreshScheduler {
     private semanticRefreshTimerHandle: number | null = null;
     private pendingSemanticRefresh = false;
-    private viewportScrollContainer: HTMLElement | null = null;
-    private viewportScrollRefreshTimerHandle: number | null = null;
-    private viewportScrollRefreshRafHandle: number | null = null;
-    private readonly onViewportScroll = () => this.scheduleViewportRefreshFromScroll();
 
     constructor(
         private readonly view: EditorView,
@@ -27,24 +21,6 @@ export class SemanticRefreshScheduler {
 
     get isPending(): boolean {
         return this.pendingSemanticRefresh;
-    }
-
-    bindViewportScrollFallback(): void {
-        this.unbindViewportScrollFallback();
-        const scroller = this.view.scrollDOM
-            ?? this.view.dom.querySelector<HTMLElement>('.cm-scroller')
-            ?? null;
-        if (!scroller) return;
-        scroller.addEventListener('scroll', this.onViewportScroll, { passive: true });
-        this.viewportScrollContainer = scroller;
-    }
-
-    unbindViewportScrollFallback(): void {
-        if (this.viewportScrollContainer) {
-            this.viewportScrollContainer.removeEventListener('scroll', this.onViewportScroll);
-            this.viewportScrollContainer = null;
-        }
-        this.clearScheduledViewportRefreshFromScroll();
     }
 
     markSemanticRefreshPending(): void {
@@ -66,10 +42,7 @@ export class SemanticRefreshScheduler {
     }
 
     ensureSemanticReadyForInteraction(): void {
-        const hasPendingViewportRefresh = this.viewportScrollRefreshTimerHandle !== null
-            || this.viewportScrollRefreshRafHandle !== null;
-        if (!this.pendingSemanticRefresh && !hasPendingViewportRefresh) return;
-        this.clearScheduledViewportRefreshFromScroll();
+        if (!this.pendingSemanticRefresh) return;
         this.deps.performRefresh();
     }
 
@@ -83,33 +56,6 @@ export class SemanticRefreshScheduler {
 
     destroy(): void {
         this.clearPendingSemanticRefresh();
-        this.unbindViewportScrollFallback();
-    }
-
-    private scheduleViewportRefreshFromScroll(): void {
-        if (document.body.classList.contains(DRAGGING_BODY_CLASS)) return;
-        if (this.deps.isGestureActive()) return;
-        // Skip if already scheduled - avoid redundant RAF calls during fast scrolling
-        if (this.viewportScrollRefreshRafHandle !== null) return;
-
-        this.viewportScrollRefreshRafHandle = window.requestAnimationFrame(() => {
-            this.viewportScrollRefreshRafHandle = null;
-            if (document.body.classList.contains(DRAGGING_BODY_CLASS)) return;
-            if (this.deps.isGestureActive()) return;
-            this.deps.performRefresh();
-            this.deps.refreshSelectionVisual();
-        });
-    }
-
-    private clearScheduledViewportRefreshFromScroll(): void {
-        if (this.viewportScrollRefreshTimerHandle !== null) {
-            window.clearTimeout(this.viewportScrollRefreshTimerHandle);
-            this.viewportScrollRefreshTimerHandle = null;
-        }
-        if (this.viewportScrollRefreshRafHandle !== null) {
-            window.cancelAnimationFrame(this.viewportScrollRefreshRafHandle);
-            this.viewportScrollRefreshRafHandle = null;
-        }
     }
 
     private getSemanticRefreshDelayMs(docLines: number): number {

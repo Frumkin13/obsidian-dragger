@@ -182,26 +182,6 @@ export function getLineNumberElementForLine(view: EditorView, lineNumber: number
     return getLineNumberElementByLineNumber(view, lineNumber) ?? getClosestLineNumberElementByHandleRow(view, lineNumber);
 }
 
-export function getLineNumberAtViewportY(view: EditorView, viewportY: number): number | null {
-    const gutter = getLineNumberGutter(view);
-    if (!gutter) return null;
-    const candidates = Array.from(gutter.querySelectorAll<HTMLElement>(CODEMIRROR_GUTTER_ELEMENT_SELECTOR));
-    let nearest: { lineNumber: number; distance: number } | null = null;
-    for (const candidate of candidates) {
-        const rect = candidate.getBoundingClientRect();
-        if (!isLineNumberRowRect(rect)) continue;
-        const lineNumber = resolveLineNumberFromGutterElement(view, candidate);
-        if (lineNumber === null) continue;
-        if (viewportY >= rect.top && viewportY <= rect.bottom) return lineNumber;
-        const centerY = (rect.top + rect.bottom) / 2;
-        const distance = Math.abs(centerY - viewportY);
-        if (!nearest || distance < nearest.distance) {
-            nearest = { lineNumber, distance };
-        }
-    }
-    return nearest?.lineNumber ?? null;
-}
-
 export function hasVisibleLineNumberGutter(view: EditorView): boolean {
     return getLineNumberGutterRect(view) !== null;
 }
