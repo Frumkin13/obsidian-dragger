@@ -190,8 +190,8 @@ export class LineHandleManager {
         const parentRect = parent.getBoundingClientRect();
         const localLeft = left - parentRect.left;
         handle.style.left = `${Math.round(localLeft)}px`;
-        handle.style.removeProperty('top');
-        handle.style.removeProperty('height');
+        handle.style.top = '0px';
+        handle.style.height = `${Math.round(parentRect.height)}px`;
         handle.classList.remove(HIDDEN_CLASS);
         handle.classList.add(GUTTER_BOUND_CLASS);
     }

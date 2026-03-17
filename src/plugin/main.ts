@@ -1,6 +1,6 @@
 import { Plugin } from 'obsidian';
 import { dragHandleExtension } from '../features/entry/extension-factory';
-import { setHandleHorizontalOffsetPx, setHandleSizePx, setAlignToLineNumber } from '../shared/constants';
+import { setHandleHorizontalOffsetPx, setHandleSizePx } from '../shared/constants';
 import {
     DND_DRAG_SOURCE_HIGHLIGHT_ATTR,
     DND_DRAG_SOURCE_STYLE_ATTR,
@@ -12,6 +12,7 @@ import {
     DEFAULT_SETTINGS,
     DragNDropSettingTab,
     HandleVisibilityMode,
+    normalizeHandleGutterPosition,
     normalizeMultiLineSelectionLongPressMs,
     normalizeDragSourceVisualStyle,
 } from './settings';
@@ -60,6 +61,7 @@ export default class DragNDropPlugin extends Plugin {
         this.settings.multiLineSelectionLongPressMs = normalizeMultiLineSelectionLongPressMs(
             this.settings.multiLineSelectionLongPressMs
         );
+        this.settings.handleGutterPosition = normalizeHandleGutterPosition(this.settings.handleGutterPosition);
         await this.saveData(this.settings);
         this.applySettings();
     }
@@ -89,8 +91,8 @@ export default class DragNDropPlugin extends Plugin {
             ? Math.max(-80, Math.min(80, Math.round(rawHandleOffset)))
             : DEFAULT_SETTINGS.handleHorizontalOffsetPx;
         this.settings.handleHorizontalOffsetPx = handleOffset;
+        this.settings.handleGutterPosition = normalizeHandleGutterPosition(this.settings.handleGutterPosition);
         setHandleHorizontalOffsetPx(handleOffset);
-        setAlignToLineNumber(this.settings.alignHandleToLineNumber ?? true);
         body.setCssProps({
             '--dnd-handle-horizontal-offset-px': `${handleOffset}px`,
         });

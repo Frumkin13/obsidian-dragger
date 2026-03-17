@@ -1,10 +1,8 @@
 import { EditorView } from '@codemirror/view';
 import {
-    getAlignToLineNumber,
     getHandleHorizontalOffsetPx,
     getHandleSizePx,
 } from '../../../shared/constants';
-import { getLineNumberColumnCenterX } from './line-number-gutter';
 import {
     getHandleGutterElementCenterX,
     getHandleGutterElementForLine,
@@ -35,11 +33,6 @@ function getHandleCenterXForLine(view: EditorView, lineNumber: number): number |
     if (lineNumber < 1 || lineNumber > view.state.doc.lines) return null;
 
     const horizontalOffset = getHandleHorizontalOffsetPx();
-    if (getAlignToLineNumber()) {
-        const lineNumberColumnCenterX = getLineNumberColumnCenterX(view);
-        if (lineNumberColumnCenterX !== null) return lineNumberColumnCenterX + horizontalOffset;
-    }
-
     const handleGutterEl = getHandleGutterElementForLine(view, lineNumber);
     if (handleGutterEl) {
         const handleGutterRect = handleGutterEl.getBoundingClientRect();
@@ -52,11 +45,6 @@ function getHandleCenterXForLine(view: EditorView, lineNumber: number): number |
 
 export function getHandleColumnCenterX(view: EditorView): number {
     const horizontalOffset = getHandleHorizontalOffsetPx();
-    if (getAlignToLineNumber()) {
-        const lineNumberElementCenterX = getLineNumberColumnCenterX(view);
-        if (lineNumberElementCenterX !== null) return lineNumberElementCenterX + horizontalOffset;
-    }
-
     const handleGutterCenterX = getHandleGutterElementCenterX(view);
     if (handleGutterCenterX !== null) return handleGutterCenterX + horizontalOffset;
     const handleGutterRect = getHandleGutterRect(view);

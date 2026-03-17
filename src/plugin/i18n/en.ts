@@ -36,6 +36,10 @@ export const en: ZhCnStrings = {
 
     handleOffset: 'Handle horizontal offset',
     handleOffsetDesc: 'Negative = left, positive = right',
+    handleGutterPosition: 'Handle gutter side',
+    handleGutterPositionDesc: 'Show the handle gutter on the left or right side of the editor',
+    optionLeft: 'Left',
+    optionRight: 'Right',
 
     indicatorColor: 'Indicator color',
     indicatorColorDesc: 'Follow theme accent or pick a custom color',
@@ -51,6 +55,4 @@ export const en: ZhCnStrings = {
     enableCrossFileDrag: 'Cross-file drag',
     enableCrossFileDragDesc: 'Allow dragging blocks into another open file editor',
 
-    alignHandleToLineNumber: 'Align handle to line numbers',
-    alignHandleToLineNumberDesc: 'When off, handles are positioned at the editor edge even if line numbers are visible',
 };

@@ -1,5 +1,9 @@
 import type { LineRange } from '../../shared/types/line-range';
-import { HANDLE_CORE_CLASS, HANDLE_GUTTER_MARKER_CLASS } from '../../shared/dom-selectors';
+import {
+    CODEMIRROR_GUTTER_ELEMENT_SELECTOR,
+    HANDLE_CORE_CLASS,
+    HANDLE_GUTTER_MARKER_CLASS,
+} from '../../shared/dom-selectors';
 
 export type RangeAnchorPoint = {
     x: number;
@@ -34,7 +38,7 @@ function getHandleLineNumber(handle: HTMLElement): number | null {
 
 export function getAnchorPointForHandle(handle: HTMLElement | null): RangeAnchorPoint | null {
     if (!handle) return null;
-    const host = handle.closest<HTMLElement>(`.cm-gutterElement.${HANDLE_GUTTER_MARKER_CLASS}`)
+    const host = handle.closest<HTMLElement>(`${CODEMIRROR_GUTTER_ELEMENT_SELECTOR}.${HANDLE_GUTTER_MARKER_CLASS}`)
         ?? handle.closest<HTMLElement>(`.${HANDLE_GUTTER_MARKER_CLASS}`);
     if (!host) return null;
     const anchorTarget = handle.querySelector<HTMLElement>(`.${HANDLE_CORE_CLASS}`) ?? handle;

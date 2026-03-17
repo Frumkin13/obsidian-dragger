@@ -4,6 +4,7 @@ import { t } from './i18n';
 import type {
     DragNDropSettings,
     DragSourceVisualStyle,
+    HandleGutterPosition,
     HandleIconStyle,
     HandleVisibilityMode,
 } from '../shared/types/settings-types';
@@ -11,6 +12,7 @@ import type {
 export type {
     DragNDropSettings,
     DragSourceVisualStyle,
+    HandleGutterPosition,
     HandleIconStyle,
     HandleVisibilityMode,
 } from '../shared/types/settings-types';
@@ -46,8 +48,12 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     enableListDropHighlight: true,
     dragSourceVisualStyle: 'subtle',
     handleHorizontalOffsetPx: -8,
-    alignHandleToLineNumber: true,
+    handleGutterPosition: 'left',
 };
+
+export function normalizeHandleGutterPosition(value: unknown): HandleGutterPosition {
+    return value === 'right' ? 'right' : 'left';
+}
 
 export function normalizeDragSourceVisualStyle(value: unknown): DragSourceVisualStyle {
     if (value === 'outline' || value === 'subtle' || value === 'filled') {
@@ -180,12 +186,14 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName(i.alignHandleToLineNumber)
-            .setDesc(i.alignHandleToLineNumberDesc)
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.alignHandleToLineNumber)
-                .onChange(async (value) => {
-                    this.plugin.settings.alignHandleToLineNumber = value;
+            .setName(i.handleGutterPosition)
+            .setDesc(i.handleGutterPositionDesc)
+            .addDropdown(dropdown => dropdown
+                .addOption('left', i.optionLeft)
+                .addOption('right', i.optionRight)
+                .setValue(this.plugin.settings.handleGutterPosition)
+                .onChange(async (value: HandleGutterPosition) => {
+                    this.plugin.settings.handleGutterPosition = value;
                     await this.plugin.saveSettings();
                 }));
 

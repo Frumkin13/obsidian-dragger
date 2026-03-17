@@ -38,6 +38,8 @@ import {
 import { createDropTargetCalculatorDeps } from './view-runtime';
 import { applyViewUpdate } from './view-update';
 import { destroyViewLifecycle, startViewLifecycle } from './view-lifecycle';
+import { placeHandleGutterHost, reconfigureHandleGutterExtension } from './handle-gutter-extension';
+import { getHandleGutterSide } from '../ui/handle/handle-gutter';
 
 export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
     return class {
@@ -58,6 +60,8 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         private readonly semanticRefreshScheduler: SemanticRefreshScheduler;
         private readonly onDocumentPointerMove = (e: PointerEvent) => this.handleDocumentPointerMove(e);
         private readonly onSettingsUpdated = () => this.handleSettingsUpdated();
+        private handleGutterReconfigureRafId: number | null = null;
+        private destroyed = false;
 
         constructor(view: EditorView) {
             this.view = view;
@@ -194,6 +198,8 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 onDocumentPointerMove: this.onDocumentPointerMove,
                 onSettingsUpdated: this.onSettingsUpdated,
             });
+
+            this.scheduleHandleGutterReconfigureIfNeeded();
         }
 
         update(update: ViewUpdate) {
@@ -216,6 +222,11 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         }
 
         destroy(): void {
+            this.destroyed = true;
+            if (this.handleGutterReconfigureRafId !== null) {
+                cancelAnimationFrame(this.handleGutterReconfigureRafId);
+                this.handleGutterReconfigureRafId = null;
+            }
             destroyViewLifecycle({
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
                 onDocumentPointerMove: this.onDocumentPointerMove,
@@ -291,6 +302,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         private syncViewDomState(): void {
             ensureEditorRootClasses(this.view);
             syncGutterClass(this.view);
+            placeHandleGutterHost(this.view);
             syncDragSourceStyleAttr(this.view, normalizeDragSourceVisualStyle(plugin.settings.dragSourceVisualStyle));
             syncDragSourceHighlightAttr(this.view, this.isDragSourceHighlightEnabled());
         }
@@ -306,10 +318,33 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         }
 
         private handleSettingsUpdated(): void {
+            if (this.scheduleHandleGutterReconfigureIfNeeded()) {
+                return;
+            }
             this.syncViewDomState();
             this.refreshDecorationsAndEmbeds();
             this.dragEventHandler.refreshSelectionVisual();
             this.handleVisibility.refreshGrabVisualState();
+        }
+
+        private scheduleHandleGutterReconfigureIfNeeded(): boolean {
+            const desiredSide = plugin.settings.handleGutterPosition === 'right' ? 'right' : 'left';
+            if (getHandleGutterSide(this.view) === desiredSide) {
+                return false;
+            }
+            if (this.handleGutterReconfigureRafId !== null) {
+                return true;
+            }
+            this.handleGutterReconfigureRafId = requestAnimationFrame(() => {
+                this.handleGutterReconfigureRafId = null;
+                if (this.destroyed) return;
+                reconfigureHandleGutterExtension(this.view, plugin);
+                this.syncViewDomState();
+                this.refreshDecorationsAndEmbeds();
+                this.dragEventHandler.refreshSelectionVisual();
+                this.handleVisibility.refreshGrabVisualState();
+            });
+            return true;
         }
 
         private handleSourceVisualByLifecycle(event: DragLifecycleEvent): void {

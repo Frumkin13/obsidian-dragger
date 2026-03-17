@@ -1,6 +1,8 @@
 import type { CommittedRangeSelection } from './selection-model';
 import type { LineRange } from '../../shared/types/line-range';
 import {
+    CODEMIRROR_CONTENT_SELECTOR,
+    CODEMIRROR_GUTTERS_SELECTOR,
     DRAG_HANDLE_CLASS,
     RANGE_SELECTED_HANDLE_CLASS,
     RANGE_SELECTION_LINK_CLASS,
@@ -51,8 +53,8 @@ export function shouldClearCommittedSelectionOnPointerDown(options: ShouldClearC
         if (!options.isWithinContentTolerance(options.clientX)) {
             return true;
         }
-        const inContent = options.contentDOM.contains(options.target) || !!options.target.closest('.cm-content');
-        const inGutter = !!options.target.closest('.cm-gutters');
+        const inContent = options.contentDOM.contains(options.target) || !!options.target.closest(CODEMIRROR_CONTENT_SELECTOR);
+        const inGutter = !!options.target.closest(CODEMIRROR_GUTTERS_SELECTOR);
         return !inContent && !inGutter;
     }
 

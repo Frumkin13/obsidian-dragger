@@ -1,4 +1,9 @@
 import { EditorView } from '@codemirror/view';
+import {
+    CODEMIRROR_EDITOR_SELECTOR,
+    CODEMIRROR_GUTTER_ELEMENT_SELECTOR,
+    CODEMIRROR_LINE_NUMBER_GUTTER_SELECTOR,
+} from '../../../shared/dom-selectors';
 import { getHandleGutterElementForLine } from './handle-gutter';
 
 type RectLike = {
@@ -36,10 +41,10 @@ function isElementVisible(el: Element): boolean {
 }
 
 function getOwnLineNumberGutters(view: EditorView): HTMLElement[] {
-    const all = Array.from(view.dom.querySelectorAll<HTMLElement>('.cm-gutter.cm-lineNumbers, .cm-lineNumbers'));
+    const all = Array.from(view.dom.querySelectorAll<HTMLElement>(CODEMIRROR_LINE_NUMBER_GUTTER_SELECTOR));
     return all.filter((gutter) => (
         isElementVisible(gutter)
-        && gutter.closest('.cm-editor') === view.dom
+        && gutter.closest(CODEMIRROR_EDITOR_SELECTOR) === view.dom
     ));
 }
 
@@ -138,7 +143,7 @@ function getClosestLineNumberElementByHandleRow(view: EditorView, lineNumber: nu
     if (!handleRowRect) return null;
     const centerY = (handleRowRect.top + handleRowRect.bottom) / 2;
 
-    const candidates = Array.from(gutter.querySelectorAll<HTMLElement>('.cm-gutterElement'));
+    const candidates = Array.from(gutter.querySelectorAll<HTMLElement>(CODEMIRROR_GUTTER_ELEMENT_SELECTOR));
     let bestEl: HTMLElement | null = null;
     let bestDistance = Number.POSITIVE_INFINITY;
     for (const candidate of candidates) {
@@ -157,14 +162,14 @@ function getClosestLineNumberElementByHandleRow(view: EditorView, lineNumber: nu
 function getLineNumberElementByLineNumber(view: EditorView, lineNumber: number): HTMLElement | null {
     const gutter = getLineNumberGutter(view);
     if (!gutter) return null;
-    const candidates = Array.from(gutter.querySelectorAll<HTMLElement>('.cm-gutterElement'));
+    const candidates = Array.from(gutter.querySelectorAll<HTMLElement>(CODEMIRROR_GUTTER_ELEMENT_SELECTOR));
     return candidates.find((el) => resolveLineNumberFromGutterElement(view, el) === lineNumber) ?? null;
 }
 
 export function getLineNumberColumnCenterX(view: EditorView): number | null {
     const gutter = getLineNumberGutter(view);
     if (!gutter) return null;
-    const candidates = Array.from(gutter.querySelectorAll<HTMLElement>('.cm-gutterElement'));
+    const candidates = Array.from(gutter.querySelectorAll<HTMLElement>(CODEMIRROR_GUTTER_ELEMENT_SELECTOR));
     for (const candidate of candidates) {
         const centerX = getGutterElementInnerCenterX(candidate);
         if (centerX === null) continue;
@@ -180,7 +185,7 @@ export function getLineNumberElementForLine(view: EditorView, lineNumber: number
 export function getLineNumberAtViewportY(view: EditorView, viewportY: number): number | null {
     const gutter = getLineNumberGutter(view);
     if (!gutter) return null;
-    const candidates = Array.from(gutter.querySelectorAll<HTMLElement>('.cm-gutterElement'));
+    const candidates = Array.from(gutter.querySelectorAll<HTMLElement>(CODEMIRROR_GUTTER_ELEMENT_SELECTOR));
     let nearest: { lineNumber: number; distance: number } | null = null;
     for (const candidate of candidates) {
         const rect = candidate.getBoundingClientRect();

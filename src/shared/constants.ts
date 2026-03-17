@@ -31,7 +31,6 @@ export const HANDLE_INTERACTION_ZONE_PX = 64;
 const handleConfig = {
     sizePx: 16,
     horizontalOffsetPx: -8,
-    alignToLineNumber: true,
 };
 
 export function getHandleSizePx(): number {
@@ -48,12 +47,4 @@ export function getHandleHorizontalOffsetPx(): number {
 
 export function setHandleHorizontalOffsetPx(offsetPx: number): void {
     handleConfig.horizontalOffsetPx = Number.isFinite(offsetPx) ? offsetPx : 0;
-}
-
-export function getAlignToLineNumber(): boolean {
-    return handleConfig.alignToLineNumber;
-}
-
-export function setAlignToLineNumber(align: boolean): void {
-    handleConfig.alignToLineNumber = align;
 }

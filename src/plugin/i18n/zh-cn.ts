@@ -40,6 +40,10 @@ export const zhCn = {
     // Handle offset
     handleOffset: '手柄横向位置',
     handleOffsetDesc: '向左为负值，向右为正值',
+    handleGutterPosition: '手柄所在侧',
+    handleGutterPositionDesc: '控制手柄 gutter 显示在编辑器左侧还是右侧',
+    optionLeft: '左侧',
+    optionRight: '右侧',
 
     // Indicator color
     indicatorColor: '指示器颜色',
@@ -57,9 +61,6 @@ export const zhCn = {
     enableCrossFileDrag: '跨文件拖拽',
     enableCrossFileDragDesc: '允许将块拖拽到另一个已打开文件的编辑器中',
 
-    // Align handle to line number
-    alignHandleToLineNumber: '手柄对齐行号',
-    alignHandleToLineNumberDesc: '关闭后即使显示行号，手柄也定位到编辑器左侧边缘',
 };
 
 export type ZhCnStrings = typeof zhCn;

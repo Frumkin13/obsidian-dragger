@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getHandleColumnCenterX } from './handle-positioner';
 import { getLineNumberElementForLine } from './line-number-gutter';
 import { viewportXToEditorLocalX, viewportYToEditorLocalY } from '../../selection/editor-local-coordinates';
-import { setAlignToLineNumber, setHandleHorizontalOffsetPx } from '../../../shared/constants';
+import { setHandleHorizontalOffsetPx } from '../../../shared/constants';
 import {
     HANDLE_GUTTER_CLASS,
     HANDLE_GUTTER_MARKER_CLASS,
@@ -47,7 +47,6 @@ function setRect(el: HTMLElement, left: number, top: number, width: number, heig
 
 function resetHandleConfigForTest(): void {
     setHandleHorizontalOffsetPx(0);
-    setAlignToLineNumber(true);
 }
 
 beforeEach(() => {
@@ -143,9 +142,7 @@ describe('handle-position', () => {
         expect(getHandleColumnCenterX(view)).toBeCloseTo(57, 3);
     });
 
-    it('uses zero-width handle gutter as x baseline when align-to-line-number is disabled', () => {
-        setAlignToLineNumber(false);
-
+    it('uses zero-width handle gutter as x baseline when the gutter itself is zero-width', () => {
         const root = document.createElement('div');
         root.className = 'cm-editor';
         const customGutter = document.createElement('div');
@@ -174,26 +171,31 @@ describe('handle-position', () => {
         expect(getHandleColumnCenterX(view)).toBeCloseTo(46, 3);
     });
 
-    it('uses line-number gutter center when align-to-line-number is enabled', () => {
-        setAlignToLineNumber(true);
-
+    it('uses the handle gutter center when the handle gutter is on the right side', () => {
         const root = document.createElement('div');
         root.className = 'cm-editor';
-        const customGutter = document.createElement('div');
-        customGutter.className = `cm-gutter ${HANDLE_GUTTER_CLASS}`;
-        const marker = document.createElement('div');
-        marker.className = HANDLE_GUTTER_MARKER_CLASS;
-        marker.setAttribute('data-line-number', '1');
-        customGutter.appendChild(marker);
-        root.appendChild(customGutter);
 
+        const beforeGutters = document.createElement('div');
+        beforeGutters.className = 'cm-gutters cm-gutters-before';
         const lineNumberGutter = document.createElement('div');
         lineNumberGutter.className = 'cm-gutter cm-lineNumbers';
         const lineNumberRow = document.createElement('div');
         lineNumberRow.className = 'cm-gutterElement';
         lineNumberRow.textContent = '1';
         lineNumberGutter.appendChild(lineNumberRow);
-        root.appendChild(lineNumberGutter);
+        beforeGutters.appendChild(lineNumberGutter);
+        root.appendChild(beforeGutters);
+
+        const afterGutters = document.createElement('div');
+        afterGutters.className = 'cm-gutters cm-gutters-after';
+        const handleGutter = document.createElement('div');
+        handleGutter.className = `cm-gutter ${HANDLE_GUTTER_CLASS}`;
+        const marker = document.createElement('div');
+        marker.className = HANDLE_GUTTER_MARKER_CLASS;
+        marker.setAttribute('data-line-number', '1');
+        handleGutter.appendChild(marker);
+        afterGutters.appendChild(handleGutter);
+        root.appendChild(afterGutters);
 
         const content = document.createElement('div');
         root.appendChild(content);
@@ -201,10 +203,12 @@ describe('handle-position', () => {
 
         setRect(root, 0, 0, 400, 200);
         setRect(content, 120, 0, 260, 200);
-        setRect(customGutter, 40, 0, 24, 200);
-        setRect(marker, 42, 20, 20, 20);
-        setRect(lineNumberGutter, 96, 0, 48, 200);
-        setRect(lineNumberRow, 100, 20, 40, 20);
+        setRect(beforeGutters, 0, 0, 48, 200);
+        setRect(lineNumberGutter, 0, 0, 48, 200);
+        setRect(lineNumberRow, 4, 20, 40, 20);
+        setRect(afterGutters, 360, 0, 24, 200);
+        setRect(handleGutter, 360, 0, 24, 200);
+        setRect(marker, 362, 20, 20, 20);
 
         const view = {
             dom: root,
@@ -212,10 +216,7 @@ describe('handle-position', () => {
             state: EditorState.create({ doc: 'line 1' }),
         } as unknown as EditorView;
 
-        expect(getHandleColumnCenterX(view)).toBeCloseTo(120, 3);
-        expect(getLineNumberElementForLine(view, 1)).toBe(lineNumberRow);
-        setHandleHorizontalOffsetPx(4);
-        expect(getHandleColumnCenterX(view)).toBeCloseTo(124, 3);
+        expect(getHandleColumnCenterX(view)).toBeCloseTo(372, 3);
     });
 
     it('falls back by probe-matched handle row even when gutter row attrs are stale', () => {

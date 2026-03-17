@@ -29,7 +29,9 @@
 
 /* 仅在 before 里只有 handle gutter（或无行号模式）时，清除 file-folding 偏移带来的占位 */
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor.dnd-no-gutter .cm-gutters.cm-gutters-before,
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutters.cm-gutters-before:has(> .cm-gutter.cm-dnd-handle-gutter:only-child) {
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor.dnd-no-gutter .cm-gutters.cm-gutters-after,
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutters.cm-gutters-before:has(> .cm-gutter.cm-dnd-handle-gutter:only-child),
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutters.cm-gutters-after:has(> .cm-gutter.cm-dnd-handle-gutter:only-child) {
     width: 0 !important;
     min-width: 0 !important;
     max-width: 0 !important;
@@ -37,12 +39,14 @@
     flex-grow: 0 !important;
     flex-shrink: 0 !important;
     border-right-width: 0 !important;
+    border-left-width: 0 !important;
     margin-inline-start: 0 !important;
     margin-inline-end: 0 !important;
 }
 
 /* 仅 handle gutter 归零，不影响 before 中其它 gutter（例如行号） */
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutters.cm-gutters-before > .cm-gutter.cm-dnd-handle-gutter {
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutters.cm-gutters-before > .cm-gutter.cm-dnd-handle-gutter,
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutters.cm-gutters-after > .cm-gutter.cm-dnd-handle-gutter {
     position: relative;
     width: 0 !important;
     min-width: 0 !important;
@@ -79,15 +83,15 @@
 }
 
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter .cm-gutterElement.dnd-handle-gutter-marker > .dnd-drag-handle.dnd-handle-gutter-bound {
-    position: relative;
-    top: auto;
+    position: absolute;
+    top: 0;
+    height: 100%;
     transform: none;
-    display: inline-flex;
-    vertical-align: baseline;
-    align-items: center;
+    display: flex;
+    align-items: flex-start;
     justify-content: center;
     box-sizing: border-box;
-    padding-top: 0;
+    padding-top: var(--dnd-handle-core-top-padding, calc((var(--dnd-handle-size, 16px) - var(--dnd-handle-core-size, 8px)) / 2));
     pointer-events: auto;
 }
 
