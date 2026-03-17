@@ -10,21 +10,18 @@ import {
     DRAG_SOURCE_LINE_MIDDLE_CLASS,
     DRAG_SOURCE_LINE_LAST_CLASS,
     DRAG_SOURCE_EMBED_CLASS,
-    HOVER_HIDDEN_LINE_NUMBER_CLASS,
     GRAB_HIDDEN_LINE_NUMBER_CLASS,
 } from '../../../shared/dom-selectors';
 import { HANDLE_INTERACTION_ZONE_PX } from '../../../shared/constants';
 import { getMainContentLineElementForLine } from '../probe/line-dom';
-import {
-    resolveLineNumberFromBlockStartAttribute,
-    resolveLineNumberFromDomNodes,
-} from '../probe/element-probe';
+import { resolveLineNumberFromDomNodes } from '../probe/element-probe';
 import { mergeLineRanges, isLineNumberInRanges } from '../../../shared/utils/line-range';
 import { collectEmbedRoots } from '../probe/embed-probe';
+import { getHandleGutterSide } from './handle-gutter';
 
 export interface HandleVisibilityDeps {
     getBlockInfoForHandle: (handle: HTMLElement) => BlockInfo | null;
-    getDraggableBlockAtPoint: (clientX: number, clientY: number) => BlockInfo | null;
+    getDraggableBlockAtVerticalPosition: (clientY: number) => BlockInfo | null;
 }
 
 type GrabLineRange = {
@@ -40,8 +37,6 @@ const DRAG_SOURCE_LINE_VARIANT_CLASSES = [
 ] as const;
 
 export class HandleVisibilityController {
-    private hiddenHoveredLineNumberEl: HTMLElement | null = null;
-    private currentHoveredLineNumber: number | null = null;
     private readonly hiddenGrabbedLineNumberEls = new Set<HTMLElement>();
     private readonly grabbedLineEls = new Set<HTMLElement>();
     private readonly grabbedEmbedEls = new Set<HTMLElement>();
@@ -55,14 +50,6 @@ export class HandleVisibilityController {
 
     getActiveHandle(): HTMLElement | null {
         return this.activeHandle;
-    }
-
-    clearHoveredLineNumber(): void {
-        if (this.hiddenHoveredLineNumberEl) {
-            this.hiddenHoveredLineNumberEl.classList.remove(HOVER_HIDDEN_LINE_NUMBER_CLASS);
-        }
-        this.hiddenHoveredLineNumberEl = null;
-        this.currentHoveredLineNumber = null;
     }
 
     clearGrabbedLineNumbers(): void {
@@ -84,23 +71,12 @@ export class HandleVisibilityController {
         blockInfo: BlockInfo,
         handle: HTMLElement | null
     ): void {
-        this.setActiveVisibleHandle(
-            handle,
-            { preserveHoveredLineNumber: true }
-        );
-        this.clearHoveredLineNumber();
+        this.setActiveVisibleHandle(handle);
         this.setGrabbedLineRanges(this.resolveGrabLineRanges(blockInfo));
     }
 
-    setActiveVisibleHandle(
-        handle: HTMLElement | null,
-        options?: { preserveHoveredLineNumber?: boolean }
-    ): void {
-        const preserveHoveredLineNumber = options?.preserveHoveredLineNumber === true;
+    setActiveVisibleHandle(handle: HTMLElement | null): void {
         if (this.activeHandle === handle) {
-            if (!handle && !preserveHoveredLineNumber) {
-                this.clearHoveredLineNumber();
-            }
             return;
         }
         if (this.activeHandle) {
@@ -108,22 +84,9 @@ export class HandleVisibilityController {
         }
 
         this.activeHandle = handle;
-        if (!handle) {
-            if (!preserveHoveredLineNumber) {
-                this.clearHoveredLineNumber();
-            }
-            return;
-        }
+        if (!handle) return;
 
         handle.classList.add('is-visible');
-        if (!preserveHoveredLineNumber) {
-            const lineNumber = this.resolveHandleLineNumber(handle);
-            if (!lineNumber) {
-                this.clearHoveredLineNumber();
-                return;
-            }
-            this.setHoveredLineNumber(lineNumber);
-        }
     }
 
     enterGrabVisualState(
@@ -131,20 +94,26 @@ export class HandleVisibilityController {
         endLineNumber: number,
         handle: HTMLElement | null
     ): void {
-        this.setActiveVisibleHandle(
-            handle,
-            { preserveHoveredLineNumber: true }
-        );
-        this.clearHoveredLineNumber();
+        this.setActiveVisibleHandle(handle);
         this.setGrabbedLineNumberRange(startLineNumber, endLineNumber);
     }
 
     isPointerInHandleInteractionZone(clientX: number, clientY: number): boolean {
         const contentRect = this.view.contentDOM.getBoundingClientRect();
         if (clientY < contentRect.top || clientY > contentRect.bottom) return false;
-        const leftBound = contentRect.left - HANDLE_INTERACTION_ZONE_PX;
-        const rightBound = contentRect.left + HANDLE_INTERACTION_ZONE_PX;
-        return clientX >= leftBound && clientX <= rightBound;
+        const gutterSide = getHandleGutterSide(this.view) ?? 'left';
+        const anchorX = gutterSide === 'right' ? contentRect.right : contentRect.left;
+        return clientX >= anchorX - HANDLE_INTERACTION_ZONE_PX
+            && clientX <= anchorX + HANDLE_INTERACTION_ZONE_PX;
+    }
+
+    isPointerInHoverActivationZone(clientX: number, clientY: number): boolean {
+        const contentRect = this.view.contentDOM.getBoundingClientRect();
+        const withinContent = clientX >= contentRect.left
+            && clientX <= contentRect.right
+            && clientY >= contentRect.top
+            && clientY <= contentRect.bottom;
+        return withinContent || this.isPointerInHandleInteractionZone(clientX, clientY);
     }
 
     resolveVisibleHandleFromTarget(target: EventTarget | null): HTMLElement | null {
@@ -158,33 +127,11 @@ export class HandleVisibilityController {
         return null;
     }
 
-    resolveVisibleHandleFromPointerWhenLineNumbersHidden(clientX: number, clientY: number): HTMLElement | null {
-        const contentRect = this.view.contentDOM.getBoundingClientRect();
-        if (
-            clientX < contentRect.left
-            || clientX > contentRect.right
-            || clientY < contentRect.top
-            || clientY > contentRect.bottom
-        ) {
-            return null;
-        }
-
-        const blockInfo = this.deps.getDraggableBlockAtPoint(clientX, clientY);
+    resolveVisibleHandleFromPointer(clientX: number, clientY: number): HTMLElement | null {
+        if (!this.isPointerInHoverActivationZone(clientX, clientY)) return null;
+        const blockInfo = this.deps.getDraggableBlockAtVerticalPosition(clientY);
         if (!blockInfo) return null;
         return this.resolveVisibleHandleForBlock(blockInfo);
-    }
-
-    resolveHandleLineNumber(handle: HTMLElement): number | null {
-        const lineNumberFromAttr = resolveLineNumberFromBlockStartAttribute(this.view, handle);
-        if (lineNumberFromAttr !== null) return lineNumberFromAttr;
-
-        const blockInfo = this.deps.getBlockInfoForHandle(handle);
-        if (!blockInfo) return null;
-        const lineNumber = blockInfo.startLine + 1;
-        if (!Number.isInteger(lineNumber) || lineNumber < 1 || lineNumber > this.view.state.doc.lines) {
-            return null;
-        }
-        return lineNumber;
     }
 
     private clearGrabbedLineVisualClasses(): void {
@@ -297,20 +244,5 @@ export class HandleVisibilityController {
         if (candidates.length === 0) return null;
 
         return candidates[0] ?? null;
-    }
-
-    private setHoveredLineNumber(lineNumber: number): void {
-        if (this.currentHoveredLineNumber === lineNumber && this.hiddenHoveredLineNumberEl) {
-            return;
-        }
-        const lineNumberEl = getLineNumberElementForLine(this.view, lineNumber);
-        if (!lineNumberEl) {
-            this.clearHoveredLineNumber();
-            return;
-        }
-        this.clearHoveredLineNumber();
-        lineNumberEl.classList.add(HOVER_HIDDEN_LINE_NUMBER_CLASS);
-        this.hiddenHoveredLineNumberEl = lineNumberEl;
-        this.currentHoveredLineNumber = lineNumber;
     }
 }

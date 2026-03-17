@@ -484,10 +484,7 @@ export class DropTargetCalculator {
 
     private getEmbedElementAtPoint(clientX: number, clientY: number): HTMLElement | null {
         return findEmbedElementAtPoint(this.view, clientX, clientY, {
-            fallbackPaddingX: 0,
-            requireWithinEditorRect: true,
             requireDirectWithinRoot: false,
-            enableFallbackScan: true,
             normalizeToEmbedRoot: true,
         });
     }

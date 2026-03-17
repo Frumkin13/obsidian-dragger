@@ -136,7 +136,7 @@ export class DragInteractionOrchestrator {
                 clientY: e.clientY,
                 fallback: getBlockInfo,
             });
-            this.handleVisibility.setActiveVisibleHandle(handle, { preserveHoveredLineNumber: true });
+            this.handleVisibility.setActiveVisibleHandle(handle);
             this.getDragEventHandler().startPointerDragFromHandle(handle, e, () => resolveCurrentBlock());
         });
         return handle;

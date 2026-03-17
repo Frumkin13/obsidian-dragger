@@ -7,11 +7,10 @@ import {
     resolveLineNumberAtCoords,
     resolveLineNumberFromBlockStartAttribute,
     resolveLineNumberFromDomNodes,
+    resolveLineNumberFromPos,
 } from '../ui/probe/element-probe';
 import { getRenderedMainLineNumberAtPoint } from '../ui/probe/line-hit';
 import { isEditorLineCollapsed } from '../../platform/obsidian/editor-fold';
-
-const EMBED_HIT_FALLBACK_PADDING_PX = 8;
 
 export class DragSourceResolver {
     constructor(private readonly view: EditorView) { }
@@ -40,6 +39,20 @@ export class DragSourceResolver {
         const block = detectBlock(this.view.state, lineNumber);
         if (!block) return null;
         return this.expandHeadingBlockIfCollapsed(block);
+    }
+
+    getDraggableBlockAtVerticalPosition(clientY: number): BlockInfo | null {
+        const contentRect = this.view.contentDOM.getBoundingClientRect();
+        if (clientY < contentRect.top || clientY > contentRect.bottom) return null;
+
+        try {
+            const lineBlock = this.view.lineBlockAtHeight(clientY - this.view.documentTop);
+            const lineNumber = resolveLineNumberFromPos(this.view, lineBlock.from);
+            if (lineNumber === null) return null;
+            return this.getDraggableBlockAtLine(lineNumber);
+        } catch {
+            return null;
+        }
     }
 
     getDraggableBlockAtPoint(clientX: number, clientY: number): BlockInfo | null {
@@ -100,10 +113,7 @@ export class DragSourceResolver {
 
     private getEmbedElementAtPoint(clientX: number, clientY: number): HTMLElement | null {
         return findEmbedElementAtPoint(this.view, clientX, clientY, {
-            fallbackPaddingX: EMBED_HIT_FALLBACK_PADDING_PX,
-            requireWithinEditorRect: true,
             requireDirectWithinRoot: true,
-            enableFallbackScan: true,
             normalizeToEmbedRoot: true,
         });
     }

@@ -164,7 +164,6 @@
 }
 
 /* Horizontal rule lines sometimes render a wide overlay that can swallow handle hit-testing. */
-.dnd-line-number-hover-hidden,
 .dnd-line-number-grab-hidden,
 .dnd-drag-source-line-number {
     color: transparent !important;

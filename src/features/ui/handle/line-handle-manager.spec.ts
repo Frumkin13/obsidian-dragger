@@ -4,6 +4,7 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockType, type BlockInfo } from '../../../core/block/block-types';
+import { setHandleHorizontalOffsetPx, setHandleSizePx } from '../../../shared/constants';
 import { LineHandleManager } from './line-handle-manager';
 
 vi.mock('../../../core/block/block-factory', () => ({
@@ -15,27 +16,8 @@ vi.mock('./handle-gutter', () => ({
     getHandleGutterElementForLine: vi.fn(),
 }));
 
-vi.mock('./handle-positioner', () => ({
-    getHandleLeftPxForLine: vi.fn(),
-}));
-
 import { detectBlock } from '../../../core/block/block-factory';
 import { getHandleGutterElementForLine } from './handle-gutter';
-import { getHandleLeftPxForLine } from './handle-positioner';
-
-function createRect(left: number, top: number, width: number, height: number): DOMRect {
-    return {
-        left,
-        top,
-        width,
-        height,
-        right: left + width,
-        bottom: top + height,
-        x: left,
-        y: top,
-        toJSON: () => ({}),
-    } as DOMRect;
-}
 
 function createBlock(): BlockInfo {
     return {
@@ -52,18 +34,16 @@ function createBlock(): BlockInfo {
 afterEach(() => {
     vi.clearAllMocks();
     document.body.innerHTML = '';
+    setHandleHorizontalOffsetPx(-8);
+    setHandleSizePx(16);
 });
 
 describe('LineHandleManager', () => {
-    it('mounts gutter-bound handles with the same height as the matched gutter row', () => {
+    it('mounts gutter-bound handles using the configured constant offset', () => {
         const root = document.createElement('div');
         document.body.appendChild(root);
 
         const gutterRow = document.createElement('div');
-        Object.defineProperty(gutterRow, 'getBoundingClientRect', {
-            configurable: true,
-            value: () => createRect(100, 20, 0, 28),
-        });
 
         const view = {
             dom: root,
@@ -74,9 +54,10 @@ describe('LineHandleManager', () => {
         const handle = document.createElement('div');
         const block = createBlock();
 
+        setHandleHorizontalOffsetPx(10);
+        setHandleSizePx(20);
         vi.mocked(detectBlock).mockReturnValue(block);
         vi.mocked(getHandleGutterElementForLine).mockReturnValue(gutterRow);
-        vi.mocked(getHandleLeftPxForLine).mockReturnValue(96);
 
         const manager = new LineHandleManager(view, {
             createHandleElement: () => handle,
@@ -86,8 +67,8 @@ describe('LineHandleManager', () => {
         manager.rescan();
 
         expect(handle.parentElement).toBe(gutterRow);
-        expect(handle.style.left).toBe('-4px');
+        expect(handle.style.left).toBe('0px');
         expect(handle.style.top).toBe('0px');
-        expect(handle.style.height).toBe('28px');
+        expect(handle.style.height).toBe('');
     });
 });

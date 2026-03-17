@@ -58,7 +58,7 @@ describe('embed-hit', () => {
         expect(hit).toBe(embedRoot);
     });
 
-    it('uses fallback scan with configurable horizontal padding', () => {
+    it('returns null when direct embed hit misses', () => {
         const root = document.createElement('div');
         root.className = 'cm-editor';
         const embedA = document.createElement('div');
@@ -87,8 +87,7 @@ describe('embed-hit', () => {
         });
 
         const view = { dom: root } as unknown as EditorView;
-        expect(findEmbedElementAtPoint(view, 45, 45, { fallbackPaddingX: 0 })).toBeNull();
-        expect(findEmbedElementAtPoint(view, 45, 45, { fallbackPaddingX: 8 })).toBe(embedB);
+        expect(findEmbedElementAtPoint(view, 45, 45)).toBeNull();
     });
 
     it('collectEmbedRoots de-duplicates normalized embed roots', () => {

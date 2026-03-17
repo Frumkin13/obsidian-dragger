@@ -2,10 +2,7 @@ import { EditorView } from '@codemirror/view';
 import { EMBED_BLOCK_SELECTOR, EMBED_ROOT_SELECTOR } from '../../../shared/dom-selectors';
 
 export type FindEmbedElementAtPointOptions = {
-    fallbackPaddingX?: number;
-    requireWithinEditorRect?: boolean;
     requireDirectWithinRoot?: boolean;
-    enableFallbackScan?: boolean;
     normalizeToEmbedRoot?: boolean;
 };
 
@@ -43,10 +40,7 @@ export function findEmbedElementAtPoint(
     const root = view.dom;
     if (!(root instanceof HTMLElement)) return null;
 
-    const fallbackPaddingX = options?.fallbackPaddingX ?? 0;
-    const requireWithinEditorRect = options?.requireWithinEditorRect !== false;
     const requireDirectWithinRoot = options?.requireDirectWithinRoot !== false;
-    const enableFallbackScan = options?.enableFallbackScan !== false;
     const normalizeToEmbedRoot = options?.normalizeToEmbedRoot !== false;
 
     if (typeof document.elementFromPoint === 'function') {
@@ -61,30 +55,5 @@ export function findEmbedElementAtPoint(
             }
         }
     }
-
-    if (!enableFallbackScan) return null;
-
-    if (requireWithinEditorRect) {
-        const editorRect = root.getBoundingClientRect();
-        if (clientY < editorRect.top || clientY > editorRect.bottom) return null;
-        if (clientX < editorRect.left || clientX > editorRect.right) return null;
-    }
-
-    const embeds = collectEmbedRoots(view, { normalizeToEmbedRoot });
-    let best: HTMLElement | null = null;
-    let bestDist = Number.POSITIVE_INFINITY;
-    for (const embed of embeds) {
-        const rect = embed.getBoundingClientRect();
-        const withinX = clientX >= rect.left - fallbackPaddingX
-            && clientX <= rect.right + fallbackPaddingX;
-        const withinY = clientY >= rect.top && clientY <= rect.bottom;
-        if (!withinX || !withinY) continue;
-        const centerY = (rect.top + rect.bottom) / 2;
-        const dist = Math.abs(centerY - clientY);
-        if (dist < bestDist) {
-            bestDist = dist;
-            best = embed;
-        }
-    }
-    return best;
+    return null;
 }

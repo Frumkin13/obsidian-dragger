@@ -15,10 +15,6 @@ function isVisible(el: HTMLElement): boolean {
     return style.display !== 'none' && style.visibility !== 'hidden';
 }
 
-function hasUsableRect(rect: DOMRect): boolean {
-    return rect.height > 0;
-}
-
 export function getHandleGutter(view: EditorView): HTMLElement | null {
     const candidates = Array.from(view.dom.querySelectorAll<HTMLElement>(`.${HANDLE_GUTTER_CLASS}`));
     return candidates.find((candidate) => (
@@ -34,29 +30,6 @@ export function getHandleGutterSide(view: EditorView): 'left' | 'right' | null {
     if (container?.classList.contains(CODEMIRROR_GUTTERS_AFTER_CLASS)) return 'right';
     if (container?.classList.contains(CODEMIRROR_GUTTERS_BEFORE_CLASS)) return 'left';
     return null;
-}
-
-export function getHandleGutterRect(view: EditorView): DOMRect | null {
-    const gutter = getHandleGutter(view);
-    if (!gutter) return null;
-    const rect = gutter.getBoundingClientRect();
-    return hasUsableRect(rect) ? rect : null;
-}
-
-export function getHandleGutterElementCenterX(view: EditorView): number | null {
-    const gutter = getHandleGutter(view);
-    if (!gutter) return null;
-    const lineElement = gutter.querySelector<HTMLElement>(`${CODEMIRROR_GUTTER_ELEMENT_SELECTOR}.${HANDLE_GUTTER_MARKER_CLASS}`)
-        ?? gutter.querySelector<HTMLElement>(`.${HANDLE_GUTTER_MARKER_CLASS}`);
-    if (lineElement) {
-        const lineElementRect = lineElement.getBoundingClientRect();
-        if (hasUsableRect(lineElementRect)) {
-            return lineElementRect.left + lineElementRect.width / 2;
-        }
-    }
-    const gutterRect = gutter.getBoundingClientRect();
-    if (!hasUsableRect(gutterRect)) return null;
-    return gutterRect.left + gutterRect.width / 2;
 }
 
 export function getHandleGutterElementForLine(view: EditorView, lineNumber: number): HTMLElement | null {

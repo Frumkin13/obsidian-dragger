@@ -102,6 +102,41 @@ describe('DragSourceResolver', () => {
         expect(block?.content).toContain('second');
     });
 
+    it('resolves a block from vertical position without requiring a text hit at the current x', () => {
+        const state = EditorState.create({
+            doc: 'alpha\nbeta\ngamma',
+        });
+        const view = {
+            state,
+            documentTop: 0,
+            contentDOM: {
+                getBoundingClientRect: () => ({
+                    left: 0,
+                    top: 0,
+                    right: 300,
+                    bottom: 120,
+                }),
+            },
+            lineBlockAtHeight: (height: number) => ({
+                from: state.doc.line(height < 40 ? 2 : 3).from,
+                to: state.doc.line(height < 40 ? 2 : 3).to,
+                top: height < 40 ? 20 : 40,
+                bottom: height < 40 ? 40 : 60,
+                height: 20,
+                type: 0,
+                widget: null,
+                widgetLineBreaks: 0,
+                length: state.doc.line(height < 40 ? 2 : 3).length,
+            }),
+        } as unknown as EditorView;
+
+        const resolver = new DragSourceResolver(view);
+        const block = resolver.getDraggableBlockAtVerticalPosition(30);
+        expect(block).not.toBeNull();
+        expect(block?.startLine).toBe(1);
+        expect(block?.content).toContain('beta');
+    });
+
     it('returns null when point lookup hits transient layout-read guard', () => {
         const state = EditorState.create({
             doc: 'alpha\nbeta\ngamma',
@@ -177,7 +212,7 @@ describe('DragSourceResolver', () => {
         expect(block?.endLine).toBe(1);
     });
 
-    it('resolves rendered latex block when elementFromPoint misses but viewport fallback finds embed', () => {
+    it('falls back to coordinate-based block resolution when embed direct hit misses', () => {
         const state = EditorState.create({
             doc: '$$\nx^2\n$$\nafter',
         });
@@ -223,9 +258,9 @@ describe('DragSourceResolver', () => {
         const resolver = new DragSourceResolver(view);
         const block = resolver.getDraggableBlockAtPoint(120, 102);
         expect(block).not.toBeNull();
-        expect(block?.type).toBe(BlockType.MathBlock);
-        expect(block?.startLine).toBe(0);
-        expect(block?.endLine).toBe(2);
+        expect(block?.type).toBe(BlockType.Paragraph);
+        expect(block?.startLine).toBe(3);
+        expect(block?.endLine).toBe(3);
     });
 
     it('resolves horizontal rule from rendered line hit when posAtCoords drifts', () => {

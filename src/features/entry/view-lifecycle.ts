@@ -3,18 +3,23 @@ import { prewarmFenceScan } from '../../core/parser/fence-scanner';
 import { DragEventHandler } from '../interaction/drag-event-handler';
 import { LineHandleManager } from '../ui/handle/line-handle-manager';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
+import {
+    GlobalPointerMoveClient,
+    registerGlobalPointerMoveClient,
+    unregisterGlobalPointerMoveClient,
+} from './global-pointermove-router';
 
 export interface ViewLifecycleStartDeps {
     view: EditorView;
     lineHandleManager: LineHandleManager;
     dragEventHandler: DragEventHandler;
-    onDocumentPointerMove: (event: PointerEvent) => void;
+    pointerMoveClient: GlobalPointerMoveClient;
     onSettingsUpdated: () => void;
 }
 
 export interface ViewLifecycleDestroyDeps {
     semanticRefreshScheduler: SemanticRefreshScheduler;
-    onDocumentPointerMove: (event: PointerEvent) => void;
+    pointerMoveClient: GlobalPointerMoveClient;
     onSettingsUpdated: () => void;
     dragEventHandler: DragEventHandler;
     lineHandleManager: LineHandleManager;
@@ -23,14 +28,14 @@ export interface ViewLifecycleDestroyDeps {
 export function startViewLifecycle(deps: ViewLifecycleStartDeps): void {
     deps.lineHandleManager.start();
     deps.dragEventHandler.attach();
-    document.addEventListener('pointermove', deps.onDocumentPointerMove, { passive: true });
+    registerGlobalPointerMoveClient(deps.pointerMoveClient);
     window.addEventListener('dnd:settings-updated', deps.onSettingsUpdated);
     scheduleFenceScanWarmup(deps.view);
 }
 
 export function destroyViewLifecycle(deps: ViewLifecycleDestroyDeps): void {
     deps.semanticRefreshScheduler.destroy();
-    document.removeEventListener('pointermove', deps.onDocumentPointerMove);
+    unregisterGlobalPointerMoveClient(deps.pointerMoveClient);
     window.removeEventListener('dnd:settings-updated', deps.onSettingsUpdated);
     deps.dragEventHandler.destroy();
     deps.lineHandleManager.destroy();

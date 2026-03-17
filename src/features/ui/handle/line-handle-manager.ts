@@ -2,7 +2,7 @@ import { EditorView } from '@codemirror/view';
 import { BlockInfo, BlockType } from '../../../core/block/block-types';
 import { detectBlock, getListItemOwnRangeForHandle } from '../../../core/block/block-factory';
 import { getHandleGutterElementForLine } from './handle-gutter';
-import { getHandleLeftPxForLine } from './handle-positioner';
+import { getHandleHorizontalOffsetPx, getHandleSizePx } from '../../../shared/constants';
 import { HIDDEN_CLASS, LINE_HANDLE_CLASS } from '../../../shared/dom-selectors';
 
 type LineHandleEntry = {
@@ -20,7 +20,6 @@ export interface LineHandleManagerDeps {
 
 export class LineHandleManager {
     private readonly lineHandles = new Map<number, LineHandleEntry>();
-    private readonly handleSet = new Set<HTMLElement>();
     private pendingScan = false;
     private rafId: number | null = null;
     private destroyed = false;
@@ -90,7 +89,6 @@ export class LineHandleManager {
                         handle.classList.add(LINE_HANDLE_CLASS);
                         entry = { handle, lineNumber: handleLineNumber };
                         this.lineHandles.set(handleLineNumber, entry);
-                        this.handleSet.add(handle);
                     }
 
                     // Always update attributes with fresh block info
@@ -126,17 +124,9 @@ export class LineHandleManager {
         // Remove handles for lines no longer in view
         for (const [lineNum, entry] of this.lineHandles.entries()) {
             if (!handledLineNumbers.has(lineNum)) {
-                this.handleSet.delete(entry.handle);
                 entry.handle.remove();
                 this.lineHandles.delete(lineNum);
             }
-        }
-    }
-
-    updateHandlePositions(): void {
-        if (!this.shouldRenderLineHandles()) return;
-        for (const entry of this.lineHandles.values()) {
-            this.mountHandle(entry.handle, entry.lineNumber);
         }
     }
 
@@ -151,11 +141,6 @@ export class LineHandleManager {
             entry.handle.remove();
         }
         this.lineHandles.clear();
-        this.handleSet.clear();
-    }
-
-    isManagedHandle(handle: HTMLElement): boolean {
-        return this.handleSet.has(handle);
     }
 
     private mountHandle(handle: HTMLElement, lineNumber: number): void {
@@ -175,23 +160,13 @@ export class LineHandleManager {
             return;
         }
 
-        const left = getHandleLeftPxForLine(this.view, lineNumber);
-        if (left === null) {
-            handle.classList.add(HIDDEN_CLASS);
-            if (!this.pendingScan && !this.destroyed) {
-                this.scheduleScan();
-            }
-            return;
-        }
-
         if (handle.parentElement !== parent) {
             parent.appendChild(handle);
         }
-        const parentRect = parent.getBoundingClientRect();
-        const localLeft = left - parentRect.left;
+        const localLeft = Math.round(getHandleHorizontalOffsetPx() - getHandleSizePx() / 2);
         handle.style.left = `${Math.round(localLeft)}px`;
         handle.style.top = '0px';
-        handle.style.height = `${Math.round(parentRect.height)}px`;
+        handle.style.removeProperty('height');
         handle.classList.remove(HIDDEN_CLASS);
         handle.classList.add(GUTTER_BOUND_CLASS);
     }

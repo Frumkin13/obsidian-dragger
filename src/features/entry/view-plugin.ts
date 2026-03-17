@@ -20,7 +20,6 @@ import { HandleVisibilityController } from '../ui/handle/handle-visibility-contr
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
 import { DragDropServiceContainer } from '../application/drag-service-container';
-import { hasVisibleLineNumberGutter } from '../ui/handle/line-number-gutter';
 import { DragLifecycleEmitter } from '../state/drag-lifecycle-emitter';
 import { DragInteractionOrchestrator } from '../application/interaction-orchestrator';
 import { DragLifecycleEvent, DragSourceScope } from '../../shared/types/drag';
@@ -40,6 +39,7 @@ import { applyViewUpdate } from './view-update';
 import { destroyViewLifecycle, startViewLifecycle } from './view-lifecycle';
 import { placeHandleGutterHost, reconfigureHandleGutterExtension } from './handle-gutter-extension';
 import { getHandleGutterSide } from '../ui/handle/handle-gutter';
+import { GlobalPointerMoveClient } from './global-pointermove-router';
 
 export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
     return class {
@@ -60,6 +60,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         private readonly semanticRefreshScheduler: SemanticRefreshScheduler;
         private readonly onDocumentPointerMove = (e: PointerEvent) => this.handleDocumentPointerMove(e);
         private readonly onSettingsUpdated = () => this.handleSettingsUpdated();
+        private readonly pointerMoveClient: GlobalPointerMoveClient;
         private handleGutterReconfigureRafId: number | null = null;
         private destroyed = false;
 
@@ -69,7 +70,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
             this.services = new DragDropServiceContainer(this.view);
             this.handleVisibility = new HandleVisibilityController(this.view, {
                 getBlockInfoForHandle: (handle) => this.services.dragSource.getBlockInfoForHandle(handle),
-                getDraggableBlockAtPoint: (clientX, clientY) => this.services.dragSource.getDraggableBlockAtPoint(clientX, clientY),
+                getDraggableBlockAtVerticalPosition: (clientY) => this.services.dragSource.getDraggableBlockAtVerticalPosition(clientY),
             });
             this.dragPerfManager = new DragPerfSessionManager(this.view);
             this.dropTargetCalculator = new DropTargetCalculator(this.view, createDropTargetCalculatorDeps({
@@ -187,12 +188,17 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
             this.semanticRefreshScheduler = new SemanticRefreshScheduler(this.view, {
                 performRefresh: () => this.refreshDecorationsAndEmbeds(),
             });
+            this.pointerMoveClient = {
+                view: this.view,
+                onPointerMove: this.onDocumentPointerMove,
+                clearPointerHover: () => this.handleVisibility.setActiveVisibleHandle(null),
+            };
 
             startViewLifecycle({
                 view: this.view,
                 lineHandleManager: this.lineHandleManager,
                 dragEventHandler: this.dragEventHandler,
-                onDocumentPointerMove: this.onDocumentPointerMove,
+                pointerMoveClient: this.pointerMoveClient,
                 onSettingsUpdated: this.onSettingsUpdated,
             });
 
@@ -226,7 +232,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
             }
             destroyViewLifecycle({
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
-                onDocumentPointerMove: this.onDocumentPointerMove,
+                pointerMoveClient: this.pointerMoveClient,
                 onSettingsUpdated: this.onSettingsUpdated,
                 dragEventHandler: this.dragEventHandler,
                 lineHandleManager: this.lineHandleManager,
@@ -254,14 +260,14 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 return;
             }
             if (document.body.classList.contains(DRAGGING_BODY_CLASS)) {
-                this.handleVisibility.setActiveVisibleHandle(null, { preserveHoveredLineNumber: true });
+                this.handleVisibility.setActiveVisibleHandle(null);
                 return;
             }
             if (this.dragEventHandler.isGestureActive()) {
-                this.handleVisibility.setActiveVisibleHandle(this.handleVisibility.getActiveHandle(), { preserveHoveredLineNumber: true });
+                this.handleVisibility.setActiveVisibleHandle(this.handleVisibility.getActiveHandle());
                 return;
             }
-            if (this.semanticRefreshScheduler.isPending && this.handleVisibility.isPointerInHandleInteractionZone(e.clientX, e.clientY)) {
+            if (this.semanticRefreshScheduler.isPending && this.handleVisibility.isPointerInHoverActivationZone(e.clientX, e.clientY)) {
                 this.semanticRefreshScheduler.ensureSemanticReadyForInteraction();
             }
 
@@ -271,29 +277,14 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 return;
             }
 
-            // When line numbers are visible, keep the original behavior:
-            // only show the hovered handle itself.
-            if (hasVisibleLineNumberGutter(this.view)) {
-                this.handleVisibility.setActiveVisibleHandle(null);
-                return;
-            }
-
-            // Without line numbers, hovering anywhere on the current line's right area
-            // should reveal the left handle for that line.
-            const handle = this.handleVisibility.resolveVisibleHandleFromPointerWhenLineNumbersHidden(e.clientX, e.clientY);
+            const handle = this.handleVisibility.resolveVisibleHandleFromPointer(e.clientX, e.clientY);
             this.handleVisibility.setActiveVisibleHandle(handle);
         }
 
         private reResolveActiveHandle(lastX?: number, lastY?: number): void {
             if (lastX === undefined || lastY === undefined) return;
-            if (hasVisibleLineNumberGutter(this.view)) {
-                if (!this.handleVisibility.isPointerInHandleInteractionZone(lastX, lastY)) return;
-                return;
-            }
-            const handle = this.handleVisibility.resolveVisibleHandleFromPointerWhenLineNumbersHidden(lastX, lastY);
-            if (handle) {
-                this.handleVisibility.setActiveVisibleHandle(handle);
-            }
+            const handle = this.handleVisibility.resolveVisibleHandleFromPointer(lastX, lastY);
+            this.handleVisibility.setActiveVisibleHandle(handle);
         }
 
         private syncViewDomState(): void {

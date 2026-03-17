@@ -211,8 +211,6 @@ export class MobileGestureController {
         }
 
         return findEmbedElementAtPoint(this.view, clientX, clientY, {
-            enableFallbackScan: false,
-            requireWithinEditorRect: false,
             requireDirectWithinRoot: true,
             normalizeToEmbedRoot: false,
         });

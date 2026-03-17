@@ -5,14 +5,19 @@ import type { EditorView } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import { BlockInfo, BlockType } from '../../../core/block/block-types';
 import {
+    CODEMIRROR_GUTTER_ELEMENT_CLASS,
+    CODEMIRROR_GUTTERS_AFTER_CLASS,
+    CODEMIRROR_GUTTERS_BEFORE_CLASS,
     DRAG_SOURCE_LINE_CLASS,
     DRAG_SOURCE_LINE_SINGLE_CLASS,
     DRAG_SOURCE_LINE_FIRST_CLASS,
     DRAG_SOURCE_LINE_MIDDLE_CLASS,
     DRAG_SOURCE_LINE_LAST_CLASS,
     DRAG_SOURCE_EMBED_CLASS,
+    HANDLE_GUTTER_CLASS,
 } from '../../../shared/dom-selectors';
 import { HandleVisibilityController } from './handle-visibility-controller';
+import { getHandleGutterSide } from './handle-gutter';
 
 function createBlock(startLine: number, endLine: number, composite?: Array<{ startLine: number; endLine: number }>): BlockInfo {
     return {
@@ -29,6 +34,7 @@ function createBlock(startLine: number, endLine: number, composite?: Array<{ sta
 
 function createViewStub(lineCount = 8): { view: EditorView; lines: HTMLElement[] } {
     const root = document.createElement('div');
+    root.className = 'cm-editor';
     const content = document.createElement('div');
     root.appendChild(content);
     document.body.appendChild(root);
@@ -48,6 +54,35 @@ function createViewStub(lineCount = 8): { view: EditorView; lines: HTMLElement[]
     for (let i = 1; i <= state.doc.lines; i++) {
         posToLineIndex.set(state.doc.line(i).from, i - 1);
     }
+
+    Object.defineProperty(root, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({
+            left: 0,
+            top: 0,
+            right: 400,
+            bottom: 200,
+            width: 400,
+            height: 200,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+        }),
+    });
+    Object.defineProperty(content, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({
+            left: 0,
+            top: 0,
+            right: 360,
+            bottom: 200,
+            width: 360,
+            height: 200,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+        }),
+    });
 
     const view = {
         dom: root,
@@ -70,12 +105,52 @@ function createViewStub(lineCount = 8): { view: EditorView; lines: HTMLElement[]
     return { view, lines: lineEls };
 }
 
+function appendHandleGutter(view: EditorView, side: 'left' | 'right' = 'left'): HTMLElement {
+    const gutters = document.createElement('div');
+    gutters.className = side === 'right'
+        ? `cm-gutters ${CODEMIRROR_GUTTERS_AFTER_CLASS}`
+        : `cm-gutters ${CODEMIRROR_GUTTERS_BEFORE_CLASS}`;
+    const gutter = document.createElement('div');
+    gutter.className = `cm-gutter ${HANDLE_GUTTER_CLASS}`;
+    gutters.appendChild(gutter);
+    view.dom.appendChild(gutters);
+    return gutter;
+}
+
+function appendHandleForLine(view: EditorView, lineNumber: number): HTMLElement {
+    const gutter = appendHandleGutter(view);
+    const marker = document.createElement('div');
+    marker.className = `${CODEMIRROR_GUTTER_ELEMENT_CLASS} dnd-handle-gutter-marker`;
+    marker.setAttribute('data-line-number', String(lineNumber));
+    const handle = document.createElement('div');
+    handle.className = 'dnd-drag-handle';
+    handle.setAttribute('data-block-start', String(lineNumber - 1));
+    marker.appendChild(handle);
+    gutter.appendChild(marker);
+    return handle;
+}
+
+function appendLineNumberForLine(view: EditorView, lineNumber: number): HTMLElement {
+    const gutters = document.createElement('div');
+    gutters.className = `cm-gutters ${CODEMIRROR_GUTTERS_BEFORE_CLASS}`;
+    const gutter = document.createElement('div');
+    gutter.className = 'cm-gutter cm-lineNumbers';
+    const row = document.createElement('div');
+    row.className = CODEMIRROR_GUTTER_ELEMENT_CLASS;
+    row.setAttribute('data-line-number', String(lineNumber));
+    row.setAttribute('aria-label', String(lineNumber));
+    gutter.appendChild(row);
+    gutters.appendChild(gutter);
+    view.dom.appendChild(gutters);
+    return row;
+}
+
 describe('HandleVisibilityController', () => {
     it('applies contiguous drag-source variant classes for a block range', () => {
         const { view, lines } = createViewStub(6);
         const controller = new HandleVisibilityController(view, {
             getBlockInfoForHandle: () => null,
-            getDraggableBlockAtPoint: () => null,
+            getDraggableBlockAtVerticalPosition: () => null,
         });
 
         controller.enterGrabVisualStateForBlock(createBlock(1, 3), null);
@@ -103,7 +178,7 @@ describe('HandleVisibilityController', () => {
         const { view, lines } = createViewStub(7);
         const controller = new HandleVisibilityController(view, {
             getBlockInfoForHandle: () => null,
-            getDraggableBlockAtPoint: () => null,
+            getDraggableBlockAtVerticalPosition: () => null,
         });
 
         controller.enterGrabVisualStateForBlock(
@@ -129,7 +204,7 @@ describe('HandleVisibilityController', () => {
         const { view, lines } = createViewStub(5);
         const controller = new HandleVisibilityController(view, {
             getBlockInfoForHandle: () => null,
-            getDraggableBlockAtPoint: () => null,
+            getDraggableBlockAtVerticalPosition: () => null,
         });
 
         controller.enterGrabVisualStateForBlock(createBlock(2, 2), null);
@@ -161,7 +236,7 @@ describe('HandleVisibilityController', () => {
 
         const controller = new HandleVisibilityController(view, {
             getBlockInfoForHandle: () => null,
-            getDraggableBlockAtPoint: () => null,
+            getDraggableBlockAtVerticalPosition: () => null,
         });
 
         controller.enterGrabVisualStateForBlock(createBlock(2, 2), null);
@@ -170,7 +245,38 @@ describe('HandleVisibilityController', () => {
         controller.clearGrabbedLineNumbers();
         expect(embed.classList.contains(DRAG_SOURCE_EMBED_CLASS)).toBe(false);
     });
+
+    it('uses the configured handle gutter side for the hover interaction zone', () => {
+        const { view } = createViewStub(4);
+        appendHandleGutter(view, 'right');
+        const controller = new HandleVisibilityController(view, {
+            getBlockInfoForHandle: () => null,
+            getDraggableBlockAtVerticalPosition: () => null,
+        });
+
+        expect(getHandleGutterSide(view)).toBe('right');
+        expect(controller.isPointerInHandleInteractionZone(16, 10)).toBe(false);
+        expect(controller.isPointerInHandleInteractionZone(344, 10)).toBe(true);
+    });
+
+    it('reveals a hovered handle across the content row without hiding visible line numbers', () => {
+        const { view } = createViewStub(4);
+        const lineNumberEl = appendLineNumberForLine(view, 1);
+        const handle = appendHandleForLine(view, 1);
+        const controller = new HandleVisibilityController(view, {
+            getBlockInfoForHandle: () => createBlock(0, 0),
+            getDraggableBlockAtVerticalPosition: () => createBlock(0, 0),
+        });
+
+        expect(view.dom.querySelector('.dnd-drag-handle[data-block-start="0"]')).toBe(handle);
+        const resolved = controller.resolveVisibleHandleFromPointer(240, 10);
+        expect(resolved).toBe(handle);
+
+        controller.setActiveVisibleHandle(handle);
+        expect(lineNumberEl.className).toBe(CODEMIRROR_GUTTER_ELEMENT_CLASS);
+    });
 });
+
 
 
 
