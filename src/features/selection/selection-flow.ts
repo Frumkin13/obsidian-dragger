@@ -32,9 +32,9 @@ export function updateSelectionFromBoundary(
 ): void {
     const next = computeUpdatedSelectionState(view.state, state, target);
     state.currentLineNumber = next.currentLineNumber;
-    state.selectionRanges = next.selectionRanges;
+    state.selectionBlocks = next.selectionBlocks;
     state.activeSelectionBlock = next.activeSelectionBlock;
-    rangeVisual.render(state.selectionRanges);
+    rangeVisual.render(state.selectionBlocks);
 }
 
 export function updateSelectionFromLine(
@@ -64,14 +64,14 @@ export function commitSelectionRange(
 ): CommittedRangeSelection | null {
     const committed = buildCommittedRangeSelection(
         view.state.doc,
-        state.selectionRanges,
+        state.selectionBlocks,
         state.anchorSelectionBlock
     );
     if (!committed) {
         rangeVisual.clear();
         return null;
     }
-    rangeVisual.render(committed.ranges);
+    rangeVisual.render(committed.blocks);
     return committed;
 }
 
@@ -91,7 +91,7 @@ export function deleteCommittedSelectionRange(
 ): CommittedRangeSelection | null {
     if (!committed) return committed;
     const doc = view.state.doc;
-    const changes = buildCommittedRangeDeletionChanges(doc, committed.ranges);
+    const changes = buildCommittedRangeDeletionChanges(doc, committed.blocks);
     if (changes.length > 0) {
         view.dispatch({ changes });
     }
@@ -110,11 +110,11 @@ export function refreshSelectionVisual(
     rangeVisual: RangeSelectionVisualManager
 ): void {
     if (gesture.phase === 'range_selecting') {
-        rangeVisual.render(gesture.rangeSelect.selectionRanges);
+        rangeVisual.render(gesture.rangeSelect.selectionBlocks);
         return;
     }
     if (committed) {
-        rangeVisual.render(committed.ranges);
+        rangeVisual.render(committed.blocks);
     }
 }
 

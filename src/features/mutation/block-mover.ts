@@ -9,6 +9,7 @@ import { moveBlockAcrossEditors } from './cross-editor-move';
 import { DragDocumentRelation } from '../../shared/types/drag';
 import { BlockMoverDeps } from './block-mover-deps';
 import { CapturedBlockFoldState } from './block-fold-state';
+import { normalizeCompositeRanges } from '../../shared/utils/composite-selection';
 
 export class BlockMover {
     private readonly listRenumberer: ListRenumberer;
@@ -29,6 +30,7 @@ export class BlockMover {
         listTargetIndentWidthOverride?: number;
         sourceView?: EditorView;
         sourceDocumentRelation?: DragDocumentRelation;
+        capturedBlockFoldStateOverride?: CapturedBlockFoldState | null;
     }): void {
         const {
             sourceBlock,
@@ -39,14 +41,19 @@ export class BlockMover {
             listTargetIndentWidthOverride,
             sourceView,
             sourceDocumentRelation,
+            capturedBlockFoldStateOverride,
         } = params;
+        const sourceEditorView = sourceView ?? this.deps.view;
+        const sourceDoc = sourceEditorView.state.doc as unknown as DocLikeWithRange;
+        const normalizedSourceBlock = this.normalizeSourceBlock(sourceDoc, sourceBlock);
 
         if (sourceView && sourceView !== this.deps.view && sourceDocumentRelation !== 'same_document') {
-            const capturedBlockFoldState = this.captureBlockFoldState(sourceView, sourceBlock);
+            const capturedBlockFoldState = capturedBlockFoldStateOverride
+                ?? this.captureBlockFoldState(sourceView, normalizedSourceBlock);
             moveBlockAcrossEditors({
                 sourceView,
                 targetView: this.deps.view,
-                sourceBlock,
+                sourceBlock: normalizedSourceBlock,
                 targetPos,
                 targetLineNumberOverride,
                 listContextLineNumberOverride,
@@ -66,12 +73,15 @@ export class BlockMover {
             return;
         }
 
-        const compositeRanges = sourceBlock.compositeSelection?.ranges ?? [];
-        const sourceEditorView = sourceView ?? this.deps.view;
-        const capturedBlockFoldState = this.captureBlockFoldState(sourceEditorView, sourceBlock);
+        const compositeRanges = normalizedSourceBlock.compositeSelection?.ranges ?? [];
+        const capturedBlockFoldState = capturedBlockFoldStateOverride
+            ?? this.captureBlockFoldState(sourceEditorView, normalizedSourceBlock);
         if (compositeRanges.length > 1) {
             this.moveCompositeBlock({
                 ...params,
+                sourceBlock: normalizedSourceBlock,
+                sourceView,
+                sourceDocumentRelation,
                 capturedBlockFoldState,
             });
             return;
@@ -93,7 +103,7 @@ export class BlockMover {
         targetLineNumber = clampTargetLineNumber(doc.lines, targetLineNumber);
         const lineMap = getLineMap(view.state);
         const containerRule = this.deps.resolveDropRuleAtInsertion(
-            sourceBlock,
+            normalizedSourceBlock,
             targetLineNumber,
             { lineMap }
         );
@@ -103,7 +113,7 @@ export class BlockMover {
 
         const inPlaceValidation = validateInPlaceDrop({
             doc,
-            sourceBlock,
+            sourceBlock: normalizedSourceBlock,
             targetLineNumber,
             parseLineWithQuote: this.deps.parseLineWithQuote,
             getListContext: this.deps.getListContext,
@@ -119,14 +129,14 @@ export class BlockMover {
             return;
         }
 
-        const sourceStartLine = doc.line(sourceBlock.startLine + 1);
-        const sourceEndLine = doc.line(sourceBlock.endLine + 1);
+        const sourceStartLine = doc.line(normalizedSourceBlock.startLine + 1);
+        const sourceEndLine = doc.line(normalizedSourceBlock.endLine + 1);
         const sourceFrom = sourceStartLine.from;
         const sourceTo = sourceEndLine.to;
         const sourceContent = doc.sliceString(sourceFrom, sourceTo);
         const insertText = this.deps.buildInsertText(
             doc,
-            sourceBlock,
+            normalizedSourceBlock,
             targetLineNumber,
             sourceContent,
             listContextLineNumberOverride,
@@ -142,8 +152,8 @@ export class BlockMover {
         const insertPos = insertion.pos;
 
         const targetStartLineNumber = allowInPlaceIndentChange && insertPos === deleteFrom
-            ? sourceBlock.startLine + 1
-            : this.resolveFinalInsertedStartLineNumber(sourceBlock, targetLineNumber);
+            ? normalizedSourceBlock.startLine + 1
+            : this.resolveFinalInsertedStartLineNumber(normalizedSourceBlock, targetLineNumber);
 
         if (allowInPlaceIndentChange && insertPos === deleteFrom) {
             view.dispatch({
@@ -160,7 +170,7 @@ export class BlockMover {
             });
         }
 
-        const sourceLineNumber = sourceBlock.startLine + 1;
+        const sourceLineNumber = normalizedSourceBlock.startLine + 1;
         this.listRenumberer.renumberOrderedListAround(sourceLineNumber);
         this.listRenumberer.renumberOrderedListAround(targetLineNumber);
         this.deps.blockFoldState?.restore(view, targetStartLineNumber, capturedBlockFoldState);
@@ -173,21 +183,36 @@ export class BlockMover {
         listContextLineNumberOverride?: number;
         listIndentDeltaOverride?: number;
         listTargetIndentWidthOverride?: number;
+        sourceView?: EditorView;
+        sourceDocumentRelation?: DragDocumentRelation;
         capturedBlockFoldState?: CapturedBlockFoldState | null;
     }): void {
         const {
             sourceBlock,
             targetPos,
             targetLineNumberOverride,
+            sourceView,
+            sourceDocumentRelation,
             capturedBlockFoldState,
         } = params;
         const view = this.deps.view;
         const doc = view.state.doc as unknown as DocLikeWithRange;
-        const normalizedRanges = this.normalizeCompositeRanges(
+        const normalizedRanges = normalizeCompositeRanges(
             sourceBlock.compositeSelection?.ranges ?? [],
             doc.lines
         );
         if (normalizedRanges.length <= 1) {
+            this.moveBlock({
+                sourceBlock,
+                targetPos,
+                targetLineNumberOverride: params.targetLineNumberOverride,
+                listContextLineNumberOverride: params.listContextLineNumberOverride,
+                listIndentDeltaOverride: params.listIndentDeltaOverride,
+                listTargetIndentWidthOverride: params.listTargetIndentWidthOverride,
+                sourceView,
+                sourceDocumentRelation,
+                capturedBlockFoldStateOverride: capturedBlockFoldState,
+            });
             return;
         }
 
@@ -229,12 +254,15 @@ export class BlockMover {
             };
         });
 
-        const insertText = segments
-            .map((segment) => doc.sliceString(
-                segment.sourceFrom,
-                Math.min(segment.sourceTo + 1, doc.length)
-            ))
-            .join('');
+        const insertText = this.deps.buildInsertText(
+            doc,
+            sourceBlock,
+            targetLineNumber,
+            sourceBlock.content,
+            params.listContextLineNumberOverride,
+            params.listIndentDeltaOverride,
+            params.listTargetIndentWidthOverride
+        );
         if (!insertText.length) return;
         const totalDeletedLength = segments.reduce(
             (sum, segment) => sum + (segment.deleteTo - segment.deleteFrom),
@@ -268,30 +296,6 @@ export class BlockMover {
         this.deps.blockFoldState?.restore(view, targetStartLineNumber, capturedBlockFoldState ?? null);
     }
 
-    private normalizeCompositeRanges(
-        ranges: Array<{ startLine: number; endLine: number }>,
-        totalLines: number
-    ): Array<{ startLine: number; endLine: number }> {
-        const normalized = ranges
-            .map((range) => {
-                const startLine = Math.max(0, Math.min(totalLines - 1, Math.min(range.startLine, range.endLine)));
-                const endLine = Math.max(0, Math.min(totalLines - 1, Math.max(range.startLine, range.endLine)));
-                return { startLine, endLine };
-            })
-            .sort((a, b) => a.startLine - b.startLine);
-
-        const merged: Array<{ startLine: number; endLine: number }> = [];
-        for (const range of normalized) {
-            const last = merged[merged.length - 1];
-            if (!last || range.startLine > last.endLine + 1) {
-                merged.push(range);
-            } else if (range.endLine > last.endLine) {
-                last.endLine = range.endLine;
-            }
-        }
-        return merged;
-    }
-
     private isTargetInsideCompositeRanges(
         targetLineNumber: number,
         ranges: Array<{ startLine: number; endLine: number }>
@@ -307,6 +311,40 @@ export class BlockMover {
 
     private captureBlockFoldState(sourceView: EditorView, sourceBlock: BlockInfo): CapturedBlockFoldState | null {
         return this.deps.blockFoldState?.capture(sourceView, sourceBlock) ?? null;
+    }
+
+    private normalizeSourceBlock(doc: DocLikeWithRange, sourceBlock: BlockInfo): BlockInfo {
+        const compositeRanges = normalizeCompositeRanges(
+            sourceBlock.compositeSelection?.ranges ?? [],
+            doc.lines
+        );
+        if (compositeRanges.length === 0) {
+            return sourceBlock;
+        }
+
+        const firstRange = compositeRanges[0];
+        const lastRange = compositeRanges[compositeRanges.length - 1];
+        const firstLine = doc.line(firstRange.startLine + 1);
+        const lastLine = doc.line(lastRange.endLine + 1);
+        const content = compositeRanges
+            .map((range) => {
+                const startLine = doc.line(range.startLine + 1);
+                const endLine = doc.line(range.endLine + 1);
+                return doc.sliceString(startLine.from, endLine.to);
+            })
+            .join('\n');
+
+        return {
+            ...sourceBlock,
+            startLine: firstRange.startLine,
+            endLine: lastRange.endLine,
+            from: firstLine.from,
+            to: lastLine.to,
+            content,
+            compositeSelection: compositeRanges.length > 1
+                ? { ranges: compositeRanges }
+                : undefined,
+        };
     }
 
     private resolveFinalInsertedStartLineNumber(sourceBlock: BlockInfo, targetLineNumber: number): number {

@@ -1,5 +1,4 @@
 import type { CommittedRangeSelection } from './selection-model';
-import type { LineRange } from '../../shared/types/line-range';
 import {
     CODEMIRROR_CONTENT_SELECTOR,
     CODEMIRROR_GUTTERS_SELECTOR,
@@ -7,6 +6,10 @@ import {
     RANGE_SELECTED_HANDLE_CLASS,
     RANGE_SELECTION_LINK_CLASS,
 } from '../../shared/dom-selectors';
+import {
+    groupSelectedBlocksIntoSegments,
+    type BlockSelectionSegment,
+} from './block-selection';
 
 export const RANGE_SELECTION_GRIP_HIT_PADDING_PX = 20;
 export const RANGE_SELECTION_GRIP_HIT_X_PADDING_PX = 28;
@@ -17,15 +20,19 @@ type AnchorSpan = {
     bottomY: number;
 };
 
-type ResolveAnchorSpan = (range: LineRange) => AnchorSpan | null;
+type ResolveAnchorSpan = (segment: BlockSelectionSegment) => AnchorSpan | null;
 
 function getCommittedSelectionAnchorMaxX(
     committedSelection: CommittedRangeSelection,
     resolveAnchorSpan: ResolveAnchorSpan
 ): number | null {
     let maxX: number | null = null;
-    for (const range of committedSelection.ranges) {
-        const anchorSpan = resolveAnchorSpan(range);
+    const segments = groupSelectedBlocksIntoSegments(
+        committedSelection.selectedBlock.endLine + 1,
+        committedSelection.blocks
+    );
+    for (const segment of segments) {
+        const anchorSpan = resolveAnchorSpan(segment);
         if (!anchorSpan) continue;
         maxX = maxX === null ? anchorSpan.x : Math.max(maxX, anchorSpan.x);
     }
@@ -89,8 +96,12 @@ export function isCommittedSelectionGripHit(options: IsCommittedSelectionGripHit
         }
     }
 
-    for (const range of committedSelection.ranges) {
-        const anchorSpan = options.resolveAnchorSpan(range);
+    const segments = groupSelectedBlocksIntoSegments(
+        committedSelection.selectedBlock.endLine + 1,
+        committedSelection.blocks
+    );
+    for (const segment of segments) {
+        const anchorSpan = options.resolveAnchorSpan(segment);
         if (!anchorSpan) continue;
         if (!options.pointerType || options.pointerType === 'mouse') {
             if (Math.abs(options.clientX - anchorSpan.x) > RANGE_SELECTION_GRIP_HIT_X_PADDING_PX) {

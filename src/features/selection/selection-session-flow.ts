@@ -1,24 +1,24 @@
 import type { Text } from '@codemirror/state';
 import type { BlockInfo } from '../../core/block/block-types';
-import type { LineRange } from '../../shared/types/line-range';
 import {
-    normalizeLineRange,
-    mergeLineRanges,
-    isLineRangeCoveredByRanges,
-    subtractLineRange,
-} from '../../shared/utils/line-range';
+    isSelectedBlockCoveredByBlocks,
+    mergeSelectedBlocks,
+    subtractSelectedBlocks,
+    type SelectedBlockRange,
+} from './block-selection';
 import {
     type MouseRangeSelectState,
     type RangeSelectionOperation,
     type RangeSelectConfig,
-    buildDragSourceBlockFromRanges,
+    buildDragSourceBlockFromBlocks,
+    buildSelectedBlockRangeFromBlockInfo,
     cloneBlockInfo,
 } from './selection-model';
 
 type CreateInitialRangeSelectionStateOptions = {
     blockInfo: BlockInfo;
     doc: Text;
-    committedRangesSnapshot: LineRange[];
+    committedBlocksSnapshot: SelectedBlockRange[];
     pointerId: number;
     startX: number;
     startY: number;
@@ -55,16 +55,16 @@ export function createInitialRangeSelectionState(
         return null;
     }
 
-    const anchorRange = normalizeLineRange(options.doc.lines, anchorStartLineNumber, anchorEndLineNumber);
-    const operation: RangeSelectionOperation = isLineRangeCoveredByRanges(
+    const anchorBlock = buildSelectedBlockRangeFromBlockInfo(options.blockInfo);
+    const operation: RangeSelectionOperation = isSelectedBlockCoveredByBlocks(
         options.doc.lines,
-        anchorRange,
-        options.committedRangesSnapshot
+        anchorBlock,
+        options.committedBlocksSnapshot
     ) ? 'remove' : 'add';
-    const selectionRanges = operation === 'remove'
-        ? subtractLineRange(options.doc.lines, options.committedRangesSnapshot, anchorRange)
-        : mergeLineRanges(options.doc.lines, [...options.committedRangesSnapshot, anchorRange]);
-    const anchorSelectionBlock = buildDragSourceBlockFromRanges(options.doc, selectionRanges, options.blockInfo);
+    const selectionBlocks = operation === 'remove'
+        ? subtractSelectedBlocks(options.doc.lines, options.committedBlocksSnapshot, [anchorBlock])
+        : mergeSelectedBlocks(options.doc.lines, [...options.committedBlocksSnapshot, anchorBlock]);
+    const anchorSelectionBlock = buildDragSourceBlockFromBlocks(options.doc, selectionBlocks, options.blockInfo);
     const sourceHandleDraggableAttr = options.sourceHandle?.getAttribute('draggable') ?? null;
 
     return {
@@ -90,8 +90,8 @@ export function createInitialRangeSelectionState(
         anchorStartLineNumber,
         anchorEndLineNumber,
         currentLineNumber: anchorEndLineNumber,
-        committedRangesSnapshot: options.committedRangesSnapshot,
-        selectionRanges,
+        committedBlocksSnapshot: options.committedBlocksSnapshot,
+        selectionBlocks,
     };
 }
 

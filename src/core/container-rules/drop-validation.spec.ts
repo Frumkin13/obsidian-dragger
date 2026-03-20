@@ -104,6 +104,33 @@ describe('drop-validation', () => {
         expect(inSelectedRange.inSelfRange).toBe(true);
         expect(inSelectedRange.rejectReason).toBe('self_range_blocked');
     });
+
+    it('treats contiguous composite ranges like a single block for in-place indent changes', () => {
+        const sourceBlock: BlockInfo = {
+            ...createBlock(BlockType.ListItem, 0, 1, '- root\n  - child'),
+            compositeSelection: {
+                ranges: [
+                    { startLine: 0, endLine: 0 },
+                    { startLine: 1, endLine: 1 },
+                ],
+            },
+        };
+
+        const result = validateInPlaceDrop({
+            doc: createDoc(['- root', '  - child', 'after']),
+            sourceBlock,
+            targetLineNumber: 3,
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            listContextLineNumberOverride: 3,
+            listTargetIndentWidthOverride: 4,
+        });
+
+        expect(result.inSelfRange).toBe(true);
+        expect(result.allowInPlaceIndentChange).toBe(true);
+        expect(result.rejectReason).toBeUndefined();
+    });
 });
 
 

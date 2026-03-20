@@ -1,6 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../../core/block/block-types';
 import type { LineRange } from '../../../shared/types/line-range';
+import type { HoverContentRect, HoverPointerSnapshot } from '../../entry/hover-pointer-snapshot';
 import { getLineNumberElementForLine, hasVisibleLineNumberGutter } from './line-number-gutter';
 import {
     DRAG_HANDLE_CLASS,
@@ -12,16 +13,16 @@ import {
     DRAG_SOURCE_EMBED_CLASS,
     GRAB_HIDDEN_LINE_NUMBER_CLASS,
 } from '../../../shared/dom-selectors';
-import { HANDLE_INTERACTION_ZONE_PX } from '../../../shared/constants';
 import { getMainContentLineElementForLine } from '../probe/line-dom';
 import { resolveLineNumberFromDomNodes } from '../probe/element-probe';
 import { mergeLineRanges, isLineNumberInRanges } from '../../../shared/utils/line-range';
 import { collectEmbedRoots } from '../probe/embed-probe';
-import { getHandleGutterSide } from './handle-gutter';
 
 export interface HandleVisibilityDeps {
     getBlockInfoForHandle: (handle: HTMLElement) => BlockInfo | null;
-    getDraggableBlockAtVerticalPosition: (clientY: number) => BlockInfo | null;
+    getLineNumberAtVerticalPosition: (clientY: number, contentRect: HoverContentRect) => number | null;
+    getDraggableBlockAtVerticalPosition: (clientY: number, contentRect: HoverContentRect) => BlockInfo | null;
+    getVisibleHandleForBlockStart?: (blockStart: number) => HTMLElement | null;
 }
 
 type GrabLineRange = {
@@ -36,12 +37,19 @@ const DRAG_SOURCE_LINE_VARIANT_CLASSES = [
     DRAG_SOURCE_LINE_LAST_CLASS,
 ] as const;
 
+type ActiveHoverBlock = {
+    startLineNumber: number;
+    endLineNumber: number;
+    handle: HTMLElement;
+};
+
 export class HandleVisibilityController {
     private readonly hiddenGrabbedLineNumberEls = new Set<HTMLElement>();
     private readonly grabbedLineEls = new Set<HTMLElement>();
     private readonly grabbedEmbedEls = new Set<HTMLElement>();
     private grabbedLineRanges: GrabLineRange[] = [];
     private activeHandle: HTMLElement | null = null;
+    private activeHoverBlock: ActiveHoverBlock | null = null;
 
     constructor(
         private readonly view: EditorView,
@@ -84,7 +92,13 @@ export class HandleVisibilityController {
         }
 
         this.activeHandle = handle;
-        if (!handle) return;
+        if (!handle) {
+            this.activeHoverBlock = null;
+            return;
+        }
+        if (this.activeHoverBlock?.handle !== handle) {
+            this.activeHoverBlock = null;
+        }
 
         handle.classList.add('is-visible');
     }
@@ -98,22 +112,12 @@ export class HandleVisibilityController {
         this.setGrabbedLineNumberRange(startLineNumber, endLineNumber);
     }
 
-    isPointerInHandleInteractionZone(clientX: number, clientY: number): boolean {
-        const contentRect = this.view.contentDOM.getBoundingClientRect();
-        if (clientY < contentRect.top || clientY > contentRect.bottom) return false;
-        const gutterSide = getHandleGutterSide(this.view) ?? 'left';
-        const anchorX = gutterSide === 'right' ? contentRect.right : contentRect.left;
-        return clientX >= anchorX - HANDLE_INTERACTION_ZONE_PX
-            && clientX <= anchorX + HANDLE_INTERACTION_ZONE_PX;
+    isPointerInHandleInteractionZone(snapshot: HoverPointerSnapshot): boolean {
+        return snapshot.withinHandleInteractionZone;
     }
 
-    isPointerInHoverActivationZone(clientX: number, clientY: number): boolean {
-        const contentRect = this.view.contentDOM.getBoundingClientRect();
-        const withinContent = clientX >= contentRect.left
-            && clientX <= contentRect.right
-            && clientY >= contentRect.top
-            && clientY <= contentRect.bottom;
-        return withinContent || this.isPointerInHandleInteractionZone(clientX, clientY);
+    isPointerInHoverActivationZone(snapshot: HoverPointerSnapshot): boolean {
+        return snapshot.withinHoverActivationZone;
     }
 
     resolveVisibleHandleFromTarget(target: EventTarget | null): HTMLElement | null {
@@ -127,11 +131,30 @@ export class HandleVisibilityController {
         return null;
     }
 
-    resolveVisibleHandleFromPointer(clientX: number, clientY: number): HTMLElement | null {
-        if (!this.isPointerInHoverActivationZone(clientX, clientY)) return null;
-        const blockInfo = this.deps.getDraggableBlockAtVerticalPosition(clientY);
+    resolveVisibleHandleFromPointer(snapshot: HoverPointerSnapshot): HTMLElement | null {
+        if (!snapshot.withinHoverActivationZone) {
+            this.activeHoverBlock = null;
+            return null;
+        }
+
+        const cachedHandle = this.resolveActiveHoverBlock(snapshot);
+        if (cachedHandle) {
+            return cachedHandle;
+        }
+
+        const blockInfo = this.deps.getDraggableBlockAtVerticalPosition(snapshot.clientY, snapshot.contentRect);
         if (!blockInfo) return null;
-        return this.resolveVisibleHandleForBlock(blockInfo);
+        const handle = this.resolveVisibleHandleForBlock(blockInfo);
+        if (!handle) {
+            this.activeHoverBlock = null;
+            return null;
+        }
+        this.activeHoverBlock = {
+            startLineNumber: blockInfo.startLine + 1,
+            endLineNumber: blockInfo.endLine + 1,
+            handle,
+        };
+        return handle;
     }
 
     private clearGrabbedLineVisualClasses(): void {
@@ -239,10 +262,22 @@ export class HandleVisibilityController {
     }
 
     private resolveVisibleHandleForBlock(blockInfo: BlockInfo): HTMLElement | null {
-        const selector = `.${DRAG_HANDLE_CLASS}[data-block-start="${blockInfo.startLine}"]`;
-        const candidates = Array.from(this.view.dom.querySelectorAll<HTMLElement>(selector));
-        if (candidates.length === 0) return null;
+        return this.deps.getVisibleHandleForBlockStart?.(blockInfo.startLine) ?? null;
+    }
 
-        return candidates[0] ?? null;
+    private resolveActiveHoverBlock(snapshot: HoverPointerSnapshot): HTMLElement | null {
+        if (!this.activeHoverBlock) return null;
+        if (this.activeHandle !== this.activeHoverBlock.handle) return null;
+        if (!this.activeHoverBlock.handle.isConnected) {
+            this.activeHoverBlock = null;
+            return null;
+        }
+
+        const lineNumber = this.deps.getLineNumberAtVerticalPosition(snapshot.clientY, snapshot.contentRect);
+        if (lineNumber === null) return null;
+        if (lineNumber < this.activeHoverBlock.startLineNumber || lineNumber > this.activeHoverBlock.endLineNumber) {
+            return null;
+        }
+        return this.activeHoverBlock.handle;
     }
 }

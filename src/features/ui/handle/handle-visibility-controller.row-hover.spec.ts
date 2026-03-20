@@ -4,6 +4,7 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import { BlockType } from '../../../core/block/block-types';
+import { createHoverPointerSnapshot } from '../../entry/hover-pointer-snapshot';
 import { HandleVisibilityController } from './handle-visibility-controller';
 
 function createViewStub(): EditorView {
@@ -54,6 +55,7 @@ describe('HandleVisibilityController row hover', () => {
                 indentLevel: 0,
                 content: 'alpha',
             }),
+            getLineNumberAtVerticalPosition: () => 1,
             getDraggableBlockAtVerticalPosition: () => ({
                 type: BlockType.Paragraph,
                 startLine: 0,
@@ -63,8 +65,9 @@ describe('HandleVisibilityController row hover', () => {
                 indentLevel: 0,
                 content: 'alpha',
             }),
+            getVisibleHandleForBlockStart: () => handle,
         });
 
-        expect(controller.resolveVisibleHandleFromPointer(240, 10)).toBe(handle);
+        expect(controller.resolveVisibleHandleFromPointer(createHoverPointerSnapshot(view, 240, 10, 'left'))).toBe(handle);
     });
 });

@@ -2,8 +2,9 @@
 
 import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../../core/block/block-types';
+import { createHoverPointerSnapshot } from '../../entry/hover-pointer-snapshot';
 import {
     CODEMIRROR_GUTTER_ELEMENT_CLASS,
     CODEMIRROR_GUTTERS_AFTER_CLASS,
@@ -17,7 +18,6 @@ import {
     HANDLE_GUTTER_CLASS,
 } from '../../../shared/dom-selectors';
 import { HandleVisibilityController } from './handle-visibility-controller';
-import { getHandleGutterSide } from './handle-gutter';
 
 function createBlock(startLine: number, endLine: number, composite?: Array<{ startLine: number; endLine: number }>): BlockInfo {
     return {
@@ -150,7 +150,9 @@ describe('HandleVisibilityController', () => {
         const { view, lines } = createViewStub(6);
         const controller = new HandleVisibilityController(view, {
             getBlockInfoForHandle: () => null,
+            getLineNumberAtVerticalPosition: () => null,
             getDraggableBlockAtVerticalPosition: () => null,
+            getVisibleHandleForBlockStart: () => null,
         });
 
         controller.enterGrabVisualStateForBlock(createBlock(1, 3), null);
@@ -178,7 +180,9 @@ describe('HandleVisibilityController', () => {
         const { view, lines } = createViewStub(7);
         const controller = new HandleVisibilityController(view, {
             getBlockInfoForHandle: () => null,
+            getLineNumberAtVerticalPosition: () => null,
             getDraggableBlockAtVerticalPosition: () => null,
+            getVisibleHandleForBlockStart: () => null,
         });
 
         controller.enterGrabVisualStateForBlock(
@@ -204,7 +208,9 @@ describe('HandleVisibilityController', () => {
         const { view, lines } = createViewStub(5);
         const controller = new HandleVisibilityController(view, {
             getBlockInfoForHandle: () => null,
+            getLineNumberAtVerticalPosition: () => null,
             getDraggableBlockAtVerticalPosition: () => null,
+            getVisibleHandleForBlockStart: () => null,
         });
 
         controller.enterGrabVisualStateForBlock(createBlock(2, 2), null);
@@ -236,7 +242,9 @@ describe('HandleVisibilityController', () => {
 
         const controller = new HandleVisibilityController(view, {
             getBlockInfoForHandle: () => null,
+            getLineNumberAtVerticalPosition: () => null,
             getDraggableBlockAtVerticalPosition: () => null,
+            getVisibleHandleForBlockStart: () => null,
         });
 
         controller.enterGrabVisualStateForBlock(createBlock(2, 2), null);
@@ -251,12 +259,13 @@ describe('HandleVisibilityController', () => {
         appendHandleGutter(view, 'right');
         const controller = new HandleVisibilityController(view, {
             getBlockInfoForHandle: () => null,
+            getLineNumberAtVerticalPosition: () => null,
             getDraggableBlockAtVerticalPosition: () => null,
+            getVisibleHandleForBlockStart: () => null,
         });
 
-        expect(getHandleGutterSide(view)).toBe('right');
-        expect(controller.isPointerInHandleInteractionZone(16, 10)).toBe(false);
-        expect(controller.isPointerInHandleInteractionZone(344, 10)).toBe(true);
+        expect(controller.isPointerInHandleInteractionZone(createHoverPointerSnapshot(view, 16, 10, 'right'))).toBe(false);
+        expect(controller.isPointerInHandleInteractionZone(createHoverPointerSnapshot(view, 344, 10, 'right'))).toBe(true);
     });
 
     it('reveals a hovered handle across the content row without hiding visible line numbers', () => {
@@ -265,15 +274,39 @@ describe('HandleVisibilityController', () => {
         const handle = appendHandleForLine(view, 1);
         const controller = new HandleVisibilityController(view, {
             getBlockInfoForHandle: () => createBlock(0, 0),
+            getLineNumberAtVerticalPosition: () => 1,
             getDraggableBlockAtVerticalPosition: () => createBlock(0, 0),
+            getVisibleHandleForBlockStart: () => handle,
         });
 
         expect(view.dom.querySelector('.dnd-drag-handle[data-block-start="0"]')).toBe(handle);
-        const resolved = controller.resolveVisibleHandleFromPointer(240, 10);
+        const resolved = controller.resolveVisibleHandleFromPointer(createHoverPointerSnapshot(view, 240, 10, 'left'));
         expect(resolved).toBe(handle);
 
         controller.setActiveVisibleHandle(handle);
         expect(lineNumberEl.className).toBe(CODEMIRROR_GUTTER_ELEMENT_CLASS);
+    });
+
+    it('reuses the active hovered block while pointer stays inside the same block', () => {
+        const { view } = createViewStub(6);
+        const handle = appendHandleForLine(view, 2);
+        const getLineNumberAtVerticalPosition = vi.fn(() => 3);
+        const getDraggableBlockAtVerticalPosition = vi.fn(() => createBlock(1, 3));
+        const controller = new HandleVisibilityController(view, {
+            getBlockInfoForHandle: () => createBlock(1, 3),
+            getLineNumberAtVerticalPosition,
+            getDraggableBlockAtVerticalPosition,
+            getVisibleHandleForBlockStart: () => handle,
+        });
+
+        const firstSnapshot = createHoverPointerSnapshot(view, 240, 12, 'left');
+        expect(controller.resolveVisibleHandleFromPointer(firstSnapshot)).toBe(handle);
+        controller.setActiveVisibleHandle(handle);
+
+        const secondSnapshot = createHoverPointerSnapshot(view, 240, 42, 'left');
+        expect(controller.resolveVisibleHandleFromPointer(secondSnapshot)).toBe(handle);
+        expect(getDraggableBlockAtVerticalPosition).toHaveBeenCalledTimes(1);
+        expect(getLineNumberAtVerticalPosition).toHaveBeenCalledTimes(1);
     });
 });
 

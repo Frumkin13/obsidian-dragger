@@ -1,9 +1,9 @@
-import type { LineRange } from '../../shared/types/line-range';
 import {
     CODEMIRROR_GUTTER_ELEMENT_SELECTOR,
     HANDLE_CORE_CLASS,
     HANDLE_GUTTER_MARKER_CLASS,
 } from '../../shared/dom-selectors';
+import type { BlockSelectionSegment } from './block-selection';
 
 export type RangeAnchorPoint = {
     x: number;
@@ -18,17 +18,15 @@ export type RangeAnchorSpan = {
     host: HTMLElement;
 };
 
-type ResolveAnchorLineNumber = (lineNumber: number) => number;
-type ResolveInlineHandleForLine = (lineNumber: number) => HTMLElement | null;
+type ResolveHandleForBlockLineNumber = (blockLineNumber: number) => HTMLElement | null;
 
 type ResolveRangeAnchorSpanOptions = {
-    range: LineRange;
-    resolveAnchorLineNumber: ResolveAnchorLineNumber;
-    resolveInlineHandleForLine: ResolveInlineHandleForLine;
+    segment: BlockSelectionSegment;
+    resolveHandleForBlockLineNumber: ResolveHandleForBlockLineNumber;
     visibleHandles: Iterable<HTMLElement>;
 };
 
-function getHandleLineNumber(handle: HTMLElement): number | null {
+function getHandleBlockLineNumber(handle: HTMLElement): number | null {
     const blockStartAttr = handle.getAttribute('data-block-start');
     if (!blockStartAttr) return null;
     const blockStart = Number(blockStartAttr);
@@ -51,25 +49,23 @@ export function getAnchorPointForHandle(handle: HTMLElement | null): RangeAnchor
     };
 }
 
-function getAnchorPointByLine(
-    lineNumber: number,
-    resolveAnchorLineNumber: ResolveAnchorLineNumber,
-    resolveInlineHandleForLine: ResolveInlineHandleForLine
+function getAnchorPointByBlockLineNumber(
+    blockLineNumber: number,
+    resolveHandleForBlockLineNumber: ResolveHandleForBlockLineNumber
 ): RangeAnchorPoint | null {
-    const anchorLineNumber = resolveAnchorLineNumber(lineNumber);
-    const handle = resolveInlineHandleForLine(anchorLineNumber);
+    const handle = resolveHandleForBlockLineNumber(blockLineNumber);
     return getAnchorPointForHandle(handle);
 }
 
 function collectVisibleAnchorsInRange(
-    range: LineRange,
+    segment: BlockSelectionSegment,
     visibleHandles: Iterable<HTMLElement>
 ): RangeAnchorPoint[] {
     const anchors: RangeAnchorPoint[] = [];
     for (const handle of visibleHandles) {
-        const lineNumber = getHandleLineNumber(handle);
-        if (lineNumber === null) continue;
-        if (lineNumber < range.startLineNumber || lineNumber > range.endLineNumber) continue;
+        const blockLineNumber = getHandleBlockLineNumber(handle);
+        if (blockLineNumber === null) continue;
+        if (blockLineNumber < segment.startBlockLineNumber || blockLineNumber > segment.endBlockLineNumber) continue;
         const anchor = getAnchorPointForHandle(handle);
         if (!anchor) continue;
         anchors.push(anchor);
@@ -87,17 +83,15 @@ export function resolveRangeAnchorSpan(options: ResolveRangeAnchorSpanOptions): 
         anchors.push(anchor);
     };
 
-    addAnchor(getAnchorPointByLine(
-        options.range.startLineNumber,
-        options.resolveAnchorLineNumber,
-        options.resolveInlineHandleForLine
+    addAnchor(getAnchorPointByBlockLineNumber(
+        options.segment.startBlockLineNumber,
+        options.resolveHandleForBlockLineNumber
     ));
-    addAnchor(getAnchorPointByLine(
-        options.range.endLineNumber,
-        options.resolveAnchorLineNumber,
-        options.resolveInlineHandleForLine
+    addAnchor(getAnchorPointByBlockLineNumber(
+        options.segment.endBlockLineNumber,
+        options.resolveHandleForBlockLineNumber
     ));
-    for (const anchor of collectVisibleAnchorsInRange(options.range, options.visibleHandles)) {
+    for (const anchor of collectVisibleAnchorsInRange(options.segment, options.visibleHandles)) {
         addAnchor(anchor);
     }
 

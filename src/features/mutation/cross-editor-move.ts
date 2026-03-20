@@ -4,6 +4,7 @@ import { InsertionSlotContext } from '../../core/container-rules/insertion-rules
 import { getLineMap, LineMap } from '../../core/parser/line-map';
 import { DocLike, DocLikeWithRange, ListContext, ParsedLine } from '../../shared/types/protocol-types';
 import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
+import { normalizeCompositeRanges } from '../../shared/utils/composite-selection';
 import { ListRenumberer } from './list-renumberer';
 import { BlockFoldStateManager, CapturedBlockFoldState } from './block-fold-state';
 
@@ -163,9 +164,15 @@ function moveCompositeAcrossEditors(params: CrossEditorMoveParams): void {
         };
     });
 
-    const insertText = segments
-        .map((segment) => sourceDoc.sliceString(segment.sourceFrom, Math.min(segment.sourceTo + 1, sourceDoc.length)))
-        .join('');
+    const insertText = deps.buildInsertText(
+        targetDoc,
+        sourceBlock,
+        targetLineNumber,
+        sourceBlock.content,
+        params.listContextLineNumberOverride,
+        params.listIndentDeltaOverride,
+        params.listTargetIndentWidthOverride
+    );
     if (!insertText.length) {
         return;
     }
@@ -245,30 +252,6 @@ function finalizeMove(params: {
         targetRenumberer.renumberOrderedListAround(lineNumber);
     }
     restoreTargetBlockFoldState?.();
-}
-
-function normalizeCompositeRanges(
-    ranges: Array<{ startLine: number; endLine: number }>,
-    totalLines: number
-): Array<{ startLine: number; endLine: number }> {
-    const normalized = ranges
-        .map((range) => {
-            const startLine = Math.max(0, Math.min(totalLines - 1, Math.min(range.startLine, range.endLine)));
-            const endLine = Math.max(0, Math.min(totalLines - 1, Math.max(range.startLine, range.endLine)));
-            return { startLine, endLine };
-        })
-        .sort((a, b) => a.startLine - b.startLine);
-
-    const merged: Array<{ startLine: number; endLine: number }> = [];
-    for (const range of normalized) {
-        const last = merged[merged.length - 1];
-        if (!last || range.startLine > last.endLine + 1) {
-            merged.push(range);
-        } else if (range.endLine > last.endLine) {
-            last.endLine = range.endLine;
-        }
-    }
-    return merged;
 }
 
 function resolveInsertionChange(

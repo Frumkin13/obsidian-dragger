@@ -1,32 +1,36 @@
 import { EditorView } from '@codemirror/view';
-import type { LineRange } from '../../shared/types/line-range';
 import {
     RANGE_SELECTION_DELETE_BUTTON_CLASS,
     RANGE_SELECTION_LINK_CLASS,
 } from '../../shared/dom-selectors';
 import { viewportXToEditorLocalX, viewportYToEditorLocalY } from './editor-local-coordinates';
 import { RangeAnchorSpan } from './selection-anchor';
+import {
+    groupSelectedBlocksIntoSegments,
+    type BlockSelectionSegment,
+    type SelectedBlockRange,
+} from './block-selection';
 
 export class RangeSelectionOverlayRenderer {
     private readonly linkEls: HTMLElement[] = [];
     private readonly deleteButtonEl: HTMLButtonElement;
-    private currentRenderedRanges: LineRange[] = [];
+    private currentRenderedBlocks: SelectedBlockRange[] = [];
     private readonly onDeleteButtonClick = (event: MouseEvent): void => {
         event.preventDefault();
         event.stopPropagation();
         if (!this.isDeleteButtonEnabled()) return;
         if (!this.onDeleteSelectionClick) return;
-        if (this.currentRenderedRanges.length === 0) return;
-        const ranges = this.currentRenderedRanges.map((range) => ({
-            startLineNumber: range.startLineNumber,
-            endLineNumber: range.endLineNumber,
+        if (this.currentRenderedBlocks.length === 0) return;
+        const blocks = this.currentRenderedBlocks.map((block) => ({
+            startLineNumber: block.startLineNumber,
+            endLineNumber: block.endLineNumber,
         }));
-        this.onDeleteSelectionClick(ranges);
+        this.onDeleteSelectionClick(blocks);
     };
 
     constructor(
         private readonly view: EditorView,
-        private readonly onDeleteSelectionClick?: (ranges: LineRange[]) => void,
+        private readonly onDeleteSelectionClick?: (blocks: SelectedBlockRange[]) => void,
         private readonly isDeleteButtonEnabledRef?: () => boolean
     ) {
         this.deleteButtonEl = document.createElement('button');
@@ -37,16 +41,20 @@ export class RangeSelectionOverlayRenderer {
         this.deleteButtonEl.addEventListener('click', this.onDeleteButtonClick);
     }
 
-    render(ranges: LineRange[], resolveRangeAnchorSpan: (range: LineRange) => RangeAnchorSpan | null): void {
-        this.currentRenderedRanges = ranges.map((range) => ({
-            startLineNumber: range.startLineNumber,
-            endLineNumber: range.endLineNumber,
+    render(
+        blocks: SelectedBlockRange[],
+        resolveRangeAnchorSpan: (segment: BlockSelectionSegment) => RangeAnchorSpan | null
+    ): void {
+        this.currentRenderedBlocks = blocks.map((block) => ({
+            startLineNumber: block.startLineNumber,
+            endLineNumber: block.endLineNumber,
         }));
+        const segments = groupSelectedBlocksIntoSegments(this.view.state.doc.lines, blocks);
 
         let buttonAnchor: { topY: number; x: number; host: HTMLElement } | null = null;
-        for (let i = 0; i < ranges.length; i++) {
-            const range = ranges[i];
-            const anchorSpan = resolveRangeAnchorSpan(range);
+        for (let i = 0; i < segments.length; i++) {
+            const segment = segments[i];
+            const anchorSpan = resolveRangeAnchorSpan(segment);
             const link = this.ensureLinkEl(i);
             if (!anchorSpan) {
                 link.classList.remove('is-active');
@@ -73,11 +81,11 @@ export class RangeSelectionOverlayRenderer {
                 height: `${linkHeight.toFixed(2)}px`,
             });
         }
-        for (let i = ranges.length; i < this.linkEls.length; i++) {
+        for (let i = segments.length; i < this.linkEls.length; i++) {
             this.linkEls[i].classList.remove('is-active');
         }
 
-        if (!this.isDeleteButtonEnabled() || ranges.length === 0 || !buttonAnchor) {
+        if (!this.isDeleteButtonEnabled() || blocks.length === 0 || !buttonAnchor) {
             this.hideDeleteButton();
             return;
         }
@@ -99,7 +107,7 @@ export class RangeSelectionOverlayRenderer {
         for (const link of this.linkEls) {
             link.classList.remove('is-active');
         }
-        this.currentRenderedRanges = [];
+        this.currentRenderedBlocks = [];
         this.hideDeleteButton();
     }
 

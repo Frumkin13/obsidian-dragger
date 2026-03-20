@@ -12,6 +12,8 @@ import {
 import { getRenderedMainLineNumberAtPoint } from '../ui/probe/line-hit';
 import { isEditorLineCollapsed } from '../../platform/obsidian/editor-fold';
 
+type VerticalContentRect = Pick<DOMRect | DOMRectReadOnly, 'top' | 'bottom'>;
+
 export class DragSourceResolver {
     constructor(private readonly view: EditorView) { }
 
@@ -41,18 +43,23 @@ export class DragSourceResolver {
         return this.expandHeadingBlockIfCollapsed(block);
     }
 
-    getDraggableBlockAtVerticalPosition(clientY: number): BlockInfo | null {
-        const contentRect = this.view.contentDOM.getBoundingClientRect();
-        if (clientY < contentRect.top || clientY > contentRect.bottom) return null;
+    getLineNumberAtVerticalPosition(clientY: number, contentRect?: VerticalContentRect): number | null {
+        const activeContentRect = contentRect ?? this.view.contentDOM.getBoundingClientRect();
+        if (clientY < activeContentRect.top || clientY > activeContentRect.bottom) return null;
 
         try {
             const lineBlock = this.view.lineBlockAtHeight(clientY - this.view.documentTop);
-            const lineNumber = resolveLineNumberFromPos(this.view, lineBlock.from);
-            if (lineNumber === null) return null;
-            return this.getDraggableBlockAtLine(lineNumber);
+            return resolveLineNumberFromPos(this.view, lineBlock.from);
         } catch {
             return null;
         }
+    }
+
+    getDraggableBlockAtVerticalPosition(clientY: number, contentRect?: VerticalContentRect): BlockInfo | null {
+        const lineNumber = this.getLineNumberAtVerticalPosition(clientY, contentRect);
+        if (lineNumber === null) return null;
+
+        return this.getDraggableBlockAtLine(lineNumber);
     }
 
     getDraggableBlockAtPoint(clientX: number, clientY: number): BlockInfo | null {

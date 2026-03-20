@@ -2,8 +2,11 @@ import { EditorState } from '@codemirror/state';
 import { BlockInfo } from '../../core/block/block-types';
 import { detectBlock } from '../../core/block/block-factory';
 import { clampLineNumber } from '../../shared/utils/line-number';
-import { mergeLineRanges } from '../../shared/utils/line-range';
-import type { LineRange } from '../../shared/types/line-range';
+import {
+    groupSelectedBlocksIntoSegments,
+    mergeSelectedBlocks,
+    type SelectedBlockRange,
+} from './block-selection';
 
 export type RangeSelectionBoundary = {
     startLineNumber: number;
@@ -19,7 +22,7 @@ export type RangeSelectConfig = {
 
 export type CommittedRangeSelection = {
     selectedBlock: BlockInfo;
-    ranges: LineRange[];
+    blocks: SelectedBlockRange[];
 };
 
 export type MouseRangeSelectState = {
@@ -45,8 +48,8 @@ export type MouseRangeSelectState = {
     anchorStartLineNumber: number;
     anchorEndLineNumber: number;
     currentLineNumber: number;
-    committedRangesSnapshot: LineRange[];
-    selectionRanges: LineRange[];
+    committedBlocksSnapshot: SelectedBlockRange[];
+    selectionBlocks: SelectedBlockRange[];
 };
 
 type SliceDoc = {
@@ -71,6 +74,13 @@ export function cloneBlockInfo(block: BlockInfo): BlockInfo {
     };
 }
 
+export function buildSelectedBlockRangeFromBlockInfo(block: BlockInfo): SelectedBlockRange {
+    return {
+        startLineNumber: block.startLine + 1,
+        endLineNumber: block.endLine + 1,
+    };
+}
+
 function buildBlockInfoFromRange(
     doc: SliceDoc,
     startLineNumber: number,
@@ -92,44 +102,47 @@ function buildBlockInfoFromRange(
     };
 }
 
-export function buildDragSourceBlockFromRanges(
+export function buildDragSourceBlockFromBlocks(
     doc: SliceDocWithLength,
-    ranges: LineRange[],
+    blocks: SelectedBlockRange[],
     template: BlockInfo
 ): BlockInfo {
-    const normalizedRanges = mergeLineRanges(doc.lines, ranges);
-    if (normalizedRanges.length === 0) {
+    const normalizedBlocks = mergeSelectedBlocks(doc.lines, blocks);
+    if (normalizedBlocks.length === 0) {
         return buildBlockInfoFromRange(doc, template.startLine + 1, template.endLine + 1, template);
     }
-    if (normalizedRanges.length === 1) {
-        const range = normalizedRanges[0];
-        return buildBlockInfoFromRange(doc, range.startLineNumber, range.endLineNumber, template);
+
+    const segments = groupSelectedBlocksIntoSegments(doc.lines, normalizedBlocks);
+    if (segments.length === 1) {
+        const [segment] = segments;
+        return buildBlockInfoFromRange(doc, segment.startLineNumber, segment.endLineNumber, template);
     }
 
-    const firstRange = normalizedRanges[0];
-    const lastRange = normalizedRanges[normalizedRanges.length - 1];
-    const firstLine = doc.line(firstRange.startLineNumber);
-    const lastLine = doc.line(lastRange.endLineNumber);
-    const content = normalizedRanges.map((range) => {
-        const startLine = doc.line(range.startLineNumber);
-        const endLine = doc.line(range.endLineNumber);
+    const firstSegment = segments[0];
+    const lastSegment = segments[segments.length - 1];
+
+    const firstLine = doc.line(firstSegment.startLineNumber);
+    const lastLine = doc.line(lastSegment.endLineNumber);
+    const content = segments.map((segment) => {
+        const startLine = doc.line(segment.startLineNumber);
+        const endLine = doc.line(segment.endLineNumber);
         const from = startLine.from;
-        const to = Math.min(endLine.to + 1, doc.length);
+        const to = endLine.to;
         return doc.sliceString(from, to);
-    }).join('');
+    }).join('\n');
 
     return {
         type: template.type,
-        startLine: firstRange.startLineNumber - 1,
-        endLine: lastRange.endLineNumber - 1,
+        startLine: firstSegment.startLineNumber - 1,
+        endLine: lastSegment.endLineNumber - 1,
         from: firstLine.from,
         to: lastLine.to,
         indentLevel: template.indentLevel,
         content,
         compositeSelection: {
-            ranges: normalizedRanges.map((range) => ({
-                startLine: range.startLineNumber - 1,
-                endLine: range.endLineNumber - 1,
+            ranges: segments.map((segment) => ({
+                startLine: segment.startLineNumber - 1,
+                endLine: segment.endLineNumber - 1,
             })),
         },
     };
@@ -171,35 +184,34 @@ export function buildRangeSelectionBoundaryFromBlock(
     };
 }
 
-export function expandToBlockAlignedRange(
+export function collectSelectedBlocksBetween(
     state: EditorState,
     anchorStartLineNumber: number,
     anchorEndLineNumber: number,
     targetBlockStartLineNumber: number,
     targetBlockEndLineNumber: number
-): { startLineNumber: number; endLineNumber: number } {
+): SelectedBlockRange[] {
     const docLines = state.doc.lines;
-    let startLineNumber = Math.max(1, Math.min(docLines, Math.min(anchorStartLineNumber, targetBlockStartLineNumber)));
-    let endLineNumber = Math.max(1, Math.min(docLines, Math.max(anchorEndLineNumber, targetBlockEndLineNumber)));
+    const startLineNumber = Math.max(
+        1,
+        Math.min(docLines, Math.min(anchorStartLineNumber, targetBlockStartLineNumber))
+    );
+    const endLineNumber = Math.max(
+        1,
+        Math.min(docLines, Math.max(anchorEndLineNumber, targetBlockEndLineNumber))
+    );
 
-    let changed = true;
-    while (changed) {
-        changed = false;
-        let cursor = startLineNumber;
-        while (cursor <= endLineNumber) {
-            const boundary = resolveBlockBoundaryAtLine(state, cursor);
-            if (boundary.startLineNumber < startLineNumber) {
-                startLineNumber = boundary.startLineNumber;
-                changed = true;
-            }
-            if (boundary.endLineNumber > endLineNumber) {
-                endLineNumber = boundary.endLineNumber;
-                changed = true;
-            }
-            cursor = Math.max(cursor + 1, boundary.endLineNumber + 1);
-        }
+    const blocks: SelectedBlockRange[] = [];
+    let cursor = startLineNumber;
+    while (cursor <= endLineNumber) {
+        const boundary = resolveBlockBoundaryAtLine(state, cursor);
+        blocks.push({
+            startLineNumber: boundary.startLineNumber,
+            endLineNumber: boundary.endLineNumber,
+        });
+        cursor = Math.max(cursor + 1, boundary.endLineNumber + 1);
     }
 
-    return { startLineNumber, endLineNumber };
+    return mergeSelectedBlocks(docLines, blocks);
 }
 

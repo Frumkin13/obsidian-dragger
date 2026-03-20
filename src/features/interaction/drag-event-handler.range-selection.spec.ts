@@ -525,6 +525,149 @@ describe('DragEventHandler Range Selection', () => {
         handler.destroy();
     });
 
+    it('clears committed selection overlay when dragging from a selected handle', () => {
+        const view = createViewStub(8);
+        const startHandle = appendHandleForBlockStart(view, 1);
+        const endHandle = appendHandleForBlockStart(view, 5);
+
+        const sourceBlock = createBlock('- item', 1, 1);
+        const endBlock = createBlock('line 6', 5, 5);
+        const performDropAtPoint = vi.fn();
+
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: (handle) => (handle === endHandle ? endBlock : sourceBlock),
+            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint,
+        });
+
+        handler.attach();
+        dispatchPointer(startHandle, 'pointerdown', {
+            pointerId: 281,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(280);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 281,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 105,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 281,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 105,
+        });
+
+        expect(view.dom.querySelector('.dnd-range-selection-link.is-active')).not.toBeNull();
+
+        dispatchPointer(endHandle, 'pointerdown', {
+            pointerId: 282,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 105,
+        });
+        vi.advanceTimersByTime(280);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 282,
+            pointerType: 'mouse',
+            clientX: 90,
+            clientY: 105,
+        });
+
+        expect(view.dom.querySelector('.dnd-range-selection-link.is-active')).toBeNull();
+
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 282,
+            pointerType: 'mouse',
+            clientX: 90,
+            clientY: 105,
+        });
+
+        expect(performDropAtPoint).toHaveBeenCalledTimes(1);
+        expect(view.dom.querySelector('.dnd-range-selection-link.is-active')).toBeNull();
+        handler.destroy();
+    });
+
+    it('still starts long-press drag for a committed selection after small pointer jitter on a selected handle', () => {
+        const view = createViewStub(8);
+        const startHandle = appendHandleForBlockStart(view, 1);
+        const endHandle = appendHandleForBlockStart(view, 5);
+
+        const sourceBlock = createBlock('- item', 1, 1);
+        const endBlock = createBlock('line 6', 5, 5);
+        const beginPointerDragSession = vi.fn();
+        const scheduleDropIndicatorUpdate = vi.fn();
+
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: (handle) => (handle === endHandle ? endBlock : sourceBlock),
+            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate,
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        dispatchPointer(startHandle, 'pointerdown', {
+            pointerId: 281,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(280);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 281,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 105,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 281,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 105,
+        });
+
+        dispatchPointer(endHandle, 'pointerdown', {
+            pointerId: 282,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 105,
+        });
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 282,
+            pointerType: 'mouse',
+            clientX: 14,
+            clientY: 106,
+        });
+        vi.advanceTimersByTime(280);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 282,
+            pointerType: 'mouse',
+            clientX: 90,
+            clientY: 105,
+        });
+
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 105, expect.objectContaining({
+            startLine: 1,
+            endLine: 5,
+        }), 'mouse');
+        handler.destroy();
+    });
+
     it('does not toggle selection when long-pressing selected handle without movement', () => {
         const view = createViewStub(8);
         const startHandle = appendHandleForBlockStart(view, 1);

@@ -1,14 +1,16 @@
 import { EditorView } from '@codemirror/view';
-import type { LineRange } from '../../shared/types/line-range';
 import { getLineNumberElementForLine } from '../ui/handle/line-number-gutter';
 import {
     DRAG_HANDLE_CLASS,
-    RANGE_SELECTED_HANDLE_CLASS,
     EMBED_HANDLE_CLASS,
+    RANGE_SELECTED_HANDLE_CLASS,
     GRAB_HIDDEN_LINE_NUMBER_CLASS,
 } from '../../shared/dom-selectors';
-import { mergeLineRanges, isLineNumberInRanges } from '../../shared/utils/line-range';
-import { resolveBlockBoundaryAtLine } from './selection-model';
+import {
+    mergeSelectedBlocks,
+    type BlockSelectionSegment,
+    type SelectedBlockRange,
+} from './block-selection';
 import {
     resolveRangeAnchorSpan as resolveRangeAnchorSpanFromHandles,
     type RangeAnchorSpan,
@@ -28,7 +30,8 @@ export class RangeSelectionVisualManager {
     constructor(
         private readonly view: EditorView,
         private readonly onRefreshRequested: () => void,
-        onDeleteSelectionClick?: (ranges: LineRange[]) => void,
+        private readonly resolveVisibleHandleForBlockStart: (blockStart: number) => HTMLElement | null,
+        onDeleteSelectionClick?: (blocks: SelectedBlockRange[]) => void,
         isDeleteButtonEnabledRef?: () => boolean
     ) {
         this.overlayRenderer = new RangeSelectionOverlayRenderer(
@@ -41,28 +44,20 @@ export class RangeSelectionVisualManager {
         this.bindScrollListener();
     }
 
-    render(ranges: LineRange[]): void {
-        const normalizedRanges = mergeLineRanges(this.view.state.doc.lines, ranges);
+    render(blocks: SelectedBlockRange[]): void {
+        const normalizedBlocks = mergeSelectedBlocks(this.view.state.doc.lines, blocks);
         const nextLineNumberElements = new Set<HTMLElement>();
         const nextHandleElements = new Set<HTMLElement>();
-        const doc = this.view.state.doc;
-        const visibleRanges = this.view.visibleRanges ?? [{ from: 0, to: doc.length }];
-        for (const range of visibleRanges) {
-            let pos = range.from;
-            while (pos <= range.to) {
-                const line = doc.lineAt(pos);
-                const lineNumber = line.number;
-                if (isLineNumberInRanges(lineNumber, normalizedRanges)) {
-                    const lineNumberEl = getLineNumberElementForLine(this.view, lineNumber);
-                    if (lineNumberEl) {
-                        nextLineNumberElements.add(lineNumberEl);
-                    }
-                    const handleEl = this.getInlineHandleForLine(lineNumber);
-                    if (handleEl) {
-                        nextHandleElements.add(handleEl);
-                    }
+        for (const block of normalizedBlocks) {
+            const handleEl = this.resolveHandleElementForBlockStart(block.startLineNumber - 1);
+            if (handleEl) {
+                nextHandleElements.add(handleEl);
+            }
+            for (let lineNumber = block.startLineNumber; lineNumber <= block.endLineNumber; lineNumber++) {
+                const lineNumberEl = getLineNumberElementForLine(this.view, lineNumber);
+                if (lineNumberEl) {
+                    nextLineNumberElements.add(lineNumberEl);
                 }
-                pos = line.to + 1;
             }
         }
         this.syncSelectionElements(
@@ -75,7 +70,7 @@ export class RangeSelectionVisualManager {
             nextHandleElements,
             RANGE_SELECTED_HANDLE_CLASS
         );
-        this.overlayRenderer.render(normalizedRanges, (range) => this.resolveRangeAnchorSpan(range));
+        this.overlayRenderer.render(normalizedBlocks, (segment) => this.resolveRangeAnchorSpan(segment));
     }
 
     clear(): void {
@@ -103,15 +98,6 @@ export class RangeSelectionVisualManager {
         if (this.refreshRafHandle === null) return;
         window.cancelAnimationFrame(this.refreshRafHandle);
         this.refreshRafHandle = null;
-    }
-
-    getInlineHandleForLine(lineNumber: number): HTMLElement | null {
-        const blockStart = lineNumber - 1;
-        if (blockStart < 0) return null;
-        const selector = `.${DRAG_HANDLE_CLASS}[data-block-start="${blockStart}"]`;
-        const handles = Array.from(this.view.dom.querySelectorAll<HTMLElement>(selector));
-        if (handles.length === 0) return null;
-        return handles.find((handle) => !handle.classList.contains(EMBED_HANDLE_CLASS)) ?? handles[0] ?? null;
     }
 
     destroy(): void {
@@ -156,18 +142,21 @@ export class RangeSelectionVisualManager {
         }
     }
 
-    private resolveAnchorLineNumber(lineNumber: number): number {
-        const docLines = this.view.state.doc.lines;
-        const clampedLineNumber = Math.max(1, Math.min(docLines, lineNumber));
-        const boundary = resolveBlockBoundaryAtLine(this.view.state, clampedLineNumber);
-        return Math.max(1, Math.min(docLines, boundary.startLineNumber));
+    private resolveHandleElementForBlockStart(blockStart: number): HTMLElement | null {
+        const mapped = this.resolveVisibleHandleForBlockStart(blockStart);
+        if (mapped) return mapped;
+
+        const selector = `.${DRAG_HANDLE_CLASS}[data-block-start="${blockStart}"]`;
+        const handles = Array.from(this.view.dom.querySelectorAll<HTMLElement>(selector));
+        if (handles.length === 0) return null;
+        return handles.find((handle) => !handle.classList.contains(EMBED_HANDLE_CLASS)) ?? handles[0] ?? null;
     }
 
-    resolveRangeAnchorSpan(range: LineRange): RangeAnchorSpan | null {
+    resolveRangeAnchorSpan(segment: BlockSelectionSegment): RangeAnchorSpan | null {
         return resolveRangeAnchorSpanFromHandles({
-            range,
-            resolveAnchorLineNumber: (lineNumber) => this.resolveAnchorLineNumber(lineNumber),
-            resolveInlineHandleForLine: (lineNumber) => this.getInlineHandleForLine(lineNumber),
+            segment,
+            resolveHandleForBlockLineNumber: (lineNumber) =>
+                this.resolveHandleElementForBlockStart(lineNumber - 1),
             visibleHandles: this.handleElements,
         });
     }

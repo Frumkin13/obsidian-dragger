@@ -1,13 +1,17 @@
 import type { EditorState, Text } from '@codemirror/state';
 import type { BlockInfo } from '../../core/block/block-types';
-import type { LineRange } from '../../shared/types/line-range';
-import { normalizeLineRange, mergeLineRanges, subtractLineRange } from '../../shared/utils/line-range';
+import {
+    groupSelectedBlocksIntoSegments,
+    mergeSelectedBlocks,
+    subtractSelectedBlocks,
+    type SelectedBlockRange,
+} from './block-selection';
 import {
     type RangeSelectionBoundary,
     type MouseRangeSelectState,
     type CommittedRangeSelection,
-    buildDragSourceBlockFromRanges,
-    expandToBlockAlignedRange,
+    buildDragSourceBlockFromBlocks,
+    collectSelectedBlocksBetween,
 } from './selection-model';
 
 export function computeUpdatedSelectionState(
@@ -16,13 +20,10 @@ export function computeUpdatedSelectionState(
     target: RangeSelectionBoundary
 ): {
     currentLineNumber: number;
-    selectionRanges: LineRange[];
+    selectionBlocks: SelectedBlockRange[];
     activeSelectionBlock: BlockInfo;
 } {
-    const {
-        startLineNumber: rangeStartLineNumber,
-        endLineNumber: rangeEndLineNumber,
-    } = expandToBlockAlignedRange(
+    const activeBlocks = collectSelectedBlocksBetween(
         editorState,
         state.anchorStartLineNumber,
         state.anchorEndLineNumber,
@@ -31,49 +32,48 @@ export function computeUpdatedSelectionState(
     );
 
     const docLines = editorState.doc.lines;
-    const activeRange = normalizeLineRange(docLines, rangeStartLineNumber, rangeEndLineNumber);
-    const selectionRanges = state.operation === 'remove'
-        ? subtractLineRange(docLines, state.committedRangesSnapshot, activeRange)
-        : mergeLineRanges(docLines, [
-            ...state.committedRangesSnapshot,
-            activeRange,
+    const selectionBlocks = state.operation === 'remove'
+        ? subtractSelectedBlocks(docLines, state.committedBlocksSnapshot, activeBlocks)
+        : mergeSelectedBlocks(docLines, [
+            ...state.committedBlocksSnapshot,
+            ...activeBlocks,
         ]);
-    const activeSelectionBlock = buildDragSourceBlockFromRanges(
+    const activeSelectionBlock = buildDragSourceBlockFromBlocks(
         editorState.doc,
-        selectionRanges,
+        selectionBlocks,
         state.anchorSelectionBlock
     );
 
     return {
         currentLineNumber: target.representativeLineNumber,
-        selectionRanges,
+        selectionBlocks,
         activeSelectionBlock,
     };
 }
 
 export function buildCommittedRangeSelection(
     doc: Text,
-    selectionRanges: LineRange[],
+    selectionBlocks: SelectedBlockRange[],
     templateBlock: BlockInfo
 ): CommittedRangeSelection | null {
-    const committedRanges = mergeLineRanges(doc.lines, selectionRanges);
-    if (committedRanges.length === 0) {
+    const committedBlocks = mergeSelectedBlocks(doc.lines, selectionBlocks);
+    if (committedBlocks.length === 0) {
         return null;
     }
-    const selectedBlock = buildDragSourceBlockFromRanges(doc, committedRanges, templateBlock);
+    const selectedBlock = buildDragSourceBlockFromBlocks(doc, committedBlocks, templateBlock);
     return {
         selectedBlock,
-        ranges: committedRanges,
+        blocks: committedBlocks,
     };
 }
 
 export function buildCommittedRangeDeletionChanges(
     doc: Text,
-    ranges: LineRange[]
+    blocks: SelectedBlockRange[]
 ): Array<{ from: number; to: number }> {
-    return mergeLineRanges(doc.lines, ranges).map((range) => {
-        const startLineNumber = Math.max(1, Math.min(doc.lines, range.startLineNumber));
-        const endLineNumber = Math.max(startLineNumber, Math.min(doc.lines, range.endLineNumber));
+    return groupSelectedBlocksIntoSegments(doc.lines, blocks).map((segment) => {
+        const startLineNumber = Math.max(1, Math.min(doc.lines, segment.startLineNumber));
+        const endLineNumber = Math.max(startLineNumber, Math.min(doc.lines, segment.endLineNumber));
         const from = doc.line(startLineNumber).from;
         const endLine = doc.line(endLineNumber);
         const to = endLineNumber === doc.lines

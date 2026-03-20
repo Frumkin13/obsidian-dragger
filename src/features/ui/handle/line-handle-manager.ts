@@ -7,7 +7,6 @@ import { HIDDEN_CLASS, LINE_HANDLE_CLASS } from '../../../shared/dom-selectors';
 
 type LineHandleEntry = {
     handle: HTMLElement;
-    lineNumber: number;
 };
 
 const GUTTER_BOUND_CLASS = 'dnd-handle-gutter-bound';
@@ -39,6 +38,14 @@ export class LineHandleManager {
         this.rescan();
     }
 
+    getVisibleHandleForBlockStart(blockStart: number): HTMLElement | null {
+        const handle = this.lineHandles.get(blockStart)?.handle ?? null;
+        if (!handle || !handle.isConnected || handle.classList.contains(HIDDEN_CLASS)) {
+            return null;
+        }
+        return handle;
+    }
+
     scheduleScan(): void {
         if (this.destroyed) return;
         if (this.pendingScan) return;
@@ -63,7 +70,7 @@ export class LineHandleManager {
 
         const doc = this.view.state.doc;
         const processedLines = new Set<number>();
-        const handledLineNumbers = new Set<number>();
+        const handledBlockStarts = new Set<number>();
 
         for (const { from, to } of this.view.visibleRanges) {
             let pos = from;
@@ -78,17 +85,18 @@ export class LineHandleManager {
 
                 const block = detectBlock(this.view.state, lineNumber);
                 if (block) {
+                    const blockStart = block.startLine;
                     const handleLineNumber = block.startLine + 1;
-                    handledLineNumbers.add(handleLineNumber);
+                    handledBlockStarts.add(blockStart);
 
                     const getBlockInfo = () => this.deps.getDraggableBlockAtLine(handleLineNumber);
 
-                    let entry = this.lineHandles.get(handleLineNumber);
+                    let entry = this.lineHandles.get(blockStart);
                     if (!entry) {
                         const handle = this.deps.createHandleElement(getBlockInfo);
                         handle.classList.add(LINE_HANDLE_CLASS);
-                        entry = { handle, lineNumber: handleLineNumber };
-                        this.lineHandles.set(handleLineNumber, entry);
+                        entry = { handle };
+                        this.lineHandles.set(blockStart, entry);
                     }
 
                     // Always update attributes with fresh block info
@@ -122,10 +130,10 @@ export class LineHandleManager {
         }
 
         // Remove handles for lines no longer in view
-        for (const [lineNum, entry] of this.lineHandles.entries()) {
-            if (!handledLineNumbers.has(lineNum)) {
+        for (const [blockStart, entry] of this.lineHandles.entries()) {
+            if (!handledBlockStarts.has(blockStart)) {
                 entry.handle.remove();
-                this.lineHandles.delete(lineNum);
+                this.lineHandles.delete(blockStart);
             }
         }
     }

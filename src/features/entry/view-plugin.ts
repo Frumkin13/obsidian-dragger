@@ -40,6 +40,7 @@ import { destroyViewLifecycle, startViewLifecycle } from './view-lifecycle';
 import { placeHandleGutterHost, reconfigureHandleGutterExtension } from './handle-gutter-extension';
 import { getHandleGutterSide } from '../ui/handle/handle-gutter';
 import { GlobalPointerMoveClient } from './global-pointermove-router';
+import { createHoverPointerSnapshot, HoverPointerSnapshot } from './hover-pointer-snapshot';
 
 export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
     return class {
@@ -62,15 +63,19 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         private readonly onSettingsUpdated = () => this.handleSettingsUpdated();
         private readonly pointerMoveClient: GlobalPointerMoveClient;
         private handleGutterReconfigureRafId: number | null = null;
+        private cachedHandleGutterSide: 'left' | 'right';
         private destroyed = false;
 
         constructor(view: EditorView) {
             this.view = view;
+            this.cachedHandleGutterSide = this.resolveConfiguredHandleGutterSide();
             this.syncViewDomState();
             this.services = new DragDropServiceContainer(this.view);
             this.handleVisibility = new HandleVisibilityController(this.view, {
                 getBlockInfoForHandle: (handle) => this.services.dragSource.getBlockInfoForHandle(handle),
-                getDraggableBlockAtVerticalPosition: (clientY) => this.services.dragSource.getDraggableBlockAtVerticalPosition(clientY),
+                getLineNumberAtVerticalPosition: (clientY, contentRect) => this.services.dragSource.getLineNumberAtVerticalPosition(clientY, contentRect),
+                getDraggableBlockAtVerticalPosition: (clientY, contentRect) => this.services.dragSource.getDraggableBlockAtVerticalPosition(clientY, contentRect),
+                getVisibleHandleForBlockStart: (blockStart) => this.lineHandleManager.getVisibleHandleForBlockStart(blockStart),
             });
             this.dragPerfManager = new DragPerfSessionManager(this.view);
             this.dropTargetCalculator = new DropTargetCalculator(this.view, createDropTargetCalculatorDeps({
@@ -152,6 +157,8 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                         clientX,
                         clientY,
                     }),
+                getVisibleHandleForBlockStart: (blockStart) =>
+                    this.lineHandleManager.getVisibleHandleForBlockStart(blockStart),
                 isBlockInsideRenderedTableCell: (blockInfo) =>
                     isPosInsideRenderedTableCell(this.view, blockInfo.from, { skipLayoutRead: true }),
                 isMultiLineSelectionEnabled: () => plugin.settings.enableMultiLineSelection,
@@ -267,7 +274,8 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 this.handleVisibility.setActiveVisibleHandle(this.handleVisibility.getActiveHandle());
                 return;
             }
-            if (this.semanticRefreshScheduler.isPending && this.handleVisibility.isPointerInHoverActivationZone(e.clientX, e.clientY)) {
+            const hoverSnapshot = this.createHoverPointerSnapshot(e.clientX, e.clientY);
+            if (this.semanticRefreshScheduler.isPending && hoverSnapshot.withinHoverActivationZone) {
                 this.semanticRefreshScheduler.ensureSemanticReadyForInteraction();
             }
 
@@ -277,13 +285,15 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 return;
             }
 
-            const handle = this.handleVisibility.resolveVisibleHandleFromPointer(e.clientX, e.clientY);
+            const handle = this.handleVisibility.resolveVisibleHandleFromPointer(hoverSnapshot);
             this.handleVisibility.setActiveVisibleHandle(handle);
         }
 
         private reResolveActiveHandle(lastX?: number, lastY?: number): void {
             if (lastX === undefined || lastY === undefined) return;
-            const handle = this.handleVisibility.resolveVisibleHandleFromPointer(lastX, lastY);
+            const handle = this.handleVisibility.resolveVisibleHandleFromPointer(
+                this.createHoverPointerSnapshot(lastX, lastY)
+            );
             this.handleVisibility.setActiveVisibleHandle(handle);
         }
 
@@ -306,6 +316,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         }
 
         private handleSettingsUpdated(): void {
+            this.cachedHandleGutterSide = this.resolveConfiguredHandleGutterSide();
             if (this.scheduleHandleGutterReconfigureIfNeeded()) {
                 return;
             }
@@ -333,6 +344,14 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 this.handleVisibility.refreshGrabVisualState();
             });
             return true;
+        }
+
+        private createHoverPointerSnapshot(clientX: number, clientY: number): HoverPointerSnapshot {
+            return createHoverPointerSnapshot(this.view, clientX, clientY, this.cachedHandleGutterSide);
+        }
+
+        private resolveConfiguredHandleGutterSide(): 'left' | 'right' {
+            return plugin.settings.handleGutterPosition === 'right' ? 'right' : 'left';
         }
 
         private handleSourceVisualByLifecycle(event: DragLifecycleEvent): void {

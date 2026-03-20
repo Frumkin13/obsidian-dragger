@@ -7,6 +7,7 @@ import {
 import { getLineMetaAt, LineMap } from '../parser/line-map';
 import { computeListIndentPlan } from '../mutation/list-mutation';
 import { DocLike, ListContext, ParsedLine } from '../../shared/types/protocol-types';
+import { normalizeCompositeRanges } from '../../shared/utils/composite-selection';
 
 export type InPlaceDropRejectReason =
     | 'self_range_blocked'
@@ -64,15 +65,27 @@ export function validateInPlaceDrop(params: {
     }
 
     const targetLineIdx = targetLineNumber - 1;
-    const compositeRanges = sourceBlock.compositeSelection?.ranges ?? [];
+    const compositeRanges = normalizeCompositeRanges(
+        sourceBlock.compositeSelection?.ranges ?? [],
+        doc.lines
+    );
     const hasCompositeSelection = compositeRanges.length > 1;
+    const effectiveSourceRange = compositeRanges.length === 1
+        ? compositeRanges[0]
+        : {
+            startLine: sourceBlock.startLine,
+            endLine: sourceBlock.endLine,
+        };
     const inSelfRange = hasCompositeSelection
         ? compositeRanges.some((range) => {
             const start = Math.min(range.startLine, range.endLine);
             const end = Math.max(range.startLine, range.endLine);
             return targetLineIdx >= start && targetLineIdx <= end;
         })
-        : (targetLineIdx >= sourceBlock.startLine && targetLineIdx <= sourceBlock.endLine + 1);
+        : (
+            targetLineIdx >= effectiveSourceRange.startLine
+            && targetLineIdx <= effectiveSourceRange.endLine + 1
+        );
     if (!inSelfRange) {
         return { inSelfRange: false, allowInPlaceIndentChange: false };
     }
@@ -94,7 +107,7 @@ export function validateInPlaceDrop(params: {
         };
     }
 
-    const sourceLineNumber = sourceBlock.startLine + 1;
+    const sourceLineNumber = effectiveSourceRange.startLine + 1;
     const sourceLineMeta = lineMap ? getLineMetaAt(lineMap, sourceLineNumber) : null;
     if (sourceLineMeta && !sourceLineMeta.isList) {
         return {
@@ -130,9 +143,9 @@ export function validateInPlaceDrop(params: {
     const targetIndentWidth = indentPlan.targetIndentWidth;
     const listContextLineNumber = indentPlan.listContextLineNumber;
 
-    const isAfterSelf = targetLineIdx === sourceBlock.endLine + 1;
-    const isSameLine = targetLineIdx === sourceBlock.startLine;
-    const sourceEndLineNumber = sourceBlock.endLine + 1;
+    const isAfterSelf = targetLineIdx === effectiveSourceRange.endLine + 1;
+    const isSameLine = targetLineIdx === effectiveSourceRange.startLine;
+    const sourceEndLineNumber = effectiveSourceRange.endLine + 1;
     const isSelfContext = listContextLineNumber === sourceLineNumber;
     const isContextInsideSource = listContextLineNumber >= sourceLineNumber
         && listContextLineNumber <= sourceEndLineNumber;

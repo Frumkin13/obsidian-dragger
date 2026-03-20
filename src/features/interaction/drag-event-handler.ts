@@ -1,6 +1,5 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../core/block/block-types';
-import { cloneLineRanges } from '../../shared/utils/line-range';
 import { DragLifecycleEvent } from '../../shared/types/drag';
 import {
     DRAG_HANDLE_CLASS,
@@ -41,6 +40,7 @@ import {
     updateSelectionFromBoundary as updateSelectionFromBoundaryByFlow,
     updateSelectionFromLine as updateSelectionFromLineByFlow,
 } from '../selection/selection-flow';
+import { cloneSelectedBlocks } from '../selection/block-selection';
 import {
     buildCancelledLifecycleEvent,
     buildDragActiveLifecycleEvent,
@@ -66,6 +66,7 @@ export interface DragEventHandlerDeps {
     getDragSourceBlock: (e: DragEvent) => BlockInfo | null;
     getBlockInfoForHandle: (handle: HTMLElement) => BlockInfo | null;
     getBlockInfoAtPoint: (clientX: number, clientY: number) => BlockInfo | null;
+    getVisibleHandleForBlockStart?: (blockStart: number) => HTMLElement | null;
     isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
     isMultiLineSelectionEnabled?: () => boolean;
     isRangeSelectionDeleteEnabled?: () => boolean;
@@ -217,6 +218,7 @@ export class DragEventHandler {
         this.rangeVisual = new RangeSelectionVisualManager(
             this.view,
             () => this.refreshRangeSelectionVisual(),
+            (blockStart) => this.deps.getVisibleHandleForBlockStart?.(blockStart) ?? null,
             () => this.deleteCommittedRangeSelection(),
             () => this.deps.isRangeSelectionDeleteEnabled?.() === true
         );
@@ -330,7 +332,7 @@ export class DragEventHandler {
         handle: HTMLElement | null,
         options?: { skipLongPress?: boolean }
     ): void {
-        const committedRangesSnapshot = cloneLineRanges(this.committedRangeSelection?.ranges ?? []);
+        const committedBlocksSnapshot = cloneSelectedBlocks(this.committedRangeSelection?.blocks ?? []);
         const pointerType = e.pointerType || null;
         const skipLongPress = options?.skipLongPress === true;
         const config = resolveRangeSelectConfig(
@@ -342,7 +344,7 @@ export class DragEventHandler {
         const initialRangeSelectState = createInitialRangeSelectionState({
             blockInfo,
             doc: this.view.state.doc,
-            committedRangesSnapshot,
+            committedBlocksSnapshot,
             pointerId: e.pointerId,
             startX: e.clientX,
             startY: e.clientY,
@@ -516,7 +518,7 @@ export class DragEventHandler {
         if (!options?.preserveVisual) {
             if (this.committedRangeSelection) {
                 this.rangeVisual.render(
-                    this.committedRangeSelection.ranges
+                    this.committedRangeSelection.blocks
                 );
             } else {
                 this.rangeVisual.clear();
@@ -644,7 +646,11 @@ export class DragEventHandler {
             && state.preferLongPressDrag
             && !state.selectionGestureStarted
         ) {
-            if (state.dragReady) {
+            if (!state.dragReady) {
+                if (distance < MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX) {
+                    return;
+                }
+            } else {
                 if (distance < MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX) {
                     return;
                 }
@@ -652,6 +658,7 @@ export class DragEventHandler {
                 e.stopPropagation();
                 const sourceBlock = this.getCommittedSelectionBlock() ?? state.activeSelectionBlock;
                 const pointerId = state.pointerId;
+                this.clearCommittedRangeSelection();
                 this.clearMouseRangeSelectState();
                 this.enterDraggingState(sourceBlock, pointerId, e.clientX, e.clientY, pointerType);
                 return;

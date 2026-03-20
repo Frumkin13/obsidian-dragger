@@ -2,7 +2,9 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../core/block/block-types';
+import { TextMutationPolicy } from '../../core/mutation/text-mutation-policy';
 import { BlockMover } from './block-mover';
+import { LineParsingService } from '../../core/parser/line-parsing-service';
 import { parseLineWithQuote } from '../../core/parser/line-parser';
 
 function createBlockFromLine(doc: EditorState['doc'], lineNumber: number): BlockInfo {
@@ -101,6 +103,10 @@ function createLinkedViews(state: EditorState): {
         targetDispatch,
         getState: () => currentState,
     };
+}
+
+function createTextMutationPolicy(view: EditorView): TextMutationPolicy {
+    return new TextMutationPolicy(new LineParsingService(view));
 }
 
 describe('BlockMover', () => {
@@ -307,6 +313,92 @@ describe('BlockMover', () => {
         setTimeoutSpy.mockRestore();
     });
 
+    it('moves contiguous composite selection as a single range in the same editor', () => {
+        const initialState = EditorState.create({ doc: 'a\nb\nc\nd' });
+        const { view, getState, dispatch } = createMutableView(initialState);
+        const mover = new BlockMover({
+            view,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+        });
+
+        const line2 = initialState.doc.line(2);
+        const line3 = initialState.doc.line(3);
+        mover.moveBlock({
+            sourceBlock: {
+                type: BlockType.Paragraph,
+                startLine: 1,
+                endLine: 2,
+                from: line2.from,
+                to: line3.to,
+                indentLevel: 0,
+                content: 'b\nc',
+                compositeSelection: {
+                    ranges: [
+                        { startLine: 1, endLine: 1 },
+                        { startLine: 2, endLine: 2 },
+                    ],
+                },
+            },
+            targetPos: initialState.doc.line(1).from,
+            targetLineNumberOverride: 1,
+        });
+
+        expect(dispatch).toHaveBeenCalledTimes(1);
+        expect(getState().doc.toString()).toBe('b\nc\na\nd');
+    });
+
+    it('applies list indent intent when moving a disjoint multi-selection as one group', () => {
+        const initialState = EditorState.create({ doc: '- parent\ntail\n- a\nmid\n- b\nend' });
+        const { view, getState } = createMutableView(initialState);
+        const textMutationPolicy = createTextMutationPolicy(view);
+        const mover = new BlockMover({
+            view,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => textMutationPolicy.parseLineWithQuote(line),
+            getListContext: (doc, lineNumber) => textMutationPolicy.getListContext(doc, lineNumber),
+            getIndentUnitWidth: (sample) => textMutationPolicy.getIndentUnitWidth(sample),
+            buildInsertText: (...args) => textMutationPolicy.buildInsertText(...args),
+        });
+
+        const line3 = initialState.doc.line(3);
+        const line5 = initialState.doc.line(5);
+        mover.moveBlock({
+            sourceBlock: {
+                type: BlockType.ListItem,
+                startLine: 2,
+                endLine: 4,
+                from: line3.from,
+                to: line5.to,
+                indentLevel: 0,
+                content: '- a\n- b',
+                compositeSelection: {
+                    ranges: [
+                        { startLine: 2, endLine: 2 },
+                        { startLine: 4, endLine: 4 },
+                    ],
+                },
+            },
+            targetPos: initialState.doc.line(2).from,
+            targetLineNumberOverride: 2,
+            listContextLineNumberOverride: 1,
+            listTargetIndentWidthOverride: 2,
+        });
+
+        expect(getState().doc.toString()).toBe('- parent\n  - a\n  - b\ntail\nmid\nend');
+    });
+
     it('restores list fold state at the target line for cross-editor moves', () => {
         const sourceInitialState = EditorState.create({ doc: '- alpha\n- beta\n- gamma' });
         const targetInitialState = EditorState.create({ doc: 'one\ntwo' });
@@ -382,6 +474,76 @@ describe('BlockMover', () => {
         expect(targetDispatch).toHaveBeenCalledTimes(1);
         expect(sourceDispatch).not.toHaveBeenCalled();
         setTimeoutSpy.mockRestore();
+    });
+
+    it('captures fold state from the source view for contiguous same-document multi-selection moves', () => {
+        const initialState = EditorState.create({ doc: 'alpha\nbeta\ngamma\ndelta' });
+        const {
+            sourceView,
+            targetView,
+            sourceDispatch,
+            targetDispatch,
+            getState,
+        } = createLinkedViews(initialState);
+        const blockFoldState = {
+            capture: vi.fn(() => ({ collapsedRelativeLineOffsets: [0] })),
+            restore: vi.fn(),
+        };
+        const mover = new BlockMover({
+            view: targetView,
+            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            blockFoldState,
+        });
+
+        const line2 = initialState.doc.line(2);
+        const line3 = initialState.doc.line(3);
+        mover.moveBlock({
+            sourceBlock: {
+                type: BlockType.Heading,
+                startLine: 1,
+                endLine: 2,
+                from: line2.from,
+                to: line3.to,
+                indentLevel: 0,
+                content: 'beta\ngamma',
+                compositeSelection: {
+                    ranges: [
+                        { startLine: 1, endLine: 1 },
+                        { startLine: 2, endLine: 2 },
+                    ],
+                },
+            },
+            targetPos: initialState.doc.line(1).from,
+            targetLineNumberOverride: 1,
+            sourceView,
+            sourceDocumentRelation: 'same_document',
+        });
+
+        expect(getState().doc.toString()).toBe('beta\ngamma\nalpha\ndelta');
+        expect(blockFoldState.capture).toHaveBeenCalledTimes(1);
+        expect(blockFoldState.capture).toHaveBeenCalledWith(
+            sourceView,
+            expect.objectContaining({
+                startLine: 1,
+                endLine: 2,
+                compositeSelection: undefined,
+            })
+        );
+        expect(blockFoldState.restore).toHaveBeenCalledWith(
+            targetView,
+            1,
+            { collapsedRelativeLineOffsets: [0] }
+        );
+        expect(targetDispatch).toHaveBeenCalledTimes(1);
+        expect(sourceDispatch).not.toHaveBeenCalled();
     });
 
     it('prevents self-embedding indent when dropping list root at its own tail', () => {
