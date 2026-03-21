@@ -27,9 +27,7 @@
     overflow: visible;
 }
 
-/* 仅在 before 里只有 handle gutter（或无行号模式）时，清除 file-folding 偏移带来的占位 */
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor.dnd-no-gutter .cm-gutters.cm-gutters-before,
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor.dnd-no-gutter .cm-gutters.cm-gutters-after,
+/* 仅在 before/after 里只有 handle gutter 时，清除 file-folding 偏移带来的占位 */
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutters.cm-gutters-before:has(> .cm-gutter.cm-dnd-handle-gutter:only-child),
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutters.cm-gutters-after:has(> .cm-gutter.cm-dnd-handle-gutter:only-child) {
     width: 0 !important;
@@ -161,13 +159,6 @@
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line {
     position: relative;
     overflow: visible;
-}
-
-/* Horizontal rule lines sometimes render a wide overlay that can swallow handle hit-testing. */
-.dnd-line-number-grab-hidden,
-.dnd-drag-source-line-number {
-    color: transparent !important;
-    text-shadow: none !important;
 }
 
 .dnd-drag-handle.dnd-range-selected-handle {

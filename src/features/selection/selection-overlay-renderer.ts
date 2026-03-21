@@ -6,7 +6,6 @@ import {
 import { viewportXToEditorLocalX, viewportYToEditorLocalY } from './editor-local-coordinates';
 import { RangeAnchorSpan } from './selection-anchor';
 import {
-    groupSelectedBlocksIntoSegments,
     type BlockSelectionSegment,
     type SelectedBlockRange,
 } from './block-selection';
@@ -43,13 +42,31 @@ export class RangeSelectionOverlayRenderer {
 
     render(
         blocks: SelectedBlockRange[],
+        segments: BlockSelectionSegment[],
         resolveRangeAnchorSpan: (segment: BlockSelectionSegment) => RangeAnchorSpan | null
     ): void {
         this.currentRenderedBlocks = blocks.map((block) => ({
             startLineNumber: block.startLineNumber,
             endLineNumber: block.endLineNumber,
         }));
-        const segments = groupSelectedBlocksIntoSegments(this.view.state.doc.lines, blocks);
+        const hostOriginCache = new WeakMap<HTMLElement, { x: number; y: number }>();
+        const getHostOrigin = (host: HTMLElement): { x: number; y: number } => {
+            const cached = hostOriginCache.get(host);
+            if (cached) return cached;
+            const hostRect = host.getBoundingClientRect();
+            const origin = {
+                x: viewportXToEditorLocalX(this.view, hostRect.left),
+                y: viewportYToEditorLocalY(this.view, hostRect.top),
+            };
+            hostOriginCache.set(host, origin);
+            return origin;
+        };
+        const viewportXToHostLocalX = (host: HTMLElement, viewportX: number): number => (
+            viewportXToEditorLocalX(this.view, viewportX) - getHostOrigin(host).x
+        );
+        const viewportYToHostLocalY = (host: HTMLElement, viewportY: number): number => (
+            viewportYToEditorLocalY(this.view, viewportY) - getHostOrigin(host).y
+        );
 
         let buttonAnchor: { topY: number; x: number; host: HTMLElement } | null = null;
         for (let i = 0; i < segments.length; i++) {
@@ -64,11 +81,11 @@ export class RangeSelectionOverlayRenderer {
                 anchorSpan.host.appendChild(link);
             }
 
-            const top = this.viewportYToHostLocalY(anchorSpan.host, anchorSpan.topY);
-            const bottom = this.viewportYToHostLocalY(anchorSpan.host, anchorSpan.bottomY);
+            const top = viewportYToHostLocalY(anchorSpan.host, anchorSpan.topY);
+            const bottom = viewportYToHostLocalY(anchorSpan.host, anchorSpan.bottomY);
             const linkTop = Math.min(top, bottom);
             const linkHeight = Math.max(2, Math.abs(bottom - top));
-            const left = this.viewportXToHostLocalX(anchorSpan.host, anchorSpan.x);
+            const left = viewportXToHostLocalX(anchorSpan.host, anchorSpan.x);
 
             if (!buttonAnchor || anchorSpan.topY < buttonAnchor.topY) {
                 buttonAnchor = { topY: anchorSpan.topY, x: anchorSpan.x, host: anchorSpan.host };
@@ -94,8 +111,8 @@ export class RangeSelectionOverlayRenderer {
             buttonAnchor.host.appendChild(this.deleteButtonEl);
         }
 
-        const buttonTop = this.viewportYToHostLocalY(buttonAnchor.host, buttonAnchor.topY) - 10;
-        const buttonLeft = this.viewportXToHostLocalX(buttonAnchor.host, buttonAnchor.x);
+        const buttonTop = viewportYToHostLocalY(buttonAnchor.host, buttonAnchor.topY) - 10;
+        const buttonLeft = viewportXToHostLocalX(buttonAnchor.host, buttonAnchor.x);
         this.deleteButtonEl.classList.add('is-active');
         this.deleteButtonEl.setCssStyles({
             left: `${buttonLeft.toFixed(2)}px`,
@@ -141,17 +158,6 @@ export class RangeSelectionOverlayRenderer {
         return link;
     }
 
-    private viewportXToHostLocalX(host: HTMLElement, viewportX: number): number {
-        const hostRect = host.getBoundingClientRect();
-        const hostX = viewportXToEditorLocalX(this.view, hostRect.left);
-        return viewportXToEditorLocalX(this.view, viewportX) - hostX;
-    }
-
-    private viewportYToHostLocalY(host: HTMLElement, viewportY: number): number {
-        const hostRect = host.getBoundingClientRect();
-        const hostY = viewportYToEditorLocalY(this.view, hostRect.top);
-        return viewportYToEditorLocalY(this.view, viewportY) - hostY;
-    }
 }
 
 

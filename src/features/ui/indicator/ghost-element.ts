@@ -1,6 +1,5 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../../core/block/block-types';
-import { getLineNumberElementForLine } from '../handle/line-number-gutter';
 import {
     clearAllActiveDragSourceBlocks,
     clearActiveDragSourceBlock,
@@ -10,14 +9,12 @@ import {
     setActiveDragSourceBlock,
 } from '../../state/drag-session';
 import { isPosInsideRenderedTableCell } from '../probe/table-guard';
-import { DRAGGING_BODY_CLASS, DRAG_GHOST_CLASS, DRAG_SOURCE_LINE_NUMBER_CLASS } from '../../../shared/dom-selectors';
+import { DRAGGING_BODY_CLASS, DRAG_GHOST_CLASS } from '../../../shared/dom-selectors';
 import { DND_BLOCK_TRANSFER_MIME_TYPE } from '../../../shared/drag';
 
-const sourceLineMarkerByView = new WeakMap<EditorView, HTMLElement>();
 const draggingViewRefs = new Set<WeakRef<EditorView>>();
 
 export function beginDragSession(blockInfo: BlockInfo, view: EditorView): void {
-    updateSourceLineNumberMarker(blockInfo.startLine + 1, view);
     setActiveDragSourceBlock(view, blockInfo);
     draggingViewRefs.add(new WeakRef(view));
     document.body.classList.add(DRAGGING_BODY_CLASS);
@@ -101,7 +98,6 @@ function startDragWithBlockInfo(
 }
 
 function finishDragSessionForView(view: EditorView): void {
-    clearSourceLineNumberMarker(view);
     clearActiveDragSourceBlock(view);
     removeDraggingViewRef(view);
 }
@@ -113,21 +109,5 @@ function removeDraggingViewRef(target: EditorView): void {
             draggingViewRefs.delete(ref);
         }
     }
-}
-
-function updateSourceLineNumberMarker(lineNumber: number, view: EditorView): void {
-    clearSourceLineNumberMarker(view);
-    const lineEl = getLineNumberElementForLine(view, lineNumber);
-    if (!lineEl) return;
-
-    sourceLineMarkerByView.set(view, lineEl);
-    lineEl.classList.add(DRAG_SOURCE_LINE_NUMBER_CLASS);
-}
-
-function clearSourceLineNumberMarker(view: EditorView): void {
-    const marker = sourceLineMarkerByView.get(view);
-    if (!marker) return;
-    marker.classList.remove(DRAG_SOURCE_LINE_NUMBER_CLASS);
-    sourceLineMarkerByView.delete(view);
 }
 

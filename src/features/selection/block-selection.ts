@@ -93,7 +93,12 @@ export function groupSelectedBlocksIntoSegments(
     docLines: number,
     blocks: SelectedBlockRange[]
 ): BlockSelectionSegment[] {
-    const normalized = mergeSelectedBlocks(docLines, blocks);
+    return groupSegments(mergeSelectedBlocks(docLines, blocks));
+}
+
+export function groupSegments(
+    normalized: SelectedBlockRange[]
+): BlockSelectionSegment[] {
     if (normalized.length === 0) return [];
 
     const segments: BlockSelectionSegment[] = [];

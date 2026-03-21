@@ -2,7 +2,6 @@ import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../../core/block/block-types';
 import type { LineRange } from '../../../shared/types/line-range';
 import type { HoverContentRect, HoverPointerSnapshot } from '../../entry/hover-pointer-snapshot';
-import { getLineNumberElementForLine, hasVisibleLineNumberGutter } from './line-number-gutter';
 import {
     DRAG_HANDLE_CLASS,
     DRAG_SOURCE_LINE_CLASS,
@@ -11,7 +10,6 @@ import {
     DRAG_SOURCE_LINE_MIDDLE_CLASS,
     DRAG_SOURCE_LINE_LAST_CLASS,
     DRAG_SOURCE_EMBED_CLASS,
-    GRAB_HIDDEN_LINE_NUMBER_CLASS,
 } from '../../../shared/dom-selectors';
 import { getMainContentLineElementForLine } from '../probe/line-dom';
 import { resolveLineNumberFromDomNodes } from '../probe/element-probe';
@@ -44,7 +42,6 @@ type ActiveHoverBlock = {
 };
 
 export class HandleVisibilityController {
-    private readonly hiddenGrabbedLineNumberEls = new Set<HTMLElement>();
     private readonly grabbedLineEls = new Set<HTMLElement>();
     private readonly grabbedEmbedEls = new Set<HTMLElement>();
     private grabbedLineRanges: GrabLineRange[] = [];
@@ -158,10 +155,6 @@ export class HandleVisibilityController {
     }
 
     private clearGrabbedLineVisualClasses(): void {
-        for (const lineNumberEl of this.hiddenGrabbedLineNumberEls) {
-            lineNumberEl.classList.remove(GRAB_HIDDEN_LINE_NUMBER_CLASS);
-        }
-        this.hiddenGrabbedLineNumberEls.clear();
         for (const lineEl of this.grabbedLineEls) {
             lineEl.classList.remove(DRAG_SOURCE_LINE_CLASS);
             lineEl.classList.remove(...DRAG_SOURCE_LINE_VARIANT_CLASSES);
@@ -181,20 +174,12 @@ export class HandleVisibilityController {
 
     private applyGrabbedLineVisualState(): void {
         if (this.grabbedLineRanges.length === 0) return;
-        const hasGutter = hasVisibleLineNumberGutter(this.view);
         for (const range of this.grabbedLineRanges) {
             const safeStart = Math.max(1, Math.min(this.view.state.doc.lines, range.startLineNumber));
             const safeEnd = Math.max(1, Math.min(this.view.state.doc.lines, range.endLineNumber));
             const from = Math.min(safeStart, safeEnd);
             const to = Math.max(safeStart, safeEnd);
             for (let lineNumber = from; lineNumber <= to; lineNumber++) {
-                if (hasGutter) {
-                    const lineNumberEl = getLineNumberElementForLine(this.view, lineNumber);
-                    if (lineNumberEl) {
-                        lineNumberEl.classList.add(GRAB_HIDDEN_LINE_NUMBER_CLASS);
-                        this.hiddenGrabbedLineNumberEls.add(lineNumberEl);
-                    }
-                }
                 const lineEl = getMainContentLineElementForLine(this.view, lineNumber);
                 if (!lineEl) continue;
                 lineEl.classList.add(

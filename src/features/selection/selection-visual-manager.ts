@@ -1,28 +1,28 @@
 import { EditorView } from '@codemirror/view';
-import { getLineNumberElementForLine } from '../ui/handle/line-number-gutter';
 import {
     DRAG_HANDLE_CLASS,
     EMBED_HANDLE_CLASS,
     RANGE_SELECTED_HANDLE_CLASS,
-    GRAB_HIDDEN_LINE_NUMBER_CLASS,
 } from '../../shared/dom-selectors';
 import {
+    groupSegments,
     mergeSelectedBlocks,
     type BlockSelectionSegment,
     type SelectedBlockRange,
 } from './block-selection';
 import {
-    resolveRangeAnchorSpan as resolveRangeAnchorSpanFromHandles,
+    buildAnchorSnapshot,
+    emptyAnchorSnapshot,
+    resolveAnchorSpan,
     type RangeAnchorSpan,
+    type AnchorSnapshot,
 } from './selection-anchor';
 import { RangeSelectionOverlayRenderer } from './selection-overlay-renderer';
 
-const RANGE_SELECTED_LINE_NUMBER_HIDDEN_CLASS = GRAB_HIDDEN_LINE_NUMBER_CLASS;
-
 export class RangeSelectionVisualManager {
-    private readonly lineNumberElements = new Set<HTMLElement>();
     private readonly handleElements = new Set<HTMLElement>();
     private readonly overlayRenderer: RangeSelectionOverlayRenderer;
+    private handleAnchorSnapshot: AnchorSnapshot = emptyAnchorSnapshot();
     private refreshRafHandle: number | null = null;
     private scrollContainer: HTMLElement | null = null;
     private readonly onScroll: () => void;
@@ -46,43 +46,29 @@ export class RangeSelectionVisualManager {
 
     render(blocks: SelectedBlockRange[]): void {
         const normalizedBlocks = mergeSelectedBlocks(this.view.state.doc.lines, blocks);
-        const nextLineNumberElements = new Set<HTMLElement>();
+        const segments = groupSegments(normalizedBlocks);
         const nextHandleElements = new Set<HTMLElement>();
         for (const block of normalizedBlocks) {
             const handleEl = this.resolveHandleElementForBlockStart(block.startLineNumber - 1);
             if (handleEl) {
                 nextHandleElements.add(handleEl);
             }
-            for (let lineNumber = block.startLineNumber; lineNumber <= block.endLineNumber; lineNumber++) {
-                const lineNumberEl = getLineNumberElementForLine(this.view, lineNumber);
-                if (lineNumberEl) {
-                    nextLineNumberElements.add(lineNumberEl);
-                }
-            }
         }
-        this.syncSelectionElements(
-            this.lineNumberElements,
-            nextLineNumberElements,
-            RANGE_SELECTED_LINE_NUMBER_HIDDEN_CLASS
-        );
+        this.handleAnchorSnapshot = buildAnchorSnapshot(nextHandleElements);
         this.syncSelectionElements(
             this.handleElements,
             nextHandleElements,
             RANGE_SELECTED_HANDLE_CLASS
         );
-        this.overlayRenderer.render(normalizedBlocks, (segment) => this.resolveRangeAnchorSpan(segment));
+        this.overlayRenderer.render(normalizedBlocks, segments, (segment) => this.resolveRangeAnchorSpan(segment));
     }
 
     clear(): void {
-        for (const lineNumberEl of this.lineNumberElements) {
-            lineNumberEl.classList.remove(RANGE_SELECTED_LINE_NUMBER_HIDDEN_CLASS);
-        }
-        this.lineNumberElements.clear();
-
         for (const handleEl of this.handleElements) {
             handleEl.classList.remove(RANGE_SELECTED_HANDLE_CLASS);
         }
         this.handleElements.clear();
+        this.handleAnchorSnapshot = emptyAnchorSnapshot();
         this.overlayRenderer.clear();
     }
 
@@ -153,11 +139,10 @@ export class RangeSelectionVisualManager {
     }
 
     resolveRangeAnchorSpan(segment: BlockSelectionSegment): RangeAnchorSpan | null {
-        return resolveRangeAnchorSpanFromHandles({
+        return resolveAnchorSpan({
             segment,
-            resolveHandleForBlockLineNumber: (lineNumber) =>
-                this.resolveHandleElementForBlockStart(lineNumber - 1),
-            visibleHandles: this.handleElements,
+            snapshot: this.handleAnchorSnapshot,
+            resolveHandleForBlockLineNumber: (lineNumber) => this.resolveHandleElementForBlockStart(lineNumber - 1),
         });
     }
 }

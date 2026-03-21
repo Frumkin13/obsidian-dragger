@@ -26,6 +26,16 @@ type ResolveRangeAnchorSpanOptions = {
     visibleHandles: Iterable<HTMLElement>;
 };
 
+export type AnchorEntry = {
+    blockLineNumber: number;
+    anchor: RangeAnchorPoint;
+};
+
+export type AnchorSnapshot = {
+    ordered: AnchorEntry[];
+    byBlockLineNumber: Map<number, RangeAnchorPoint>;
+};
+
 function getHandleBlockLineNumber(handle: HTMLElement): number | null {
     const blockStartAttr = handle.getAttribute('data-block-start');
     if (!blockStartAttr) return null;
@@ -57,23 +67,56 @@ function getAnchorPointByBlockLineNumber(
     return getAnchorPointForHandle(handle);
 }
 
-function collectVisibleAnchorsInRange(
-    segment: BlockSelectionSegment,
+export function emptyAnchorSnapshot(): AnchorSnapshot {
+    return {
+        ordered: [],
+        byBlockLineNumber: new Map<number, RangeAnchorPoint>(),
+    };
+}
+
+export function buildAnchorSnapshot(
     visibleHandles: Iterable<HTMLElement>
-): RangeAnchorPoint[] {
-    const anchors: RangeAnchorPoint[] = [];
+): AnchorSnapshot {
+    const snapshot = emptyAnchorSnapshot();
     for (const handle of visibleHandles) {
         const blockLineNumber = getHandleBlockLineNumber(handle);
         if (blockLineNumber === null) continue;
-        if (blockLineNumber < segment.startBlockLineNumber || blockLineNumber > segment.endBlockLineNumber) continue;
+        if (snapshot.byBlockLineNumber.has(blockLineNumber)) continue;
         const anchor = getAnchorPointForHandle(handle);
         if (!anchor) continue;
-        anchors.push(anchor);
+        snapshot.byBlockLineNumber.set(blockLineNumber, anchor);
+        snapshot.ordered.push({ blockLineNumber, anchor });
     }
-    return anchors;
+    snapshot.ordered.sort((a, b) => a.blockLineNumber - b.blockLineNumber);
+    return snapshot;
 }
 
-export function resolveRangeAnchorSpan(options: ResolveRangeAnchorSpanOptions): RangeAnchorSpan | null {
+type ResolveAnchorSpanOptions = {
+    segment: BlockSelectionSegment;
+    snapshot: AnchorSnapshot;
+    resolveHandleForBlockLineNumber?: ResolveHandleForBlockLineNumber;
+};
+
+function findFirstAnchorIndexAtOrAfter(
+    ordered: AnchorEntry[],
+    startBlockLineNumber: number
+): number {
+    let low = 0;
+    let high = ordered.length;
+    while (low < high) {
+        const mid = Math.floor((low + high) / 2);
+        if (ordered[mid].blockLineNumber < startBlockLineNumber) {
+            low = mid + 1;
+        } else {
+            high = mid;
+        }
+    }
+    return low;
+}
+
+export function resolveAnchorSpan(
+    options: ResolveAnchorSpanOptions
+): RangeAnchorSpan | null {
     const anchors: RangeAnchorPoint[] = [];
     const seenHosts = new Set<HTMLElement>();
     const addAnchor = (anchor: RangeAnchorPoint | null): void => {
@@ -83,16 +126,31 @@ export function resolveRangeAnchorSpan(options: ResolveRangeAnchorSpanOptions): 
         anchors.push(anchor);
     };
 
-    addAnchor(getAnchorPointByBlockLineNumber(
-        options.segment.startBlockLineNumber,
-        options.resolveHandleForBlockLineNumber
-    ));
-    addAnchor(getAnchorPointByBlockLineNumber(
-        options.segment.endBlockLineNumber,
-        options.resolveHandleForBlockLineNumber
-    ));
-    for (const anchor of collectVisibleAnchorsInRange(options.segment, options.visibleHandles)) {
-        addAnchor(anchor);
+    const startAnchor = options.snapshot.byBlockLineNumber.get(options.segment.startBlockLineNumber)
+        ?? (options.resolveHandleForBlockLineNumber
+            ? getAnchorPointByBlockLineNumber(
+                options.segment.startBlockLineNumber,
+                options.resolveHandleForBlockLineNumber
+            )
+            : null);
+    const endAnchor = options.snapshot.byBlockLineNumber.get(options.segment.endBlockLineNumber)
+        ?? (options.resolveHandleForBlockLineNumber
+            ? getAnchorPointByBlockLineNumber(
+                options.segment.endBlockLineNumber,
+                options.resolveHandleForBlockLineNumber
+            )
+            : null);
+
+    addAnchor(startAnchor);
+    addAnchor(endAnchor);
+
+    const ordered = options.snapshot.ordered;
+    for (
+        let i = findFirstAnchorIndexAtOrAfter(ordered, options.segment.startBlockLineNumber);
+        i < ordered.length && ordered[i].blockLineNumber <= options.segment.endBlockLineNumber;
+        i++
+    ) {
+        addAnchor(ordered[i].anchor);
     }
 
     if (anchors.length === 0) return null;
@@ -105,5 +163,13 @@ export function resolveRangeAnchorSpan(options: ResolveRangeAnchorSpanOptions): 
         bottomY: bottomAnchor.y,
         host: topAnchor.host,
     };
+}
+
+export function resolveRangeAnchorSpan(options: ResolveRangeAnchorSpanOptions): RangeAnchorSpan | null {
+    return resolveAnchorSpan({
+        segment: options.segment,
+        snapshot: buildAnchorSnapshot(options.visibleHandles),
+        resolveHandleForBlockLineNumber: options.resolveHandleForBlockLineNumber,
+    });
 }
 

@@ -287,6 +287,23 @@ describe('HandleVisibilityController', () => {
         expect(lineNumberEl.className).toBe(CODEMIRROR_GUTTER_ELEMENT_CLASS);
     });
 
+    it('keeps visible line numbers untouched while applying drag-source highlight', () => {
+        const { view } = createViewStub(4);
+        const lineNumberEl = appendLineNumberForLine(view, 2);
+        const controller = new HandleVisibilityController(view, {
+            getBlockInfoForHandle: () => null,
+            getLineNumberAtVerticalPosition: () => null,
+            getDraggableBlockAtVerticalPosition: () => null,
+            getVisibleHandleForBlockStart: () => null,
+        });
+
+        controller.enterGrabVisualStateForBlock(createBlock(1, 1), null);
+        expect(lineNumberEl.className).toBe(CODEMIRROR_GUTTER_ELEMENT_CLASS);
+
+        controller.clearGrabbedLineNumbers();
+        expect(lineNumberEl.className).toBe(CODEMIRROR_GUTTER_ELEMENT_CLASS);
+    });
+
     it('reuses the active hovered block while pointer stays inside the same block', () => {
         const { view } = createViewStub(6);
         const handle = appendHandleForLine(view, 2);

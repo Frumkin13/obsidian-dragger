@@ -32,7 +32,6 @@ import {
     ensureEditorRootClasses,
     syncDragSourceHighlightAttr,
     syncDragSourceStyleAttr,
-    syncGutterClass,
 } from './view-dom-sync';
 import { createDropTargetCalculatorDeps } from './view-runtime';
 import { applyViewUpdate } from './view-update';
@@ -299,7 +298,6 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
 
         private syncViewDomState(): void {
             ensureEditorRootClasses(this.view);
-            syncGutterClass(this.view);
             placeHandleGutterHost(this.view);
             syncDragSourceStyleAttr(this.view, normalizeDragSourceVisualStyle(plugin.settings.dragSourceVisualStyle));
             syncDragSourceHighlightAttr(this.view, this.isDragSourceHighlightEnabled());
