@@ -172,8 +172,10 @@ export class LineHandleManager {
             parent.appendChild(handle);
         }
         const localLeft = Math.round(getHandleHorizontalOffsetPx() - getHandleSizePx() / 2);
-        handle.style.left = `${Math.round(localLeft)}px`;
-        handle.style.top = '0px';
+        handle.setCssProps({
+            left: `${Math.round(localLeft)}px`,
+            top: '0px',
+        });
         handle.style.removeProperty('height');
         handle.classList.remove(HIDDEN_CLASS);
         handle.classList.add(GUTTER_BOUND_CLASS);

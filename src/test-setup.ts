@@ -5,4 +5,13 @@ if (typeof HTMLElement !== 'undefined' && !HTMLElement.prototype.setCssStyles) {
     };
 }
 
+// Polyfill Obsidian's setCssProps for jsdom test environment
+if (typeof HTMLElement !== 'undefined' && !HTMLElement.prototype.setCssProps) {
+    HTMLElement.prototype.setCssProps = function (props: Record<string, string>) {
+        Object.entries(props).forEach(([key, value]) => {
+            this.style.setProperty(key, value);
+        });
+    };
+}
+
 export {};

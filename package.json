@@ -1,6 +1,6 @@
 {
     "name": "dragger",
-    "version": "1.2.5",
+    "version": "1.2.6",
     "description": "Drag and drop any block to rearrange content in Obsidian",
     "main": "main.js",
     "scripts": {
