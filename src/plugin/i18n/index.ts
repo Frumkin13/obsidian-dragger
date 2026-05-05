@@ -7,5 +7,5 @@ export type I18nStrings = typeof zhCn;
 
 export function t(): I18nStrings {
     const locale = moment.locale();
-    return locale.startsWith('zh') ? zhCn : en;
+    return locale.startsWith('zh') ? zhCn : locale.startsWith('ru') ? ru : en;
 }
