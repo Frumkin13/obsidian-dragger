@@ -1,6 +1,7 @@
 import { moment } from 'obsidian';
 import { en } from './en';
 import { zhCn } from './zh-cn';
+import { ru } from './ru';
 
 export type I18nStrings = typeof zhCn;
 
