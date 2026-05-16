@@ -1,3 +1,5 @@
+由于其他项目压力与学业压力，项目会搁置至六月中旬（暑假）时继续开发，届时将进行大幅优化
+
 [![English](https://img.shields.io/badge/lang-English-blue)](README.md) [![中文](https://img.shields.io/badge/lang-中文-red)](README.zh-CN.md)
 
 # Dragger
