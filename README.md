@@ -4,6 +4,7 @@
 - 样式问题，抓手的稳定性与对齐
 - 通过点击抓手切换块文本类型
 - 多栏布局
+- 移动端ux设计与功能稳定性
 
 
 [![English](https://img.shields.io/badge/lang-English-blue)](README.md) [![中文](https://img.shields.io/badge/lang-中文-red)](README.zh-CN.md)
