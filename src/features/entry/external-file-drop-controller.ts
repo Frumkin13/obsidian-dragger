@@ -141,9 +141,11 @@ export class ExternalFileDropController {
             return contextPath ? this.resolveMarkdownFileByVaultPath(contextPath) : null;
         }
 
-        const resolved = this.plugin.app.metadataCache.getFirstLinkpathDest(rawLinkpath, contextPath ?? '');
+        const cleanLinkpath = stripSubpath(rawLinkpath);
+        if (!cleanLinkpath) return null;
+        const resolved = this.plugin.app.metadataCache.getFirstLinkpathDest(cleanLinkpath, contextPath ?? '');
         if (isMarkdownFile(resolved)) return resolved;
-        return this.resolveMarkdownFileByVaultPath(stripSubpath(rawLinkpath));
+        return this.resolveMarkdownFileByVaultPath(cleanLinkpath);
     }
 
     private getInternalLinkPath(element: HTMLElement): string | null {
@@ -188,7 +190,7 @@ export class ExternalFileDropController {
 
         for (const candidate of candidates) {
             const normalized = normalizePath(candidate);
-            const file = this.plugin.app.vault.getFileByPath(normalized)
+            const file = this.plugin.app.vault.getFileByPath?.(normalized)
                 ?? this.plugin.app.vault.getAbstractFileByPath(normalized);
             if (isMarkdownFile(file)) return file;
         }

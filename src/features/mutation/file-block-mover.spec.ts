@@ -8,6 +8,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../core/block/block-types';
 import { appendMarkdownBlock, FileBlockMover } from './file-block-mover';
 
+type MutableView = EditorView & {
+    dispatchCount: number;
+};
+
 describe('FileBlockMover', () => {
     it('appends a block to a closed target file and deletes it from the source editor', async () => {
         const sourceView = createMutableView('before\nmove me\nafter');
@@ -97,6 +101,25 @@ describe('FileBlockMover', () => {
 
         expect(result.moved).toBe(true);
         expect(sourceView.state.doc.toString()).toBe('keep\n\nmove');
+        expect(sourceView.dispatchCount).toBe(1);
+    });
+
+    it('keeps a whole-file same-file move to one undoable dispatch without extra padding', async () => {
+        const targetFile = createMarkdownFile('Daily.md');
+        const sourceView = createMutableView('move');
+        const app = createAppStub({
+            leaves: [createMarkdownLeaf(targetFile, sourceView)],
+        });
+
+        const result = await new FileBlockMover(app).moveBlockToFile({
+            sourceView,
+            sourceBlock: createBlock(0, 0),
+            targetFile,
+        });
+
+        expect(result.moved).toBe(true);
+        expect(sourceView.state.doc.toString()).toBe('move');
+        expect(sourceView.dispatchCount).toBe(1);
     });
 });
 
@@ -109,16 +132,21 @@ describe('appendMarkdownBlock', () => {
     });
 });
 
-function createMutableView(initialDoc: string): EditorView {
+function createMutableView(initialDoc: string): MutableView {
     let state = EditorState.create({ doc: initialDoc });
+    let dispatchCount = 0;
     return {
         get state() {
             return state;
         },
+        get dispatchCount() {
+            return dispatchCount;
+        },
         dispatch(spec: TransactionSpec) {
+            dispatchCount += 1;
             state = state.update(spec).state;
         },
-    } as unknown as EditorView;
+    } as unknown as MutableView;
 }
 
 function createBlock(startLine: number, endLine: number): BlockInfo {

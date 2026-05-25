@@ -20,6 +20,12 @@ type SourcePayload = {
     segments: SourceSegment[];
 };
 
+type TextChange = {
+    from: number;
+    to: number;
+    insert?: string;
+};
+
 type MarkdownViewWithFile = MarkdownView & {
     file?: TFile | null;
 };
@@ -49,8 +55,7 @@ export class FileBlockMover {
 
         const targetView = this.getOpenMarkdownEditorView(targetFile);
         if (targetView === sourceView) {
-            this.deleteSourcePayload(sourceView, payload);
-            this.appendToEditor(targetView, payload.content);
+            this.moveWithinSameEditorToEnd(sourceView, payload);
             this.renumberSourceLists(sourceView, payload);
             return { moved: true };
         }
@@ -120,17 +125,52 @@ export class FileBlockMover {
     }
 
     private deleteSourcePayload(sourceView: EditorView, payload: SourcePayload): void {
-        const changes = payload.segments
-            .map((segment) => ({
-                from: segment.deleteFrom,
-                to: segment.deleteTo,
-            }))
-            .sort((a, b) => b.from - a.from);
+        const changes = this.getMergedDeleteChanges(payload).sort((a, b) => b.from - a.from);
         if (changes.length === 0) return;
         sourceView.dispatch({
             changes,
             scrollIntoView: false,
         });
+    }
+
+    private moveWithinSameEditorToEnd(view: EditorView, payload: SourcePayload): void {
+        const doc = view.state.doc as unknown as DocLikeWithRange;
+        const deletes = this.getMergedDeleteChanges(payload);
+        const remainingText = applyDeleteChanges(doc.sliceString(0, doc.length), deletes);
+        const insert = buildAppendInsertion(remainingText, payload.content);
+        const changes: TextChange[] = [
+            ...deletes,
+            ...(insert.length ? [{ from: doc.length, to: doc.length, insert }] : []),
+        ].sort((a, b) => b.from - a.from);
+        if (changes.length === 0) return;
+        view.dispatch({
+            changes,
+            scrollIntoView: false,
+        });
+    }
+
+    private getMergedDeleteChanges(payload: SourcePayload): TextChange[] {
+        const sorted = payload.segments
+            .map((segment) => ({
+                from: segment.deleteFrom,
+                to: segment.deleteTo,
+            }))
+            .sort((a, b) => a.from - b.from);
+
+        const merged: TextChange[] = [];
+        for (const change of sorted) {
+            const last = merged[merged.length - 1];
+            if (!last) {
+                merged.push(change);
+                continue;
+            }
+            if (change.from <= last.to) {
+                last.to = Math.max(last.to, change.to);
+                continue;
+            }
+            merged.push(change);
+        }
+        return merged;
     }
 
     private renumberSourceLists(sourceView: EditorView, payload: SourcePayload): void {
@@ -158,6 +198,16 @@ function buildAppendInsertion(existing: string, blockContent: string): string {
     if (existing.endsWith('\n\n')) return normalized;
     if (existing.endsWith('\n')) return `\n${normalized}`;
     return `\n\n${normalized}`;
+}
+
+function applyDeleteChanges(existing: string, deletes: TextChange[]): string {
+    let result = '';
+    let cursor = 0;
+    for (const change of deletes) {
+        result += existing.slice(cursor, change.from);
+        cursor = change.to;
+    }
+    return result + existing.slice(cursor);
 }
 
 function resolveDeleteRange(
