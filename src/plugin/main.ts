@@ -1,5 +1,6 @@
 import { Plugin } from 'obsidian';
 import { dragHandleExtension } from '../features/entry/extension-factory';
+import { ExternalFileDropController } from '../features/entry/external-file-drop-controller';
 import { setHandleHorizontalOffsetPx, setHandleSizePx } from '../shared/constants';
 import {
     DND_DRAG_SOURCE_HIGHLIGHT_ATTR,
@@ -28,6 +29,8 @@ export default class DragNDropPlugin extends Plugin {
 
         // 注册编辑器扩展
         this.registerEditorExtension(dragHandleExtension(this));
+        const externalFileDropController = new ExternalFileDropController(this);
+        externalFileDropController.register();
 
         // 添加设置面板
         this.addSettingTab(new DragNDropSettingTab(this.app, this));
@@ -161,5 +164,3 @@ export default class DragNDropPlugin extends Plugin {
         }
     }
 }
-
-

@@ -59,7 +59,7 @@ export const zhCn = {
     mobileTextLongPressDrag: '移动端文本长按拖拽',
     mobileTextLongPressDragDesc: '移动端在文本整行或块内容区域长按可直接拖拽当前块，无需左侧手柄',
     enableCrossFileDrag: '跨文件拖拽',
-    enableCrossFileDragDesc: '允许将块拖拽到另一个已打开文件的编辑器中',
+    enableCrossFileDragDesc: '允许将块拖拽到已打开编辑器、内部链接或文件列表笔记中',
 
 };
 

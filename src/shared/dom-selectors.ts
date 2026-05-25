@@ -47,4 +47,5 @@ export const RANGE_SELECTED_LINE_CLASS = 'dnd-range-selected-line';
 export const RANGE_SELECTED_HANDLE_CLASS = 'dnd-range-selected-handle';
 export const RANGE_SELECTION_LINK_CLASS = 'dnd-range-selection-link';
 export const RANGE_SELECTION_DELETE_BUTTON_CLASS = 'dnd-range-selection-delete-btn';
+export const FILE_DROP_TARGET_CLASS = 'dnd-file-drop-target';
 export const MOBILE_GESTURE_LOCK_CLASS = 'dnd-mobile-gesture-lock';
