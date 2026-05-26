@@ -7,7 +7,6 @@ import { createConfiguredHandleGutterExtension } from './handle-gutter-extension
 function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
     return ViewPlugin.fromClass(
         createDragHandleViewPluginClass(plugin)
-        // No decorations config - LineHandleManager uses independent DOM elements
     );
 }
 

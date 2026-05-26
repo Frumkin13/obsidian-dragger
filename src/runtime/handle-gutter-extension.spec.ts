@@ -7,8 +7,8 @@ import { createHandleGutterExtension } from './handle-gutter-extension';
 import {
     CODEMIRROR_AFTER_GUTTERS_SELECTOR,
     CODEMIRROR_GUTTER_ELEMENT_SELECTOR,
+    DRAG_HANDLE_CLASS,
     HANDLE_GUTTER_CLASS,
-    HANDLE_GUTTER_PROBE_CLASS,
 } from '../shared/dom-selectors';
 
 const mountedViews: EditorView[] = [];
@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 describe('createHandleGutterExtension', () => {
-    it('does not inject a hidden spacer gutter element ahead of real line markers', () => {
+    it('renders drag handles as CodeMirror gutter marker DOM', () => {
         const host = document.createElement('div');
         document.body.appendChild(host);
 
@@ -39,7 +39,7 @@ describe('createHandleGutterExtension', () => {
 
         const gutterElements = Array.from(gutter!.querySelectorAll<HTMLElement>(CODEMIRROR_GUTTER_ELEMENT_SELECTOR));
         expect(gutterElements.length).toBeGreaterThan(0);
-        expect(gutterElements.every((el) => el.querySelector(`.${HANDLE_GUTTER_PROBE_CLASS}`) !== null)).toBe(true);
+        expect(gutterElements.every((el) => el.querySelector(`.${DRAG_HANDLE_CLASS}`) !== null)).toBe(true);
     });
 
     it('mounts the handle gutter on the editor right side when configured', () => {

@@ -74,6 +74,8 @@ export interface DragEventHandlerDeps {
     isMobileTextLongPressDragEnabled?: () => boolean;
     isCrossEditorDragActive?: () => boolean;
     isCrossFileDragEnabled?: () => boolean;
+    startNativeDragFromHandle: (handle: HTMLElement, e: DragEvent) => void;
+    finishNativeDragFromHandle: () => void;
     beginPointerDragSession: (blockInfo: BlockInfo) => void;
     finishDragSession: () => void;
     scheduleDropIndicatorUpdate: (clientX: number, clientY: number, dragSource: BlockInfo | null, pointerType: string | null) => void;
@@ -147,6 +149,20 @@ export class DragEventHandler {
         }
     };
 
+    private readonly onEditorDragStart = (e: DragEvent) => {
+        const target = e.target instanceof HTMLElement ? e.target : null;
+        const handle = target?.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`) ?? null;
+        if (!handle || !this.view.dom.contains(handle) || handle.classList.contains(EMBED_HANDLE_CLASS)) return;
+        this.deps.startNativeDragFromHandle(handle, e);
+    };
+
+    private readonly onEditorDragEnd = (e: DragEvent) => {
+        const target = e.target instanceof HTMLElement ? e.target : null;
+        const handle = target?.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`) ?? null;
+        if (!handle || !this.view.dom.contains(handle) || handle.classList.contains(EMBED_HANDLE_CLASS)) return;
+        this.deps.finishNativeDragFromHandle();
+    };
+
     private readonly onLostPointerCapture = (e: PointerEvent) => this.handleLostPointerCapture(e);
     private readonly onDocumentFocusIn = (e: FocusEvent) => this.handleDocumentFocusIn(e);
     constructor(
@@ -192,6 +208,8 @@ export class DragEventHandler {
     attach(): void {
         const editorDom = this.view.dom;
         editorDom.addEventListener('pointerdown', this.onEditorPointerDown, true);
+        editorDom.addEventListener('dragstart', this.onEditorDragStart, true);
+        editorDom.addEventListener('dragend', this.onEditorDragEnd, true);
         editorDom.addEventListener('lostpointercapture', this.onLostPointerCapture, true);
         this.nativeDrag.attach();
         editorDom.addEventListener('focusin', this.onDocumentFocusIn, true);
@@ -236,6 +254,8 @@ export class DragEventHandler {
 
         const editorDom = this.view.dom;
         editorDom.removeEventListener('pointerdown', this.onEditorPointerDown, true);
+        editorDom.removeEventListener('dragstart', this.onEditorDragStart, true);
+        editorDom.removeEventListener('dragend', this.onEditorDragEnd, true);
         editorDom.removeEventListener('lostpointercapture', this.onLostPointerCapture, true);
         this.nativeDrag.destroy();
         editorDom.removeEventListener('focusin', this.onDocumentFocusIn, true);

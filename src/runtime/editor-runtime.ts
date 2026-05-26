@@ -15,7 +15,7 @@ import {
     finishDragSession,
     getDragSourceBlockFromEvent,
 } from '../drag/gesture/drag-ghost';
-import { LineHandleManager } from '../drag/source/handle-manager';
+import { getVisibleHandleForBlockStart } from '../drag/source/handle-renderer';
 import { HandleVisibilityController } from '../drag/source/handle-visibility-controller';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
@@ -38,20 +38,18 @@ import {
 import { createDropPlannerDeps } from './view-runtime';
 import { applyViewUpdate } from './editor-update';
 import { destroyViewLifecycle, startViewLifecycle } from './editor-lifecycle';
-import { placeHandleGutterHost, reconfigureHandleGutterExtension } from './handle-gutter-extension';
+import { reconfigureHandleGutterExtension } from './handle-gutter-extension';
 import { getHandleGutterSide } from '../platform/codemirror/gutter';
 import { GlobalPointerMoveClient } from './global-pointermove-router';
 import { createHoverPointerSnapshot, HoverPointerSnapshot } from './hover-pointer-snapshot';
 
 export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
     return class {
-        // decorations removed - now using LineHandleManager with independent DOM elements
         private readonly view: EditorView;
         private readonly services: DragDropServiceContainer;
         private readonly dropIndicator: DropIndicatorManager;
         private readonly blockMover: BlockMover;
         private readonly dropPlanner: DropPlanner;
-        private readonly lineHandleManager: LineHandleManager;
         private readonly dragEventHandler: DragEventHandler;
         private readonly handleVisibility: HandleVisibilityController;
         private readonly orchestrator: DragInteractionOrchestrator;
@@ -76,7 +74,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 getBlockInfoForHandle: (handle) => this.services.dragSource.getBlockInfoForHandle(handle),
                 getLineNumberAtVerticalPosition: (clientY, contentRect) => this.services.dragSource.getLineNumberAtVerticalPosition(clientY, contentRect),
                 getDraggableBlockAtVerticalPosition: (clientY, contentRect) => this.services.dragSource.getDraggableBlockAtVerticalPosition(clientY, contentRect),
-                getVisibleHandleForBlockStart: (blockStart) => this.lineHandleManager.getVisibleHandleForBlockStart(blockStart),
+                getVisibleHandleForBlockStart: (blockStart) => getVisibleHandleForBlockStart(this.view, blockStart),
             });
             this.dragPerfManager = new DragPerfSessionManager(this.view);
             this.dropPlanner = new DropPlanner(this.view, createDropPlannerDeps({
@@ -136,13 +134,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 lifecycleEmitter: this.lifecycleEmitter,
                 getSemanticRefreshScheduler: () => this.semanticRefreshScheduler,
                 refreshDecorationsAndEmbeds: () => this.refreshDecorationsAndEmbeds(),
-                getDragEventHandler: () => this.dragEventHandler,
                 resolveEditorDocumentKey: (editorView) => resolveEditorDocumentKey(plugin.app, editorView),
-            });
-            this.lineHandleManager = new LineHandleManager(this.view, {
-                createHandleElement: (getBlockInfo) => this.orchestrator.createHandleElement(getBlockInfo),
-                getDraggableBlockAtLine: (lineNumber) => this.services.dragSource.getDraggableBlockAtLine(lineNumber),
-                shouldRenderLineHandles: () => true,
             });
             this.dragEventHandler = new DragEventHandler(this.view, {
                 getDragSourceBlock: (e) => getDragSourceBlockFromEvent(e, this.view),
@@ -158,7 +150,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                         clientY,
                     }),
                 getVisibleHandleForBlockStart: (blockStart) =>
-                    this.lineHandleManager.getVisibleHandleForBlockStart(blockStart),
+                    getVisibleHandleForBlockStart(this.view, blockStart),
                 isBlockInsideRenderedTableCell: (blockInfo) =>
                     isPosInsideRenderedTableCell(this.view, blockInfo.from, { skipLayoutRead: true }),
                 isMultiLineSelectionEnabled: () => plugin.settings.enableMultiLineSelection,
@@ -167,6 +159,8 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 isMobileTextLongPressDragEnabled: () => plugin.settings.enableMobileTextLongPressDrag,
                 isCrossEditorDragActive: () => this.resolveDragSourceScope() === 'cross_editor',
                 isCrossFileDragEnabled: () => plugin.settings.enableCrossFileDrag === true,
+                startNativeDragFromHandle: (handle, e) => this.orchestrator.startNativeDragFromHandle(handle, e),
+                finishNativeDragFromHandle: () => this.orchestrator.finishNativeDragFromHandle(),
                 beginPointerDragSession: (blockInfo) => {
                     this.orchestrator.ensureDragPerfSession();
                     beginDragSession(blockInfo, this.view);
@@ -200,7 +194,6 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
 
             startViewLifecycle({
                 view: this.view,
-                lineHandleManager: this.lineHandleManager,
                 dragEventHandler: this.dragEventHandler,
                 pointerMoveClient: this.pointerMoveClient,
                 onSettingsUpdated: this.onSettingsUpdated,
@@ -239,7 +232,6 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 pointerMoveClient: this.pointerMoveClient,
                 onSettingsUpdated: this.onSettingsUpdated,
                 dragEventHandler: this.dragEventHandler,
-                lineHandleManager: this.lineHandleManager,
             });
             this.handleVisibility.clearGrabbedLineNumbers();
             this.handleVisibility.setActiveVisibleHandle(null);
@@ -289,7 +281,6 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
 
         private syncViewDomState(): void {
             ensureEditorRootClasses(this.view);
-            placeHandleGutterHost(this.view);
             syncDragSourceStyleAttr(this.view, normalizeDragSourceVisualStyle(plugin.settings.dragSourceVisualStyle));
             syncDragSourceHighlightAttr(this.view, this.isDragSourceHighlightEnabled());
         }
@@ -301,7 +292,6 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         private refreshDecorationsAndEmbeds(): void {
             this.syncViewDomState();
             this.semanticRefreshScheduler.clearPendingSemanticRefresh();
-            this.lineHandleManager.scheduleScan();
         }
 
         private handleSettingsUpdated(): void {

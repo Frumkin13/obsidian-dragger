@@ -6,7 +6,6 @@ import {
     DragSourceScope,
 } from '../../shared/types/drag';
 import { buildCancelledLifecycleEvent, buildDragStartedLifecycleEvent, buildDropCommitLifecycleEvent, buildIdleLifecycleEvent } from './drag-lifecycle-flow';
-import { createDragHandleElement } from '../source/handle-renderer';
 import {
     finishDragSession,
     startDragFromHandle,
@@ -17,7 +16,7 @@ import { DragDropServiceContainer } from '../../runtime/drag-service-container';
 import { BlockMover } from '../move/block-mover';
 import { DropPlanner } from '../drop/drop-planner';
 import { HandleVisibilityController } from '../source/handle-visibility-controller';
-import { DragEventHandlerPort, DragPerfSessionPort, SemanticRefreshPort } from './interaction-orchestrator-ports';
+import { DragPerfSessionPort, SemanticRefreshPort } from './interaction-orchestrator-ports';
 import { getActiveDragSourceView } from './drag-session';
 
 export interface DragInteractionOrchestratorDeps {
@@ -30,7 +29,6 @@ export interface DragInteractionOrchestratorDeps {
     lifecycleEmitter: DragLifecycleEmitter;
     getSemanticRefreshScheduler: () => SemanticRefreshPort;
     refreshDecorationsAndEmbeds: () => void;
-    getDragEventHandler: () => DragEventHandlerPort;
     resolveEditorDocumentKey?: (view: EditorView) => string | null;
 }
 
@@ -44,7 +42,6 @@ export class DragInteractionOrchestrator {
     private readonly lifecycleEmitter: DragLifecycleEmitter;
     private readonly getSemanticRefreshScheduler: () => SemanticRefreshPort;
     private readonly refreshDecorationsAndEmbeds: () => void;
-    private readonly getDragEventHandler: () => DragEventHandlerPort;
     private readonly resolveEditorDocumentKey?: (view: EditorView) => string | null;
 
     constructor(deps: DragInteractionOrchestratorDeps) {
@@ -57,62 +54,45 @@ export class DragInteractionOrchestrator {
         this.lifecycleEmitter = deps.lifecycleEmitter;
         this.getSemanticRefreshScheduler = deps.getSemanticRefreshScheduler;
         this.refreshDecorationsAndEmbeds = deps.refreshDecorationsAndEmbeds;
-        this.getDragEventHandler = deps.getDragEventHandler;
         this.resolveEditorDocumentKey = deps.resolveEditorDocumentKey;
     }
 
-    createHandleElement(getBlockInfo: () => BlockInfo | null): HTMLElement {
-        const handle = createDragHandleElement({
-            onDragStart: (e, el) => {
-                this.getSemanticRefreshScheduler().ensureSemanticReadyForInteraction();
-                const resolveCurrentBlock = () => this.resolveInteractionBlockInfo({
-                    handle,
-                    clientX: e.clientX,
-                    clientY: e.clientY,
-                    fallback: getBlockInfo,
-                });
-                const sourceBlock = resolveCurrentBlock();
-                if (!sourceBlock) {
-                    this.handleVisibility.setActiveVisibleHandle(el);
-                }
-                const started = startDragFromHandle(e, this.view, () => resolveCurrentBlock(), el);
-                if (!started) {
-                    this.handleVisibility.setActiveVisibleHandle(null);
-                    finishDragSession(this.view);
-                    this.flushDragPerfSession('drag_start_failed');
-                    this.emitDragLifecycle(buildCancelledLifecycleEvent({
-                        sourceBlock: sourceBlock ?? null,
-                        rejectReason: 'drag_start_failed',
-                        pointerType: 'mouse',
-                    }));
-                    this.emitDragLifecycle(buildIdleLifecycleEvent());
-                    return;
-                }
-                this.ensureDragPerfSession();
-                if (sourceBlock) {
-                    this.emitDragLifecycle(buildDragStartedLifecycleEvent(sourceBlock, 'mouse'));
-                }
-            },
-            onDragEnd: () => {
-                this.handleVisibility.setActiveVisibleHandle(null);
-                finishDragSession(this.view);
-                this.flushDragPerfSession('drag_end');
-                this.refreshDecorationsAndEmbeds();
-                this.emitDragLifecycle(buildIdleLifecycleEvent());
-            },
+    startNativeDragFromHandle(handle: HTMLElement, e: DragEvent): void {
+        this.getSemanticRefreshScheduler().ensureSemanticReadyForInteraction();
+        const resolveCurrentBlock = () => this.resolveInteractionBlockInfo({
+            handle,
+            clientX: e.clientX,
+            clientY: e.clientY,
         });
-        handle.addEventListener('pointerdown', (e: PointerEvent) => {
-            this.getSemanticRefreshScheduler().ensureSemanticReadyForInteraction();
-            const resolveCurrentBlock = () => this.resolveInteractionBlockInfo({
-                handle,
-                clientX: e.clientX,
-                clientY: e.clientY,
-                fallback: getBlockInfo,
-            });
+        const sourceBlock = resolveCurrentBlock();
+        if (!sourceBlock) {
             this.handleVisibility.setActiveVisibleHandle(handle);
-            this.getDragEventHandler().startPointerDragFromHandle(handle, e, () => resolveCurrentBlock());
-        });
-        return handle;
+        }
+        const started = startDragFromHandle(e, this.view, () => resolveCurrentBlock(), handle);
+        if (!started) {
+            this.handleVisibility.setActiveVisibleHandle(null);
+            finishDragSession(this.view);
+            this.flushDragPerfSession('drag_start_failed');
+            this.emitDragLifecycle(buildCancelledLifecycleEvent({
+                sourceBlock: sourceBlock ?? null,
+                rejectReason: 'drag_start_failed',
+                pointerType: 'mouse',
+            }));
+            this.emitDragLifecycle(buildIdleLifecycleEvent());
+            return;
+        }
+        this.ensureDragPerfSession();
+        if (sourceBlock) {
+            this.emitDragLifecycle(buildDragStartedLifecycleEvent(sourceBlock, 'mouse'));
+        }
+    }
+
+    finishNativeDragFromHandle(): void {
+        this.handleVisibility.setActiveVisibleHandle(null);
+        finishDragSession(this.view);
+        this.flushDragPerfSession('drag_end');
+        this.refreshDecorationsAndEmbeds();
+        this.emitDragLifecycle(buildIdleLifecycleEvent());
     }
 
     performDropAtPoint(sourceBlock: BlockInfo, clientX: number, clientY: number, pointerType: string | null): void {

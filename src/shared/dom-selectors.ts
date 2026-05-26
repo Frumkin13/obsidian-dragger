@@ -32,7 +32,6 @@ export const LINE_HANDLE_CLASS = 'dnd-line-handle';
 export const EMBED_HANDLE_CLASS = 'dnd-embed-handle';
 export const HANDLE_GUTTER_CLASS = 'cm-dnd-handle-gutter';
 export const HANDLE_GUTTER_MARKER_CLASS = 'dnd-handle-gutter-marker';
-export const HANDLE_GUTTER_PROBE_CLASS = 'dnd-handle-gutter-probe';
 export const DROP_INDICATOR_CLASS = 'dnd-drop-indicator';
 export const DROP_HIGHLIGHT_CLASS = 'dnd-drop-highlight';
 export const DRAG_GHOST_CLASS = 'dnd-drag-ghost';

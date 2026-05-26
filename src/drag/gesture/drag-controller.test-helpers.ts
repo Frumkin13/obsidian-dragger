@@ -142,10 +142,6 @@ export function appendHandleForBlockStart(
             configurable: true,
             value: () => createRect(8, blockStart * 20, 2, 20),
         });
-        const probe = document.createElement('span');
-        probe.className = 'dnd-handle-gutter-probe';
-        probe.setAttribute('data-line-number', String(lineNumber));
-        marker.appendChild(probe);
         gutter.appendChild(marker);
     }
     const handle = document.createElement('div');
@@ -174,10 +170,6 @@ export function appendHandleGutterMarker(
         configurable: true,
         value: () => createRect(8, resolveTop ? resolveTop() : ((lineNumber - 1) * 20), 2, 20),
     });
-    const probe = document.createElement('span');
-    probe.className = 'dnd-handle-gutter-probe';
-    probe.setAttribute('data-line-number', String(lineNumber));
-    marker.appendChild(probe);
     gutter.appendChild(marker);
     return marker;
 }

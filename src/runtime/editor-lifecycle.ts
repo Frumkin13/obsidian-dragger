@@ -1,7 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { prewarmFenceScan } from '../domain/markdown/fence-scanner';
 import { DragEventHandler } from '../drag/gesture/drag-controller';
-import { LineHandleManager } from '../drag/source/handle-manager';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import {
     GlobalPointerMoveClient,
@@ -11,7 +10,6 @@ import {
 
 export interface ViewLifecycleStartDeps {
     view: EditorView;
-    lineHandleManager: LineHandleManager;
     dragEventHandler: DragEventHandler;
     pointerMoveClient: GlobalPointerMoveClient;
     onSettingsUpdated: () => void;
@@ -22,11 +20,9 @@ export interface ViewLifecycleDestroyDeps {
     pointerMoveClient: GlobalPointerMoveClient;
     onSettingsUpdated: () => void;
     dragEventHandler: DragEventHandler;
-    lineHandleManager: LineHandleManager;
 }
 
 export function startViewLifecycle(deps: ViewLifecycleStartDeps): void {
-    deps.lineHandleManager.start();
     deps.dragEventHandler.attach();
     registerGlobalPointerMoveClient(deps.pointerMoveClient);
     window.addEventListener('dnd:settings-updated', deps.onSettingsUpdated);
@@ -38,7 +34,6 @@ export function destroyViewLifecycle(deps: ViewLifecycleDestroyDeps): void {
     unregisterGlobalPointerMoveClient(deps.pointerMoveClient);
     window.removeEventListener('dnd:settings-updated', deps.onSettingsUpdated);
     deps.dragEventHandler.destroy();
-    deps.lineHandleManager.destroy();
 }
 
 function scheduleFenceScanWarmup(view: EditorView): void {
@@ -52,4 +47,3 @@ function scheduleFenceScanWarmup(view: EditorView): void {
         window.setTimeout(warmupFenceScan, 100);
     }
 }
-
