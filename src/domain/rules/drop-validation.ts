@@ -1,4 +1,5 @@
 import { BlockInfo } from '../block/block-types';
+import { ListDropIntent } from '../../shared/types/protocol-types';
 import {
     InsertionRuleRejectReason,
     InsertionSlotContext,
@@ -32,9 +33,7 @@ export function validateInPlaceDrop(params: {
     getIndentUnitWidth: (sample: string) => number;
     slotContext?: InsertionSlotContext;
     lineMap?: LineMap;
-    listContextLineNumberOverride?: number;
-    listIndentDeltaOverride?: number;
-    listTargetIndentWidthOverride?: number;
+    listIntent?: ListDropIntent;
 }): InPlaceDropValidationResult {
     const {
         doc,
@@ -45,9 +44,7 @@ export function validateInPlaceDrop(params: {
         getIndentUnitWidth,
         slotContext,
         lineMap,
-        listContextLineNumberOverride,
-        listIndentDeltaOverride,
-        listTargetIndentWidthOverride,
+        listIntent,
     } = params;
 
     if (typeof slotContext === 'string') {
@@ -98,7 +95,7 @@ export function validateInPlaceDrop(params: {
         };
     }
 
-    const hasListIntent = listTargetIndentWidthOverride !== undefined || listIndentDeltaOverride !== undefined;
+    const hasListIntent = listIntent?.targetIndentWidth !== undefined || listIntent?.indentDelta !== undefined;
     if (!hasListIntent) {
         return {
             inSelfRange: true,
@@ -136,9 +133,7 @@ export function validateInPlaceDrop(params: {
         parseLineWithQuote,
         getIndentUnitWidth,
         getListContext,
-        listContextLineNumberOverride,
-        listIndentDeltaOverride,
-        listTargetIndentWidthOverride,
+        listIntent,
     });
     const targetIndentWidth = indentPlan.targetIndentWidth;
     const listContextLineNumber = indentPlan.listContextLineNumber;

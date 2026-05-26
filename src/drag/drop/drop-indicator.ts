@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../domain/block/block-types';
-import { DropTargetInfo } from '../../shared/types/protocol-types';
+import { DropPlan } from '../../shared/types/protocol-types';
 import { DROP_INDICATOR_CLASS, DROP_HIGHLIGHT_CLASS, HIDDEN_CLASS } from '../../shared/dom-selectors';
 
 type DropTargetResolver = (info: {
@@ -8,7 +8,7 @@ type DropTargetResolver = (info: {
     clientY: number;
     dragSource: BlockInfo | null;
     pointerType: string | null;
-}) => DropTargetInfo | null;
+}) => DropPlan | null;
 
 interface DropIndicatorManagerOptions {
     isDropHighlightEnabled?: () => boolean;
@@ -28,7 +28,7 @@ export class DropIndicatorManager {
     private pendingDragInfo: { x: number; y: number; dragSource: BlockInfo | null; pointerType: string | null } | null = null;
     private rafId: number | null = null;
     private lastEvaluatedInput: { x: number; y: number; dragSource: BlockInfo | null; pointerType: string | null } | null = null;
-    private lastTargetInfo: DropTargetInfo | null = null;
+    private lastTargetInfo: DropPlan | null = null;
 
     constructor(
         private readonly view: EditorView,
@@ -118,11 +118,11 @@ export class DropIndicatorManager {
         this.renderTargetInfo(targetInfo);
     }
 
-    private renderTargetInfo(targetInfo: DropTargetInfo): void {
+    private renderTargetInfo(dropPlan: DropPlan): void {
         this.hideOtherInstancesVisuals();
         const editorRect = this.view.dom.getBoundingClientRect();
-        const indicatorY = targetInfo.indicatorY;
-        const indicatorLeft = targetInfo.lineRect ? targetInfo.lineRect.left : editorRect.left + 35;
+        const indicatorY = dropPlan.preview.indicatorY;
+        const indicatorLeft = dropPlan.preview.lineRect ? dropPlan.preview.lineRect.left : editorRect.left + 35;
         const contentRect = this.view.contentDOM.getBoundingClientRect();
         const contentPaddingRight = parseFloat(getComputedStyle(this.view.contentDOM).paddingRight) || 0;
         const indicatorRight = contentRect.right - contentPaddingRight;
@@ -135,13 +135,13 @@ export class DropIndicatorManager {
             width: `${indicatorWidth}px`,
         });
 
-        if (targetInfo.highlightRect && this.options?.isDropHighlightEnabled?.() !== false) {
+        if (dropPlan.preview.highlightRect && this.options?.isDropHighlightEnabled?.() !== false) {
             this.highlightEl.classList.remove(HIDDEN_CLASS);
             this.highlightEl.setCssStyles({
-                top: `${targetInfo.highlightRect.top}px`,
-                left: `${targetInfo.highlightRect.left}px`,
-                width: `${targetInfo.highlightRect.width}px`,
-                height: `${targetInfo.highlightRect.height}px`,
+                top: `${dropPlan.preview.highlightRect.top}px`,
+                left: `${dropPlan.preview.highlightRect.left}px`,
+                width: `${dropPlan.preview.highlightRect.width}px`,
+                height: `${dropPlan.preview.highlightRect.height}px`,
             });
         } else {
             this.highlightEl.classList.add(HIDDEN_CLASS);

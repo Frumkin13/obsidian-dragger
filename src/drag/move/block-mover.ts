@@ -2,9 +2,8 @@ import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../domain/block/block-types';
 import { validateInPlaceDrop } from '../../domain/rules/drop-validation';
 import { getLineMap } from '../../domain/markdown/line-map';
-import { DocLikeWithRange } from '../../shared/types/protocol-types';
+import { DocLikeWithRange, DropPlan } from '../../shared/types/protocol-types';
 import { ListRenumberer } from './list-renumberer';
-import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
 import { moveBlockAcrossEditors } from './cross-editor-mover';
 import { DragDocumentRelation } from '../../shared/types/drag';
 import { BlockMoverDeps } from './block-mover-deps';
@@ -25,22 +24,14 @@ export class BlockMover {
 
     moveBlock(params: {
         sourceBlock: BlockInfo;
-        targetPos: number;
-        targetLineNumberOverride?: number;
-        listContextLineNumberOverride?: number;
-        listIndentDeltaOverride?: number;
-        listTargetIndentWidthOverride?: number;
+        dropPlan: DropPlan;
         sourceView?: EditorView;
         sourceDocumentRelation?: DragDocumentRelation;
         capturedBlockFoldStateOverride?: CapturedBlockFoldState | null;
     }): void {
         const {
             sourceBlock,
-            targetPos,
-            targetLineNumberOverride,
-            listContextLineNumberOverride,
-            listIndentDeltaOverride,
-            listTargetIndentWidthOverride,
+            dropPlan,
             sourceView,
             sourceDocumentRelation,
             capturedBlockFoldStateOverride,
@@ -56,14 +47,9 @@ export class BlockMover {
                 sourceView,
                 targetView: this.deps.view,
                 sourceBlock: normalizedSourceBlock,
-                targetPos,
-                targetLineNumberOverride,
-                listContextLineNumberOverride,
-                listIndentDeltaOverride,
-                listTargetIndentWidthOverride,
+                dropPlan,
                 capturedBlockFoldState,
                 deps: {
-                    getAdjustedTargetLocation: this.deps.getAdjustedTargetLocation,
                     resolveDropRuleAtInsertion: this.deps.resolveDropRuleAtInsertion,
                     parseLineWithQuote: this.deps.parseLineWithQuote,
                     getListContext: this.deps.getListContext,
@@ -80,8 +66,8 @@ export class BlockMover {
             ?? this.captureBlockFoldState(sourceEditorView, normalizedSourceBlock);
         if (compositeRanges.length > 1) {
             this.moveCompositeBlock({
-                ...params,
                 sourceBlock: normalizedSourceBlock,
+                dropPlan,
                 sourceView,
                 sourceDocumentRelation,
                 capturedBlockFoldState,
@@ -91,18 +77,7 @@ export class BlockMover {
 
         const view = this.deps.view;
         const doc = view.state.doc as unknown as DocLikeWithRange;
-        const targetLine = view.state.doc.lineAt(targetPos);
-
-        let targetLineNumber = targetLineNumberOverride ?? targetLine.number;
-
-        if (targetLineNumberOverride === undefined) {
-            const adjusted = this.deps.getAdjustedTargetLocation(targetLine.number);
-            if (adjusted.blockAdjusted) {
-                targetLineNumber = adjusted.lineNumber;
-            }
-        }
-
-        targetLineNumber = clampTargetLineNumber(doc.lines, targetLineNumber);
+        const targetLineNumber = this.resolveTargetLineNumber(doc, dropPlan);
         const lineMap = getLineMap(view.state);
         const containerRule = this.deps.resolveDropRuleAtInsertion(
             normalizedSourceBlock,
@@ -122,9 +97,7 @@ export class BlockMover {
             getIndentUnitWidth: this.deps.getIndentUnitWidth,
             slotContext: containerRule.slotContext,
             lineMap,
-            listContextLineNumberOverride,
-            listIndentDeltaOverride,
-            listTargetIndentWidthOverride,
+            listIntent: dropPlan.listIntent,
         });
         const allowInPlaceIndentChange = inPlaceValidation.allowInPlaceIndentChange;
         if (inPlaceValidation.inSelfRange && !allowInPlaceIndentChange) {
@@ -140,9 +113,7 @@ export class BlockMover {
             normalizedSourceBlock,
             targetLineNumber,
             sourceContent,
-            listContextLineNumberOverride,
-            listIndentDeltaOverride,
-            listTargetIndentWidthOverride
+            dropPlan.listIntent
         );
         const deleteFrom = segment.deleteFrom;
         const deleteTo = segment.deleteTo;
@@ -178,19 +149,14 @@ export class BlockMover {
 
     private moveCompositeBlock(params: {
         sourceBlock: BlockInfo;
-        targetPos: number;
-        targetLineNumberOverride?: number;
-        listContextLineNumberOverride?: number;
-        listIndentDeltaOverride?: number;
-        listTargetIndentWidthOverride?: number;
+        dropPlan: DropPlan;
         sourceView?: EditorView;
         sourceDocumentRelation?: DragDocumentRelation;
         capturedBlockFoldState?: CapturedBlockFoldState | null;
     }): void {
         const {
             sourceBlock,
-            targetPos,
-            targetLineNumberOverride,
+            dropPlan,
             sourceView,
             sourceDocumentRelation,
             capturedBlockFoldState,
@@ -206,11 +172,7 @@ export class BlockMover {
         if (normalizedRanges.length <= 1) {
             this.moveBlock({
                 sourceBlock,
-                targetPos,
-                targetLineNumberOverride: params.targetLineNumberOverride,
-                listContextLineNumberOverride: params.listContextLineNumberOverride,
-                listIndentDeltaOverride: params.listIndentDeltaOverride,
-                listTargetIndentWidthOverride: params.listTargetIndentWidthOverride,
+                dropPlan,
                 sourceView,
                 sourceDocumentRelation,
                 capturedBlockFoldStateOverride: capturedBlockFoldState,
@@ -218,16 +180,7 @@ export class BlockMover {
             return;
         }
 
-        const targetLine = view.state.doc.lineAt(targetPos);
-        let targetLineNumber = targetLineNumberOverride ?? targetLine.number;
-        if (targetLineNumberOverride === undefined) {
-            const adjusted = this.deps.getAdjustedTargetLocation(targetLine.number);
-            if (adjusted.blockAdjusted) {
-                targetLineNumber = adjusted.lineNumber;
-            }
-        }
-        targetLineNumber = clampTargetLineNumber(doc.lines, targetLineNumber);
-
+        const targetLineNumber = this.resolveTargetLineNumber(doc, dropPlan);
         const lineMap = getLineMap(view.state);
         const containerRule = this.deps.resolveDropRuleAtInsertion(
             sourceBlock,
@@ -246,9 +199,7 @@ export class BlockMover {
             sourceBlock,
             targetLineNumber,
             sourceBlock.content,
-            params.listContextLineNumberOverride,
-            params.listIndentDeltaOverride,
-            params.listTargetIndentWidthOverride
+            dropPlan.listIntent
         );
         if (!insertText.length) return;
         const totalDeletedLength = payload.segments.reduce(
@@ -281,6 +232,10 @@ export class BlockMover {
             this.listRenumberer.renumberOrderedListAround(lineNumber);
         }
         this.deps.blockFoldState?.restore(view, targetStartLineNumber, capturedBlockFoldState ?? null);
+    }
+
+    private resolveTargetLineNumber(doc: DocLikeWithRange, dropPlan: DropPlan): number {
+        return Math.max(1, Math.min(doc.lines + 1, dropPlan.targetLineNumber));
     }
 
     private isTargetInsideCompositeRanges(

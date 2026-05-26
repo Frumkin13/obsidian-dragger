@@ -1,12 +1,12 @@
 import { EditorView } from '@codemirror/view';
 import { getPreviousNonEmptyLineNumber } from '../domain/rules/container-policy';
-import { DropTargetCalculatorDeps, DropValidationResult } from '../drag/drop/drop-planner';
+import { DropPlannerDeps, DropValidationResult } from '../drag/drop/drop-planner';
 import { DragDropServiceContainer } from './drag-service-container';
 import { BlockInfo } from '../domain/block/block-types';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
-import { ListDropTargetCalculator } from '../drag/drop/list-drop-planner';
+import { ListDropPlanner } from '../drag/drop/list-drop-planner';
 
-export function createDropTargetCalculatorDeps(params: {
+export function createDropPlannerDeps(params: {
     view: EditorView;
     services: DragDropServiceContainer;
     dragPerfManager: DragPerfSessionManager;
@@ -15,8 +15,8 @@ export function createDropTargetCalculatorDeps(params: {
         pointerType: string | null;
         validation: DropValidationResult;
     }) => void;
-}): DropTargetCalculatorDeps {
-    const sharedDeps = params.services.createDropTargetCalculatorDeps({
+}): DropPlannerDeps {
+    const sharedDeps = params.services.createDropPlannerDeps({
         recordPerfDuration: (key, durationMs) => {
             params.dragPerfManager.recordDuration(key, durationMs);
         },
@@ -27,7 +27,7 @@ export function createDropTargetCalculatorDeps(params: {
     });
     return {
         ...sharedDeps,
-        listDropTargetCalculator: new ListDropTargetCalculator(params.view, {
+        listDropPlanner: new ListDropPlanner(params.view, {
             parseLineWithQuote: sharedDeps.parseLineWithQuote,
             getPreviousNonEmptyLineNumber,
             getIndentUnitWidthForDoc: sharedDeps.getIndentUnitWidthForDoc,

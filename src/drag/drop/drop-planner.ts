@@ -4,7 +4,7 @@ import { validateInPlaceDrop } from '../../domain/rules/drop-validation';
 import { InsertionRuleRejectReason, InsertionSlotContext } from '../../domain/rules/insertion-rules';
 import { getLineMap, LineMap } from '../../domain/markdown/line-map';
 import { getCoordsAtPos } from './rect-calculator';
-import { DocLike, DropTargetInfo, ListContext, ParsedLine } from '../../shared/types/protocol-types';
+import { DocLike, DropPlan, ListContext, ParsedLine } from '../../shared/types/protocol-types';
 import { findEmbedElementAtPoint } from '../../platform/dom/embed-probe';
 import { resolveLineNumberAtCoords } from '../../platform/dom/element-probe';
 import { isPointInsideRenderedTableCell } from '../../platform/dom/table-guard';
@@ -12,8 +12,7 @@ import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
 import { getRenderedMainLineNumberAtPoint } from '../../platform/dom/line-hit';
 
 import { DragSourceScope } from '../../shared/types/drag';
-import { DropListIntent, DropPlan } from './drop-plan';
-import { ListDropTargetCalculatorPort } from './list-drop-planner-port';
+import { ListDropPlannerPort } from './list-drop-planner-port';
 
 type PerfDurationKey =
     | 'resolve_total'
@@ -23,7 +22,7 @@ type PerfDurationKey =
     | 'in_place'
     | 'geometry';
 
-export interface DropTargetCalculatorDeps {
+export interface DropPlannerDeps {
     parseLineWithQuote: (line: string) => ParsedLine;
     getAdjustedTargetLocation: (
         lineNumber: number,
@@ -48,7 +47,7 @@ export interface DropTargetCalculatorDeps {
         startLineNumber: number,
         endLineNumber: number
     ) => { top: number; left: number; width: number; height: number } | undefined;
-    listDropTargetCalculator: ListDropTargetCalculatorPort;
+    listDropPlanner: ListDropPlannerPort;
     onDragTargetEvaluated?: (info: {
         sourceBlock: BlockInfo | null;
         pointerType: string | null;
@@ -78,20 +77,13 @@ export type DropRejectReason =
 export type DropValidationResult = {
     allowed: boolean;
     reason?: DropRejectReason;
-    targetLineNumber?: number;
-    listContextLineNumber?: number;
-    listIndentDelta?: number;
-    listTargetIndentWidth?: number;
-    indicatorY?: number;
-    lineRect?: { left: number; width: number };
-    highlightRect?: { top: number; left: number; width: number; height: number };
     plan?: DropPlan;
 };
 
-export type DropTargetCalculatorSharedDeps = Omit<DropTargetCalculatorDeps, 'listDropTargetCalculator'>;
+export type DropPlannerSharedDeps = Omit<DropPlannerDeps, 'listDropPlanner'>;
 
-export class DropTargetCalculator {
-    private readonly listDropTargetCalculator: ListDropTargetCalculatorPort;
+export class DropPlanner {
+    private readonly listDropPlanner: ListDropPlannerPort;
     private lastResolvedCache: {
         state: unknown;
         key: string;
@@ -100,23 +92,20 @@ export class DropTargetCalculator {
 
     constructor(
         private readonly view: EditorView,
-        private readonly deps: DropTargetCalculatorDeps
+        private readonly deps: DropPlannerDeps
     ) {
-        this.listDropTargetCalculator = this.deps.listDropTargetCalculator;
+        this.listDropPlanner = this.deps.listDropPlanner;
     }
 
-    getDropTargetInfo(info: {
+    getDropPlan(info: {
         clientX: number;
         clientY: number;
         dragSource?: BlockInfo | null;
         pointerType?: string | null;
         sourceScope?: DragSourceScope;
-    }): DropTargetInfo | null {
+    }): DropPlan | null {
         const validated = this.resolveValidatedDropTarget(info);
-        if (!validated.allowed || typeof validated.targetLineNumber !== 'number' || typeof validated.indicatorY !== 'number') {
-            return null;
-        }
-        return this.toDropTargetInfo(validated.plan);
+        return validated.allowed ? validated.plan ?? null : null;
     }
 
     resolveValidatedDropTarget(info: {
@@ -247,7 +236,7 @@ export class DropTargetCalculator {
         }
 
         const listStartedAt = this.now();
-        const listTarget = this.listDropTargetCalculator.computeListTarget({
+        const listTarget = this.listDropPlanner.computeListTarget({
             targetLineNumber: vertical.targetLineNumber,
             lineNumber: vertical.line.number,
             forcedLineNumber: vertical.forcedLineNumber,
@@ -264,9 +253,7 @@ export class DropTargetCalculator {
             sourceScope,
             targetLineNumber: vertical.targetLineNumber,
             slotContext: containerRule.slotContext,
-            listContextLineNumberOverride: listTarget.listContextLineNumber,
-            listIndentDeltaOverride: listTarget.listIndentDelta,
-            listTargetIndentWidthOverride: listTarget.listTargetIndentWidth,
+            listIntent: listTarget.listIntent,
             lineMap,
         });
         if (inPlaceRejectReason) {
@@ -286,8 +273,8 @@ export class DropTargetCalculator {
         const lineRectSourceLineNumber = listTarget.lineRectSourceLineNumber
             ?? vertical.lineRectSourceLineNumber;
         let lineRect = this.deps.getLineRect(lineRectSourceLineNumber);
-        if (typeof listTarget.listTargetIndentWidth === 'number') {
-            const indentPos = this.deps.getLineIndentPosByWidth(lineRectSourceLineNumber, listTarget.listTargetIndentWidth);
+        if (typeof listTarget.listIntent?.targetIndentWidth === 'number') {
+            const indentPos = this.deps.getLineIndentPosByWidth(lineRectSourceLineNumber, listTarget.listIntent.targetIndentWidth);
             if (indentPos !== null) {
                 const start = getCoordsAtPos(this.view, indentPos);
                 const end = getCoordsAtPos(this.view, this.view.state.doc.line(lineRectSourceLineNumber).to);
@@ -302,11 +289,7 @@ export class DropTargetCalculator {
 
         return this.buildAllowedResult({
             targetLineNumber: vertical.targetLineNumber,
-            listIntent: this.toDropListIntent({
-                listContextLineNumber: listTarget.listContextLineNumber,
-                listIndentDelta: listTarget.listIndentDelta,
-                listTargetIndentWidth: listTarget.listTargetIndentWidth,
-            }),
+            listIntent: listTarget.listIntent,
             preview: {
                 indicatorY,
                 lineRect,
@@ -318,46 +301,7 @@ export class DropTargetCalculator {
     private buildAllowedResult(plan: DropPlan): DropValidationResult {
         return {
             allowed: true,
-            targetLineNumber: plan.targetLineNumber,
-            listContextLineNumber: plan.listIntent?.contextLineNumber,
-            listIndentDelta: plan.listIntent?.indentDelta,
-            listTargetIndentWidth: plan.listIntent?.targetIndentWidth,
-            indicatorY: plan.preview.indicatorY,
-            lineRect: plan.preview.lineRect,
-            highlightRect: plan.preview.highlightRect,
             plan,
-        };
-    }
-
-    private toDropListIntent(info: {
-        listContextLineNumber?: number;
-        listIndentDelta?: number;
-        listTargetIndentWidth?: number;
-    }): DropListIntent | undefined {
-        if (
-            info.listContextLineNumber === undefined
-            && info.listIndentDelta === undefined
-            && info.listTargetIndentWidth === undefined
-        ) {
-            return undefined;
-        }
-        return {
-            contextLineNumber: info.listContextLineNumber,
-            indentDelta: info.listIndentDelta,
-            targetIndentWidth: info.listTargetIndentWidth,
-        };
-    }
-
-    private toDropTargetInfo(plan: DropPlan | undefined): DropTargetInfo | null {
-        if (!plan) return null;
-        return {
-            lineNumber: plan.targetLineNumber,
-            indicatorY: plan.preview.indicatorY,
-            listContextLineNumber: plan.listIntent?.contextLineNumber,
-            listIndentDelta: plan.listIntent?.indentDelta,
-            listTargetIndentWidth: plan.listIntent?.targetIndentWidth,
-            lineRect: plan.preview.lineRect,
-            highlightRect: plan.preview.highlightRect,
         };
     }
 
@@ -392,9 +336,7 @@ export class DropTargetCalculator {
         targetLineNumber: number;
         slotContext: InsertionSlotContext | null;
         lineMap: LineMap;
-        listContextLineNumberOverride?: number;
-        listIndentDeltaOverride?: number;
-        listTargetIndentWidthOverride?: number;
+        listIntent?: DropPlan['listIntent'];
     }): DropRejectReason | null {
         const {
             dragSource,
@@ -402,9 +344,7 @@ export class DropTargetCalculator {
             targetLineNumber,
             slotContext,
             lineMap,
-            listContextLineNumberOverride,
-            listIndentDeltaOverride,
-            listTargetIndentWidthOverride,
+            listIntent,
         } = params;
 
         if (!dragSource || sourceScope === 'cross_editor') return null;
@@ -417,9 +357,7 @@ export class DropTargetCalculator {
             getListContext: this.deps.getListContext,
             getIndentUnitWidth: this.deps.getIndentUnitWidth,
             slotContext: slotContext ?? undefined,
-            listContextLineNumberOverride,
-            listIndentDeltaOverride,
-            listTargetIndentWidthOverride,
+            listIntent,
             lineMap,
         });
         this.deps.recordPerfDuration?.('in_place', this.now() - inPlaceStartedAt);
@@ -451,7 +389,7 @@ export class DropTargetCalculator {
 
         const line = this.view.state.doc.line(lineNumber);
         const allowListChildIntent = !!dragSource && dragSource.type === BlockType.ListItem;
-        const lineBoundsForSnap = this.listDropTargetCalculator.getListMarkerBounds(line.number);
+        const lineBoundsForSnap = this.listDropPlanner.getListMarkerBounds(line.number);
         const lineParsedForSnap = this.deps.parseLineWithQuote(line.text);
         const childIntentOnLine = allowListChildIntent
             && !!lineBoundsForSnap

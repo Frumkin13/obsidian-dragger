@@ -3,7 +3,7 @@ import type { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockType } from '../../domain/block/block-types';
 import { parseLineWithQuote } from '../../domain/markdown/line-parser';
-import { ListDropTargetCalculator } from './list-drop-planner';
+import { ListDropPlanner } from './list-drop-planner';
 
 function createViewStub(docText: string): EditorView {
     const state = EditorState.create({ doc: docText });
@@ -24,11 +24,11 @@ function createViewStub(docText: string): EditorView {
     return viewStub as unknown as EditorView;
 }
 
-describe('ListDropTargetCalculator', () => {
+describe('ListDropPlanner', () => {
     it('calls getIndentUnitWidthForDoc once per target computation', () => {
         const view = createViewStub('- root\n- sibling');
         const getIndentUnitWidthForDoc = vi.fn(() => 2);
-        const calculator = new ListDropTargetCalculator(view, {
+        const calculator = new ListDropPlanner(view, {
             parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
             getPreviousNonEmptyLineNumber: (_doc, lineNumber) => (lineNumber >= 1 ? lineNumber : null),
             getIndentUnitWidthForDoc,
@@ -52,7 +52,7 @@ describe('ListDropTargetCalculator', () => {
             clientX: 20,
         });
 
-        expect(result.listContextLineNumber).toBeTypeOf('number');
+        expect(result.listIntent?.contextLineNumber).toBeTypeOf('number');
         expect(getIndentUnitWidthForDoc).toHaveBeenCalledTimes(1);
     });
 

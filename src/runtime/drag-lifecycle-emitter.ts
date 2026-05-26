@@ -1,21 +1,18 @@
-import { DragLifecycleEvent, DragListIntent } from '../shared/types/drag';
+import { DragLifecycleEvent } from '../shared/types/drag';
+import { ListDropIntent } from '../shared/types/protocol-types';
 
-export function buildListIntent(raw: {
-    listContextLineNumber?: number;
-    listIndentDelta?: number;
-    listTargetIndentWidth?: number;
-}): DragListIntent | null {
+export function buildListIntent(intent?: ListDropIntent): ListDropIntent | null {
     if (
-        typeof raw.listContextLineNumber !== 'number'
-        && typeof raw.listIndentDelta !== 'number'
-        && typeof raw.listTargetIndentWidth !== 'number'
+        typeof intent?.contextLineNumber !== 'number'
+        && typeof intent?.indentDelta !== 'number'
+        && typeof intent?.targetIndentWidth !== 'number'
     ) {
         return null;
     }
     return {
-        listContextLineNumber: raw.listContextLineNumber,
-        listIndentDelta: raw.listIndentDelta,
-        listTargetIndentWidth: raw.listTargetIndentWidth,
+        contextLineNumber: intent?.contextLineNumber,
+        indentDelta: intent?.indentDelta,
+        targetIndentWidth: intent?.targetIndentWidth,
     };
 }
 

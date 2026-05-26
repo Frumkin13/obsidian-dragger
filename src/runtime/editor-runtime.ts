@@ -8,7 +8,7 @@ import { getActiveDragSourceBlock, getActiveDragSourceView } from '../drag/gestu
 import { isPosInsideRenderedTableCell } from '../platform/dom/table-guard';
 import { BlockMover } from '../drag/move/block-mover';
 import { DropIndicatorManager } from '../drag/drop/drop-indicator';
-import { DropTargetCalculator } from '../drag/drop/drop-planner';
+import { DropPlanner } from '../drag/drop/drop-planner';
 import { DragEventHandler } from '../drag/gesture/drag-controller';
 import {
     beginDragSession,
@@ -20,7 +20,7 @@ import { HandleVisibilityController } from '../drag/source/handle-visibility-con
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
 import { DragDropServiceContainer } from './drag-service-container';
-import { DragLifecycleEmitter } from './drag-lifecycle-emitter';
+import { DragLifecycleEmitter, buildListIntent } from './drag-lifecycle-emitter';
 import { DragInteractionOrchestrator } from '../drag/gesture/interaction-orchestrator';
 import { DragLifecycleEvent, DragSourceScope } from '../shared/types/drag';
 import { DND_DRAG_SOURCE_HIGHLIGHT_ATTR, DND_DRAG_SOURCE_STYLE_ATTR } from '../shared/dom-attrs';
@@ -33,7 +33,7 @@ import {
     syncDragSourceHighlightAttr,
     syncDragSourceStyleAttr,
 } from './editor-dom-sync';
-import { createDropTargetCalculatorDeps } from './view-runtime';
+import { createDropPlannerDeps } from './view-runtime';
 import { applyViewUpdate } from './editor-update';
 import { destroyViewLifecycle, startViewLifecycle } from './editor-lifecycle';
 import { placeHandleGutterHost, reconfigureHandleGutterExtension } from './handle-gutter-extension';
@@ -48,7 +48,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         private readonly services: DragDropServiceContainer;
         private readonly dropIndicator: DropIndicatorManager;
         private readonly blockMover: BlockMover;
-        private readonly dropTargetCalculator: DropTargetCalculator;
+        private readonly dropPlanner: DropPlanner;
         private readonly lineHandleManager: LineHandleManager;
         private readonly dragEventHandler: DragEventHandler;
         private readonly handleVisibility: HandleVisibilityController;
@@ -77,7 +77,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 getVisibleHandleForBlockStart: (blockStart) => this.lineHandleManager.getVisibleHandleForBlockStart(blockStart),
             });
             this.dragPerfManager = new DragPerfSessionManager(this.view);
-            this.dropTargetCalculator = new DropTargetCalculator(this.view, createDropTargetCalculatorDeps({
+            this.dropPlanner = new DropPlanner(this.view, createDropPlannerDeps({
                 view: this.view,
                 services: this.services,
                 dragPerfManager: this.dragPerfManager,
@@ -86,15 +86,15 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                     this.orchestrator.emitDragLifecycle({
                         state: 'drag_active',
                         sourceBlock,
-                        targetLine: validation.targetLineNumber ?? null,
-                        listIntent: this.orchestrator.buildListIntentFromValidation(validation),
+                        targetLine: validation.plan?.targetLineNumber ?? null,
+                        listIntent: buildListIntent(validation.plan?.listIntent),
                         rejectReason: validation.allowed ? null : (validation.reason ?? null),
                         pointerType: pointerType ?? null,
                     });
                 },
             }));
             this.dropIndicator = new DropIndicatorManager(view, (info) =>
-                this.dropTargetCalculator.getDropTargetInfo({
+                this.dropPlanner.getDropPlan({
                     clientX: info.clientX,
                     clientY: info.clientY,
                     dragSource: info.dragSource ?? getActiveDragSourceBlock(this.view) ?? null,
@@ -129,7 +129,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 view: this.view,
                 services: this.services,
                 blockMover: this.blockMover,
-                dropTargetCalculator: this.dropTargetCalculator,
+                dropPlanner: this.dropPlanner,
                 handleVisibility: this.handleVisibility,
                 dragPerfManager: this.dragPerfManager,
                 lifecycleEmitter: this.lifecycleEmitter,
@@ -219,7 +219,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 handleVisibility: this.handleVisibility,
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
                 reResolveActiveHandle: () => {
-                   // This is technically hard to satisfy without the pointer tracker, 
+                   // This is technically hard to satisfy without the pointer tracker,
                    // we can safely mock it or grab the center of current active handle.
                    const h = this.handleVisibility.getActiveHandle();
                    if (h) {

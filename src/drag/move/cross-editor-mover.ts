@@ -2,15 +2,13 @@ import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../domain/block/block-types';
 import { InsertionSlotContext } from '../../domain/rules/insertion-rules';
 import { getLineMap, LineMap } from '../../domain/markdown/line-map';
-import { DocLike, DocLikeWithRange, ListContext, ParsedLine } from '../../shared/types/protocol-types';
-import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
+import { DocLike, DocLikeWithRange, DropPlan, ListContext, ParsedLine } from '../../shared/types/protocol-types';
 import { captureSourcePayload } from './source-payload';
 import { resolveInsertionChange } from './document-change';
 import { ListRenumberer } from './list-renumberer';
 import { BlockFoldStateManager, CapturedBlockFoldState } from './block-fold-state';
 
 export interface CrossEditorMoveDeps {
-    getAdjustedTargetLocation: (lineNumber: number, options?: { clientY?: number }) => { lineNumber: number; blockAdjusted: boolean };
     resolveDropRuleAtInsertion: (
         sourceBlock: BlockInfo,
         targetLineNumber: number,
@@ -27,9 +25,7 @@ export interface CrossEditorMoveDeps {
         sourceBlock: BlockInfo,
         targetLineNumber: number,
         sourceContent: string,
-        listContextLineNumberOverride?: number,
-        listIndentDeltaOverride?: number,
-        listTargetIndentWidthOverride?: number
+        listIntent?: DropPlan['listIntent']
     ) => string;
     blockFoldState?: Pick<BlockFoldStateManager, 'restore'>;
 }
@@ -38,11 +34,7 @@ export type CrossEditorMoveParams = {
     sourceView: EditorView;
     targetView: EditorView;
     sourceBlock: BlockInfo;
-    targetPos: number;
-    targetLineNumberOverride?: number;
-    listContextLineNumberOverride?: number;
-    listIndentDeltaOverride?: number;
-    listTargetIndentWidthOverride?: number;
+    dropPlan: DropPlan;
     capturedBlockFoldState?: CapturedBlockFoldState | null;
     deps: CrossEditorMoveDeps;
 };
@@ -69,15 +61,13 @@ function moveSingleRangeAcrossEditors(params: CrossEditorMoveParams): void {
         sourceView,
         targetView,
         sourceBlock,
-        listContextLineNumberOverride,
-        listIndentDeltaOverride,
-        listTargetIndentWidthOverride,
+        dropPlan,
         capturedBlockFoldState,
         deps,
     } = params;
     const sourceDoc = sourceView.state.doc as unknown as DocLikeWithRange;
     const targetDoc = targetView.state.doc as unknown as DocLikeWithRange;
-    const targetLineNumber = resolveTargetLineNumber(params);
+    const targetLineNumber = resolveTargetLineNumber(targetDoc, dropPlan);
     const lineMap = getLineMap(targetView.state);
     const containerRule = deps.resolveDropRuleAtInsertion(sourceBlock, targetLineNumber, { lineMap });
     if (!containerRule.decision.allowDrop) {
@@ -92,9 +82,7 @@ function moveSingleRangeAcrossEditors(params: CrossEditorMoveParams): void {
         sourceBlock,
         targetLineNumber,
         payload.content,
-        listContextLineNumberOverride,
-        listIndentDeltaOverride,
-        listTargetIndentWidthOverride
+        dropPlan.listIntent
     );
     const insertion = resolveInsertionChange(targetDoc, targetLineNumber, insertText, {
         remainingLengthAfterDelete: targetDoc.length,
@@ -125,6 +113,7 @@ function moveCompositeAcrossEditors(params: CrossEditorMoveParams): void {
         sourceView,
         targetView,
         sourceBlock,
+        dropPlan,
         capturedBlockFoldState,
         deps,
     } = params;
@@ -136,7 +125,7 @@ function moveCompositeAcrossEditors(params: CrossEditorMoveParams): void {
         return;
     }
 
-    const targetLineNumber = resolveTargetLineNumber(params);
+    const targetLineNumber = resolveTargetLineNumber(targetDoc, dropPlan);
     const lineMap = getLineMap(targetView.state);
     const containerRule = deps.resolveDropRuleAtInsertion(sourceBlock, targetLineNumber, { lineMap });
     if (!containerRule.decision.allowDrop) {
@@ -148,9 +137,7 @@ function moveCompositeAcrossEditors(params: CrossEditorMoveParams): void {
         sourceBlock,
         targetLineNumber,
         sourceBlock.content,
-        params.listContextLineNumberOverride,
-        params.listIndentDeltaOverride,
-        params.listTargetIndentWidthOverride
+        dropPlan.listIntent
     );
     if (!insertText.length) {
         return;
@@ -182,25 +169,8 @@ function moveCompositeAcrossEditors(params: CrossEditorMoveParams): void {
     });
 }
 
-function resolveTargetLineNumber(params: CrossEditorMoveParams): number {
-    const {
-        targetView,
-        targetPos,
-        targetLineNumberOverride,
-        deps,
-    } = params;
-    const targetLine = targetView.state.doc.lineAt(targetPos);
-    let targetLineNumber = targetLineNumberOverride ?? targetLine.number;
-
-    if (targetLineNumberOverride === undefined) {
-        const adjusted = deps.getAdjustedTargetLocation(targetLine.number);
-        if (adjusted.blockAdjusted) {
-            targetLineNumber = adjusted.lineNumber;
-        }
-    }
-
-    const targetDoc = targetView.state.doc as unknown as DocLikeWithRange;
-    return clampTargetLineNumber(targetDoc.lines, targetLineNumber);
+function resolveTargetLineNumber(doc: DocLikeWithRange, dropPlan: DropPlan): number {
+    return Math.max(1, Math.min(doc.lines + 1, dropPlan.targetLineNumber));
 }
 
 function finalizeMove(params: {

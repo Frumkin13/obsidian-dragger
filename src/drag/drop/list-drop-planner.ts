@@ -9,9 +9,9 @@ import {
 import { getCoordsAtPos } from './rect-calculator';
 import { DocLike, ParsedLine } from '../../shared/types/protocol-types';
 import { DragSourceScope } from '../../shared/types/drag';
-import { ListDropTargetInfo } from './list-drop-planner-port';
+import { ListDropPlanContribution } from './list-drop-planner-port';
 
-export interface ListDropTargetCalculatorDeps {
+export interface ListDropPlannerDeps {
     parseLineWithQuote: (line: string) => ParsedLine;
     getPreviousNonEmptyLineNumber: (doc: DocLike, lineNumber: number) => number | null;
     getIndentUnitWidthForDoc: (doc: DocLike) => number;
@@ -37,10 +37,10 @@ type ListCalcContext = {
     indentUnit: number;
 };
 
-export class ListDropTargetCalculator {
+export class ListDropPlanner {
     constructor(
         private readonly view: EditorView,
-        private readonly deps: ListDropTargetCalculatorDeps
+        private readonly deps: ListDropPlannerDeps
     ) {}
 
     getListMarkerBounds(
@@ -92,7 +92,7 @@ export class ListDropTargetCalculator {
         sourceScope?: DragSourceScope;
         clientX: number;
         lineMap?: LineMap;
-    }): ListDropTargetInfo {
+    }): ListDropPlanContribution {
         const {
             targetLineNumber,
             lineNumber,
@@ -105,7 +105,7 @@ export class ListDropTargetCalculator {
         } = params;
         if (!dragSource || dragSource.type !== BlockType.ListItem) return {};
 
-        const finalize = (result: ListDropTargetInfo): ListDropTargetInfo => {
+        const finalize = (result: ListDropPlanContribution): ListDropPlanContribution => {
             return result;
         };
 
@@ -141,9 +141,12 @@ export class ListDropTargetCalculator {
         const dropTarget = this.getListDropTarget(baseLineNumber, clientX, allowChild, context);
         if (!dropTarget) return finalize({});
 
-        const listContextLineNumber = dropTarget.lineNumber;
-        const listIndentDelta = dropTarget.mode === 'child' ? 1 : 0;
-        let cappedIndentWidth = dropTarget.indentWidth;
+        const listIntent = {
+            contextLineNumber: dropTarget.lineNumber,
+            indentDelta: dropTarget.mode === 'child' ? 1 : 0,
+            targetIndentWidth: dropTarget.indentWidth,
+        };
+        let cappedIndentWidth = listIntent.targetIndentWidth;
 
         const prevIndent = this.getListIndentWidthAtLine(doc, baseLineNumber, lineMap, memo);
         if (typeof prevIndent === 'number') {
@@ -164,17 +167,15 @@ export class ListDropTargetCalculator {
             }
         }
 
-        const listTargetIndentWidth = cappedIndentWidth;
+        listIntent.targetIndentWidth = cappedIndentWidth;
         const highlightInfo = this.computeHighlightRectForList({
             targetLineNumber,
-            listTargetIndentWidth,
+            listTargetIndentWidth: listIntent.targetIndentWidth,
             context,
         });
 
         return finalize({
-            listContextLineNumber,
-            listIndentDelta,
-            listTargetIndentWidth,
+            listIntent,
             highlightRect: highlightInfo.highlightRect,
             lineRectSourceLineNumber: highlightInfo.lineRectSourceLineNumber,
         });

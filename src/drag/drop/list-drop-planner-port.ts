@@ -1,15 +1,14 @@
 import { BlockInfo } from '../../domain/block/block-types';
 import { LineMap } from '../../domain/markdown/line-map';
+import { ListDropIntent } from '../../shared/types/protocol-types';
 
-export type ListDropTargetInfo = {
-    listContextLineNumber?: number;
-    listIndentDelta?: number;
-    listTargetIndentWidth?: number;
+export type ListDropPlanContribution = {
+    listIntent?: ListDropIntent;
     highlightRect?: { top: number; left: number; width: number; height: number };
     lineRectSourceLineNumber?: number;
 };
 
-export interface ListDropTargetCalculatorPort {
+export interface ListDropPlannerPort {
     getListMarkerBounds(
         lineNumber: number,
         options?: { memo?: unknown; lineMap?: LineMap }
@@ -23,6 +22,6 @@ export interface ListDropTargetCalculatorPort {
         sourceScope?: 'same_editor' | 'cross_editor';
         clientX: number;
         lineMap?: LineMap;
-    }): ListDropTargetInfo;
+    }): ListDropPlanContribution;
 }
 

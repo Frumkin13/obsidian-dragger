@@ -1,4 +1,4 @@
-import { DocLike, ListContext, ListContextValue, MarkerType, ParsedLine } from '../../shared/types/protocol-types';
+import { DocLike, ListContext, ListContextValue, ListDropIntent, MarkerType, ParsedLine } from '../../shared/types/protocol-types';
 import {
     buildIndentStringFromSample as buildIndentStringFromIndentSample,
     getIndentUnitWidth as getIndentUnitWidthFromIndentSample,
@@ -142,9 +142,7 @@ export function computeListIndentPlan(params: {
     parseLineWithQuote: (line: string) => ParsedLine;
     getIndentUnitWidth: (sample: string) => number;
     getListContext?: (doc: DocLike, lineNumber: number) => ListContext;
-    listContextLineNumberOverride?: number;
-    listIndentDeltaOverride?: number;
-    listTargetIndentWidthOverride?: number;
+    listIntent?: ListDropIntent;
 }): ListIndentPlan {
     const {
         doc,
@@ -153,22 +151,20 @@ export function computeListIndentPlan(params: {
         parseLineWithQuote,
         getIndentUnitWidth: getIndentUnitWidthFn,
         getListContext: getListContextFn,
-        listContextLineNumberOverride,
-        listIndentDeltaOverride,
-        listTargetIndentWidthOverride,
+        listIntent,
     } = params;
 
-    const listContextLineNumber = listContextLineNumberOverride ?? targetLineNumber;
+    const listContextLineNumber = listIntent?.contextLineNumber ?? targetLineNumber;
     const targetContext = getListContextFn
         ? getListContextFn(doc, listContextLineNumber)
         : getListContextNearLine(doc, listContextLineNumber, parseLineWithQuote);
     const indentSample = targetContext ? targetContext.indentRaw : sourceBase.indentRaw;
     const indentUnitWidth = getIndentUnitWidthFn(indentSample || sourceBase.indentRaw);
     const indentDeltaBase = (targetContext ? targetContext.indentWidth : 0) - sourceBase.indentWidth;
-    let indentDelta = indentDeltaBase + ((listIndentDeltaOverride ?? 0) * indentUnitWidth);
+    let indentDelta = indentDeltaBase + ((listIntent?.indentDelta ?? 0) * indentUnitWidth);
 
-    if (typeof listTargetIndentWidthOverride === 'number') {
-        indentDelta = listTargetIndentWidthOverride - sourceBase.indentWidth;
+    if (typeof listIntent?.targetIndentWidth === 'number') {
+        indentDelta = listIntent.targetIndentWidth - sourceBase.indentWidth;
     }
 
     return {
@@ -192,9 +188,7 @@ export function adjustListToTargetContext(params: {
     buildTargetMarker: (target: ListContextValue, source: { markerType: MarkerType; marker: string }) => string;
     markerConversionScope?: MarkerConversionScope;
     getListContext?: (doc: DocLike, lineNumber: number) => ListContext;
-    listContextLineNumberOverride?: number;
-    listIndentDeltaOverride?: number;
-    listTargetIndentWidthOverride?: number;
+    listIntent?: ListDropIntent;
 }): string {
     const {
         doc,
@@ -206,9 +200,7 @@ export function adjustListToTargetContext(params: {
         buildTargetMarker: buildTargetMarkerFn,
         markerConversionScope,
         getListContext: getListContextFn,
-        listContextLineNumberOverride,
-        listIndentDeltaOverride,
-        listTargetIndentWidthOverride,
+        listIntent,
     } = params;
 
     const lines = sourceContent.split('\n');
@@ -221,9 +213,7 @@ export function adjustListToTargetContext(params: {
         parseLineWithQuote,
         getIndentUnitWidth: getIndentUnitWidthFn,
         getListContext: getListContextFn,
-        listContextLineNumberOverride,
-        listIndentDeltaOverride,
-        listTargetIndentWidthOverride,
+        listIntent,
     });
     const markerScope = markerConversionScope ?? 'root';
 

@@ -5,7 +5,7 @@ import type { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
 import { parseLineWithQuote } from '../../domain/markdown/line-parser';
-import { DropTargetCalculator, type DropTargetCalculatorDeps } from './drop-planner';
+import { DropPlanner, type DropPlannerDeps } from './drop-planner';
 
 function originalElementFromPoint(this: void, x: number, y: number): Element | null {
     return document.elementFromPoint(x, y);
@@ -56,7 +56,7 @@ function mockElementFromPoint(el: Element | null): void {
     });
 }
 
-function createDeps(overrides?: Partial<DropTargetCalculatorDeps>): DropTargetCalculatorDeps {
+function createDeps(overrides?: Partial<DropPlannerDeps>): DropPlannerDeps {
     return {
         parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
         getAdjustedTargetLocation: (lineNumber) => ({ lineNumber, blockAdjusted: false }),
@@ -72,7 +72,7 @@ function createDeps(overrides?: Partial<DropTargetCalculatorDeps>): DropTargetCa
         getInsertionAnchorY: () => 12,
         getLineIndentPosByWidth: () => null,
         getBlockRect: () => ({ top: 0, left: 0, width: 100, height: 20 }),
-        listDropTargetCalculator: {
+        listDropPlanner: {
             computeListTarget: () => ({}),
             getListMarkerBounds: () => null,
         },
@@ -115,30 +115,30 @@ afterEach(() => {
     });
 });
 
-describe('DropTargetCalculator', () => {
+describe('DropPlanner', () => {
     it('computes a basic drop target from pointer position', () => {
         mockElementFromPoint(null);
         const view = createViewStub('plain line');
-        const calculator = new DropTargetCalculator(view, createDeps());
+        const calculator = new DropPlanner(view, createDeps());
 
-        const target = calculator.getDropTargetInfo({ clientX: 40, clientY: 5 });
+        const target = calculator.getDropPlan({ clientX: 40, clientY: 5 });
 
         expect(target).not.toBeNull();
-        expect(target?.lineNumber).toBe(1);
-        expect(target?.indicatorY).toBe(12);
+        expect(target?.targetLineNumber).toBe(1);
+        expect(target?.preview.indicatorY).toBe(12);
     });
 
     it('returns null when container policy blocks the drop', () => {
         mockElementFromPoint(null);
         const view = createViewStub('plain line');
-        const calculator = new DropTargetCalculator(view, createDeps({
+        const calculator = new DropPlanner(view, createDeps({
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: false },
             }),
         }));
 
-        const target = calculator.getDropTargetInfo({
+        const target = calculator.getDropPlan({
             clientX: 40,
             clientY: 5,
             dragSource: createSourceBlock(),
@@ -150,16 +150,16 @@ describe('DropTargetCalculator', () => {
     it('allows non-list blocks to target the line above a list item', () => {
         mockElementFromPoint(null);
         const view = createViewStub('- first\n- second');
-        const calculator = new DropTargetCalculator(view, createDeps());
+        const calculator = new DropPlanner(view, createDeps());
 
-        const target = calculator.getDropTargetInfo({
+        const target = calculator.getDropPlan({
             clientX: 40,
             clientY: 5,
             dragSource: createSourceBlock('outside', 5, 5),
         });
 
         expect(target).not.toBeNull();
-        expect(target?.lineNumber).toBe(1);
+        expect(target?.targetLineNumber).toBe(1);
     });
 
     it('rejects drop when pointer is inside rendered table cell', () => {
@@ -175,7 +175,7 @@ describe('DropTargetCalculator', () => {
         view.dom.appendChild(tableWidget);
         mockElementFromPoint(line);
 
-        const calculator = new DropTargetCalculator(view, createDeps());
+        const calculator = new DropPlanner(view, createDeps());
         const validation = calculator.resolveValidatedDropTarget({
             clientX: 20,
             clientY: 8,
@@ -189,7 +189,7 @@ describe('DropTargetCalculator', () => {
     it('rejects self-range drop before indicator rendering', () => {
         mockElementFromPoint(null);
         const view = createViewStub('- first\n- second');
-        const calculator = new DropTargetCalculator(view, createDeps());
+        const calculator = new DropPlanner(view, createDeps());
 
         const validation = calculator.resolveValidatedDropTarget({
             clientX: 40,
@@ -204,7 +204,7 @@ describe('DropTargetCalculator', () => {
     it('allows cross-editor scope to bypass self-range rejection', () => {
         mockElementFromPoint(null);
         const view = createViewStub('- first\n- second');
-        const calculator = new DropTargetCalculator(view, createDeps());
+        const calculator = new DropPlanner(view, createDeps());
 
         const validation = calculator.resolveValidatedDropTarget({
             clientX: 40,
@@ -220,7 +220,7 @@ describe('DropTargetCalculator', () => {
     it('returns no_anchor when insertion anchor cannot be resolved', () => {
         mockElementFromPoint(null);
         const view = createViewStub('plain line');
-        const calculator = new DropTargetCalculator(view, createDeps({
+        const calculator = new DropPlanner(view, createDeps({
             getInsertionAnchorY: () => null,
         }));
 
@@ -273,7 +273,7 @@ describe('DropTargetCalculator', () => {
             },
         } as unknown as EditorView;
 
-        const calculator = new DropTargetCalculator(view, createDeps());
+        const calculator = new DropPlanner(view, createDeps());
         const validation = calculator.resolveValidatedDropTarget({
             clientX: 120,
             clientY: 89,
@@ -281,7 +281,7 @@ describe('DropTargetCalculator', () => {
         });
 
         expect(validation.allowed).toBe(true);
-        expect(validation.targetLineNumber).toBe(4);
+        expect(validation.plan?.targetLineNumber).toBe(4);
     });
 
     it('reuses cached validation result for repeated identical input', () => {
@@ -291,7 +291,7 @@ describe('DropTargetCalculator', () => {
             decision: { allowDrop: true },
         }));
         const view = createViewStub('plain line');
-        const calculator = new DropTargetCalculator(view, createDeps({
+        const calculator = new DropPlanner(view, createDeps({
             resolveDropRuleAtInsertion,
         }));
 
@@ -365,7 +365,7 @@ describe('DropTargetCalculator', () => {
             coordsAtPos: () => createRect(100, 10, 120, 20),
         } as unknown as EditorView;
 
-        const calculator = new DropTargetCalculator(view, createDeps());
+        const calculator = new DropPlanner(view, createDeps());
         const validation = calculator.resolveValidatedDropTarget({
             clientX: 120,
             clientY: 55,
@@ -373,7 +373,7 @@ describe('DropTargetCalculator', () => {
         });
 
         expect(validation.allowed).toBe(true);
-        expect(validation.targetLineNumber).toBe(3);
+        expect(validation.plan?.targetLineNumber).toBe(3);
     });
 });
 

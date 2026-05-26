@@ -7,6 +7,10 @@ import { BlockMover } from './block-mover';
 import { LineParsingService } from '../../domain/markdown/line-parsing-service';
 import { parseLineWithQuote } from '../../domain/markdown/line-parser';
 
+function dropPlan(targetLineNumber: number, listIntent?: { contextLineNumber?: number; indentDelta?: number; targetIndentWidth?: number }) {
+    return { targetLineNumber, listIntent, preview: { indicatorY: 0 } };
+}
+
 function createBlockFromLine(doc: EditorState['doc'], lineNumber: number): BlockInfo {
     const line = doc.line(lineNumber);
     return {
@@ -116,7 +120,6 @@ describe('BlockMover', () => {
         const view = { state, dispatch } as unknown as EditorView;
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: false },
@@ -129,7 +132,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createBlockFromLine(state.doc, 1),
-            targetPos: state.doc.line(3).from,
+            dropPlan: dropPlan(3),
         });
 
         expect(dispatch).not.toHaveBeenCalled();
@@ -142,7 +145,6 @@ describe('BlockMover', () => {
         const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -155,7 +157,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createBlockFromLine(state.doc, 1),
-            targetPos: state.doc.line(3).from,
+            dropPlan: dropPlan(3),
         });
 
         expect(dispatch).toHaveBeenCalledTimes(1);
@@ -173,7 +175,6 @@ describe('BlockMover', () => {
         const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
         const mover = new BlockMover({
             view: targetView,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -186,8 +187,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createBlockFromLine(sourceInitialState.doc, 2),
-            targetPos: targetInitialState.doc.line(2).from,
-            targetLineNumberOverride: 2,
+            dropPlan: dropPlan(2),
             sourceView,
         });
 
@@ -205,7 +205,6 @@ describe('BlockMover', () => {
         };
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -219,8 +218,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createListBlock(initialState.doc, 1, 1),
-            targetPos: initialState.doc.line(3).from,
-            targetLineNumberOverride: 3,
+            dropPlan: dropPlan(3),
         });
 
         expect(blockFoldState.capture).toHaveBeenCalledTimes(1);
@@ -240,7 +238,6 @@ describe('BlockMover', () => {
         };
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -254,8 +251,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createHeadingBlock(initialState.doc, 1, 4),
-            targetPos: initialState.doc.line(6).from,
-            targetLineNumberOverride: 6,
+            dropPlan: dropPlan(6),
         });
 
         expect(blockFoldState.capture).toHaveBeenCalledTimes(1);
@@ -274,7 +270,6 @@ describe('BlockMover', () => {
         const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
         const mover = new BlockMover({
             view: targetView,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -303,8 +298,7 @@ describe('BlockMover', () => {
                     ],
                 },
             },
-            targetPos: targetInitialState.doc.line(2).from,
-            targetLineNumberOverride: 2,
+            dropPlan: dropPlan(2),
             sourceView,
         });
 
@@ -318,7 +312,6 @@ describe('BlockMover', () => {
         const { view, getState, dispatch } = createMutableView(initialState);
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -347,8 +340,7 @@ describe('BlockMover', () => {
                     ],
                 },
             },
-            targetPos: initialState.doc.line(1).from,
-            targetLineNumberOverride: 1,
+            dropPlan: dropPlan(1),
         });
 
         expect(dispatch).toHaveBeenCalledTimes(1);
@@ -361,7 +353,6 @@ describe('BlockMover', () => {
         const textMutationPolicy = createTextMutationPolicy(view);
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -390,10 +381,7 @@ describe('BlockMover', () => {
                     ],
                 },
             },
-            targetPos: initialState.doc.line(2).from,
-            targetLineNumberOverride: 2,
-            listContextLineNumberOverride: 1,
-            listTargetIndentWidthOverride: 2,
+            dropPlan: dropPlan(2, { contextLineNumber: 1, targetIndentWidth: 2 }),
         });
 
         expect(getState().doc.toString()).toBe('- parent\n  - a\n  - b\ntail\nmid\nend');
@@ -410,7 +398,6 @@ describe('BlockMover', () => {
         };
         const mover = new BlockMover({
             view: targetView,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -424,8 +411,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createListBlock(sourceInitialState.doc, 2, 2),
-            targetPos: targetInitialState.doc.line(2).from,
-            targetLineNumberOverride: 2,
+            dropPlan: dropPlan(2),
             sourceView,
         });
 
@@ -451,7 +437,6 @@ describe('BlockMover', () => {
         );
         const mover = new BlockMover({
             view: targetView,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -464,8 +449,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createBlockFromLine(initialState.doc, 2),
-            targetPos: initialState.doc.line(1).from,
-            targetLineNumberOverride: 1,
+            dropPlan: dropPlan(1),
             sourceView,
             sourceDocumentRelation: 'same_document',
         });
@@ -491,7 +475,6 @@ describe('BlockMover', () => {
         };
         const mover = new BlockMover({
             view: targetView,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -521,8 +504,7 @@ describe('BlockMover', () => {
                     ],
                 },
             },
-            targetPos: initialState.doc.line(1).from,
-            targetLineNumberOverride: 1,
+            dropPlan: dropPlan(1),
             sourceView,
             sourceDocumentRelation: 'same_document',
         });
@@ -552,7 +534,6 @@ describe('BlockMover', () => {
         const view = { state, dispatch } as unknown as EditorView;
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -565,10 +546,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createListBlock(state.doc, 1, 2),
-            targetPos: state.doc.line(3).from,
-            targetLineNumberOverride: 3,
-            listContextLineNumberOverride: 2,
-            listTargetIndentWidthOverride: 2,
+            dropPlan: dropPlan(3, { contextLineNumber: 2, targetIndentWidth: 2 }),
         });
 
         expect(dispatch).not.toHaveBeenCalled();
@@ -581,7 +559,6 @@ describe('BlockMover', () => {
         const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -610,8 +587,7 @@ describe('BlockMover', () => {
                     ],
                 },
             },
-            targetPos: state.doc.line(1).from,
-            targetLineNumberOverride: 1,
+            dropPlan: dropPlan(1),
         });
 
         expect(dispatch).toHaveBeenCalledTimes(1);
@@ -630,7 +606,6 @@ describe('BlockMover', () => {
         const view = { state, dispatch } as unknown as EditorView;
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -659,8 +634,7 @@ describe('BlockMover', () => {
                     ],
                 },
             },
-            targetPos: state.doc.line(3).from,
-            targetLineNumberOverride: 3,
+            dropPlan: dropPlan(3),
         });
 
         expect(dispatch).toHaveBeenCalledTimes(1);
@@ -674,7 +648,6 @@ describe('BlockMover', () => {
         );
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -687,8 +660,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createBlockFromLine(initialState.doc, 1),
-            targetPos: initialState.doc.length,
-            targetLineNumberOverride: initialState.doc.lines + 1,
+            dropPlan: dropPlan(initialState.doc.lines + 1),
         });
 
         expect(getState().doc.toString()).toBe('beta\ngamma\nalpha');
@@ -703,7 +675,6 @@ describe('BlockMover', () => {
         );
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -716,8 +687,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createBlockFromLine(initialState.doc, 3),
-            targetPos: initialState.doc.line(1).from,
-            targetLineNumberOverride: 1,
+            dropPlan: dropPlan(1),
         });
 
         expect(getState().doc.toString()).toBe('gamma\nalpha\nbeta');
@@ -732,7 +702,6 @@ describe('BlockMover', () => {
         );
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -745,8 +714,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createBlockFromLine(initialState.doc, 2),
-            targetPos: initialState.doc.line(1).from,
-            targetLineNumberOverride: 1,
+            dropPlan: dropPlan(1),
         });
 
         expect(getState().doc.toString()).toBe('beta\nalpha\n');
@@ -761,7 +729,6 @@ describe('BlockMover', () => {
         );
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -774,8 +741,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createBlockFromLine(initialState.doc, 2),
-            targetPos: initialState.doc.line(initialState.doc.lines).from,
-            targetLineNumberOverride: initialState.doc.lines,
+            dropPlan: dropPlan(initialState.doc.lines),
         });
 
         expect(getState().doc.toString()).toBe('alpha\nbeta\n');
@@ -790,7 +756,6 @@ describe('BlockMover', () => {
         );
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -803,8 +768,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createBlockFromLine(initialState.doc, 1),
-            targetPos: initialState.doc.line(initialState.doc.lines).from,
-            targetLineNumberOverride: initialState.doc.lines,
+            dropPlan: dropPlan(initialState.doc.lines),
         });
 
         expect(getState().doc.toString()).toBe('beta\ngamma\nalpha\n');
@@ -819,7 +783,6 @@ describe('BlockMover', () => {
         );
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -832,8 +795,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createBlockFromLine(initialState.doc, 2),
-            targetPos: initialState.doc.length,
-            targetLineNumberOverride: initialState.doc.lines + 1,
+            dropPlan: dropPlan(initialState.doc.lines + 1),
         });
 
         expect(getState().doc.toString()).toBe('alpha\n\nbeta');
@@ -848,7 +810,6 @@ describe('BlockMover', () => {
         );
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -861,8 +822,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createBlockFromLine(initialState.doc, 1),
-            targetPos: initialState.doc.line(initialState.doc.lines).from,
-            targetLineNumberOverride: initialState.doc.lines,
+            dropPlan: dropPlan(initialState.doc.lines),
         });
 
         expect(getState().doc.toString()).toBe('beta\nalpha\n');
@@ -877,7 +837,6 @@ describe('BlockMover', () => {
         );
         const mover = new BlockMover({
             view,
-            getAdjustedTargetLocation: (lineNumber: number) => ({ lineNumber, blockAdjusted: false }),
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
@@ -890,8 +849,7 @@ describe('BlockMover', () => {
 
         mover.moveBlock({
             sourceBlock: createBlockFromLine(initialState.doc, 1),
-            targetPos: initialState.doc.length,
-            targetLineNumberOverride: initialState.doc.lines + 1,
+            dropPlan: dropPlan(initialState.doc.lines + 1),
         });
 
         expect(getState().doc.toString()).toBe('beta\n\nalpha');

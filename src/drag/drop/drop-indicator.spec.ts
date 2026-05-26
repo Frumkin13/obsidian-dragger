@@ -25,6 +25,10 @@ function createViewStub(): EditorView {
     } as unknown as EditorView;
 }
 
+function dropPlan(targetLineNumber: number, preview: { indicatorY: number; lineRect?: { left: number; width: number }; highlightRect?: { top: number; left: number; width: number; height: number } }) {
+    return { targetLineNumber, preview };
+}
+
 afterEach(() => {
     document.body.innerHTML = '';
     vi.restoreAllMocks();
@@ -33,8 +37,7 @@ afterEach(() => {
 describe('DropIndicatorManager', () => {
     it('skips target recalculation for tiny pointer moves on same source', () => {
         const view = createViewStub();
-        const resolveDropTarget = vi.fn(() => ({
-            lineNumber: 1,
+        const resolveDropTarget = vi.fn(() => dropPlan(1, {
             indicatorY: 10,
             lineRect: { left: 5, width: 100 },
         }));
@@ -78,8 +81,7 @@ describe('DropIndicatorManager', () => {
 
     it('shows list drop highlight when highlightRect is provided', () => {
         const view = createViewStub();
-        const resolveDropTarget = vi.fn(() => ({
-            lineNumber: 2,
+        const resolveDropTarget = vi.fn(() => dropPlan(2, {
             indicatorY: 24,
             lineRect: { left: 8, width: 140 },
             highlightRect: { top: 16, left: 10, width: 180, height: 30 },
@@ -108,8 +110,7 @@ describe('DropIndicatorManager', () => {
 
     it('hides list drop highlight when disabled by setting callback', () => {
         const view = createViewStub();
-        const resolveDropTarget = vi.fn(() => ({
-            lineNumber: 2,
+        const resolveDropTarget = vi.fn(() => dropPlan(2, {
             indicatorY: 24,
             lineRect: { left: 8, width: 140 },
             highlightRect: { top: 16, left: 10, width: 180, height: 30 },
@@ -141,13 +142,11 @@ describe('DropIndicatorManager', () => {
     it('keeps only one editor indicator visible across manager instances', () => {
         const viewA = createViewStub();
         const viewB = createViewStub();
-        const resolveDropTargetA = vi.fn(() => ({
-            lineNumber: 1,
+        const resolveDropTargetA = vi.fn(() => dropPlan(1, {
             indicatorY: 12,
             lineRect: { left: 6, width: 120 },
         }));
-        const resolveDropTargetB = vi.fn(() => ({
-            lineNumber: 2,
+        const resolveDropTargetB = vi.fn(() => dropPlan(2, {
             indicatorY: 26,
             lineRect: { left: 10, width: 140 },
         }));
@@ -177,4 +176,3 @@ describe('DropIndicatorManager', () => {
         managerB.destroy();
     });
 });
-

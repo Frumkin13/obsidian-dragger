@@ -50,9 +50,11 @@ describe('drop-validation', () => {
             getListContext: () => ({ indentWidth: 0, indentRaw: '', markerType: 'unordered' }),
             getIndentUnitWidth: () => 2,
             slotContext: 'inside_list',
-            listContextLineNumberOverride: 1,
-            listIndentDeltaOverride: 0,
-            listTargetIndentWidthOverride: 0,
+            listIntent: {
+                contextLineNumber: 1,
+                indentDelta: 0,
+                targetIndentWidth: 0,
+            },
         });
         const withMap = validateInPlaceDrop({
             doc: state.doc,
@@ -63,9 +65,11 @@ describe('drop-validation', () => {
             getIndentUnitWidth: () => 2,
             slotContext: 'inside_list',
             lineMap: getLineMap(state),
-            listContextLineNumberOverride: 1,
-            listIndentDeltaOverride: 0,
-            listTargetIndentWidthOverride: 0,
+            listIntent: {
+                contextLineNumber: 1,
+                indentDelta: 0,
+                targetIndentWidth: 0,
+            },
         });
 
         expect(withMap).toEqual(withoutMap);
@@ -123,8 +127,10 @@ describe('drop-validation', () => {
             parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
             getListContext: () => null,
             getIndentUnitWidth: () => 2,
-            listContextLineNumberOverride: 3,
-            listTargetIndentWidthOverride: 4,
+            listIntent: {
+                contextLineNumber: 3,
+                targetIndentWidth: 4,
+            },
         });
 
         expect(result.inSelfRange).toBe(true);

@@ -3,7 +3,6 @@ import { BlockInfo } from '../../domain/block/block-types';
 import {
     DragDocumentRelation,
     DragLifecycleEvent,
-    DragListIntent,
     DragSourceScope,
 } from '../../shared/types/drag';
 import { createDragHandleElement } from '../source/handle-renderer';
@@ -14,7 +13,7 @@ import {
 import { buildListIntent, DragLifecycleEmitter } from '../../runtime/drag-lifecycle-emitter';
 import { DragDropServiceContainer } from '../../runtime/drag-service-container';
 import { BlockMover } from '../move/block-mover';
-import { DropTargetCalculator } from '../drop/drop-planner';
+import { DropPlanner } from '../drop/drop-planner';
 import { HandleVisibilityController } from '../source/handle-visibility-controller';
 import { DragEventHandlerPort, DragPerfSessionPort, SemanticRefreshPort } from './interaction-orchestrator-ports';
 import { getActiveDragSourceView } from './drag-session';
@@ -23,7 +22,7 @@ export interface DragInteractionOrchestratorDeps {
     view: EditorView;
     services: DragDropServiceContainer;
     blockMover: BlockMover;
-    dropTargetCalculator: DropTargetCalculator;
+    dropPlanner: DropPlanner;
     handleVisibility: HandleVisibilityController;
     dragPerfManager: DragPerfSessionPort;
     lifecycleEmitter: DragLifecycleEmitter;
@@ -37,7 +36,7 @@ export class DragInteractionOrchestrator {
     private readonly view: EditorView;
     private readonly services: DragDropServiceContainer;
     private readonly blockMover: BlockMover;
-    private readonly dropTargetCalculator: DropTargetCalculator;
+    private readonly dropPlanner: DropPlanner;
     private readonly handleVisibility: HandleVisibilityController;
     private readonly dragPerfManager: DragPerfSessionPort;
     private readonly lifecycleEmitter: DragLifecycleEmitter;
@@ -50,7 +49,7 @@ export class DragInteractionOrchestrator {
         this.view = deps.view;
         this.services = deps.services;
         this.blockMover = deps.blockMover;
-        this.dropTargetCalculator = deps.dropTargetCalculator;
+        this.dropPlanner = deps.dropPlanner;
         this.handleVisibility = deps.handleVisibility;
         this.dragPerfManager = deps.dragPerfManager;
         this.lifecycleEmitter = deps.lifecycleEmitter;
@@ -150,19 +149,19 @@ export class DragInteractionOrchestrator {
             ? 'cross_editor'
             : 'same_editor';
         const sourceDocumentRelation = this.resolveDragDocumentRelation(sourceView);
-        const validation = this.dropTargetCalculator.resolveValidatedDropTarget({
+        const validation = this.dropPlanner.resolveValidatedDropTarget({
             clientX,
             clientY,
             dragSource: sourceBlock,
             pointerType,
             sourceScope,
         });
-        const listIntent = this.buildListIntentFromValidation(validation);
-        if (!validation.allowed || typeof validation.targetLineNumber !== 'number') {
+        const listIntent = buildListIntent(validation.plan?.listIntent);
+        if (!validation.allowed || !validation.plan) {
             this.emitDragLifecycle({
                 state: 'cancelled',
                 sourceBlock,
-                targetLine: validation.targetLineNumber ?? null,
+                targetLine: validation.plan?.targetLineNumber ?? null,
                 listIntent,
                 rejectReason: validation.reason ?? 'no_target',
                 pointerType,
@@ -170,18 +169,12 @@ export class DragInteractionOrchestrator {
             return;
         }
 
-        const targetLineNumber = validation.targetLineNumber;
-        const targetPos = targetLineNumber > view.state.doc.lines
-            ? view.state.doc.length
-            : view.state.doc.line(targetLineNumber).from;
+        const targetLineNumber = validation.plan.targetLineNumber;
 
         this.blockMover.moveBlock({
             sourceBlock,
-            targetPos,
-            targetLineNumberOverride: targetLineNumber,
-            listContextLineNumberOverride: validation.listContextLineNumber,
-            listIndentDeltaOverride: validation.listIndentDelta,
-            listTargetIndentWidthOverride: validation.listTargetIndentWidth,
+
+            dropPlan: validation.plan,
             sourceView: sourceScope === 'cross_editor' && sourceView ? sourceView : undefined,
             sourceDocumentRelation,
         });
@@ -269,18 +262,6 @@ export class DragInteractionOrchestrator {
 
     emitDragLifecycle(event: DragLifecycleEvent): void {
         this.lifecycleEmitter.emit(event);
-    }
-
-    buildListIntentFromValidation(validation: {
-        listContextLineNumber?: number;
-        listIndentDelta?: number;
-        listTargetIndentWidth?: number;
-    }): DragListIntent | null {
-        return buildListIntent({
-            listContextLineNumber: validation.listContextLineNumber,
-            listIndentDelta: validation.listIndentDelta,
-            listTargetIndentWidth: validation.listTargetIndentWidth,
-        });
     }
 
     private syncHandleBlockAttributes(handle: HTMLElement | null, blockInfo: BlockInfo): void {

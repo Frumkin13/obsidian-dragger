@@ -4,7 +4,7 @@ import { GeometryCalculator } from '../platform/codemirror/geometry';
 import { ContainerPolicyService } from '../domain/rules/container-policy-service';
 import { TextMutationPolicy } from '../domain/mutation/text-mutation-policy';
 import { DragSourceResolver } from '../drag/source/source-resolver';
-import { DropTargetCalculatorSharedDeps } from '../drag/drop/drop-planner';
+import { DropPlannerSharedDeps } from '../drag/drop/drop-planner';
 import { BlockMoverDeps } from '../drag/move/block-mover-deps';
 
 /**
@@ -26,9 +26,9 @@ export class DragDropServiceContainer {
         this.textMutation = new TextMutationPolicy(this.lineParsing);
     }
 
-    createDropTargetCalculatorDeps(
-        hooks?: Pick<DropTargetCalculatorSharedDeps, 'onDragTargetEvaluated' | 'recordPerfDuration' | 'incrementPerfCounter'>
-    ): DropTargetCalculatorSharedDeps {
+    createDropPlannerDeps(
+        hooks?: Pick<DropPlannerSharedDeps, 'onDragTargetEvaluated' | 'recordPerfDuration' | 'incrementPerfCounter'>
+    ): DropPlannerSharedDeps {
         const sharedDeps = this.createSharedMutationPolicyDeps();
         return {
             ...sharedDeps,
@@ -43,16 +43,18 @@ export class DragDropServiceContainer {
     }
 
     createBlockMoverDeps(): Omit<BlockMoverDeps, 'view'> {
-        const sharedDeps = this.createSharedMutationPolicyDeps();
         return {
-            ...sharedDeps,
-            buildInsertText: (doc, src, ln, content, lcln, lid, ltw) =>
-                this.textMutation.buildInsertText(doc, src, ln, content, lcln, lid, ltw),
+            parseLineWithQuote: (line) => this.textMutation.parseLineWithQuote(line),
+            resolveDropRuleAtInsertion: (src, ln, opts) => this.containerPolicy.resolveDropRuleAtInsertion(src, ln, opts),
+            getListContext: (doc, ln) => this.textMutation.getListContext(doc, ln),
+            getIndentUnitWidth: (sample) => this.textMutation.getIndentUnitWidth(sample),
+            buildInsertText: (doc, src, ln, content, listIntent) =>
+                this.textMutation.buildInsertText(doc, src, ln, content, listIntent),
         };
     }
 
     private createSharedMutationPolicyDeps(): Pick<
-        DropTargetCalculatorSharedDeps,
+        DropPlannerSharedDeps,
         'parseLineWithQuote' | 'getAdjustedTargetLocation' | 'resolveDropRuleAtInsertion' | 'getListContext' | 'getIndentUnitWidth'
     > {
         return {

@@ -4,7 +4,7 @@ import {
     buildInsertText as buildInsertTextByPolicy,
     getListContext,
 } from './structure-mutation';
-import { DocLike, ListContext, ParsedLine } from '../../shared/types/protocol-types';
+import { DocLike, ListContext, ListDropIntent, ParsedLine } from '../../shared/types/protocol-types';
 import { LineParsingService } from '../markdown/line-parsing-service';
 
 export class TextMutationPolicy {
@@ -33,9 +33,7 @@ export class TextMutationPolicy {
         sourceBlock: BlockInfo,
         targetLineNumber: number,
         sourceContent: string,
-        listContextLineNumberOverride?: number,
-        listIndentDeltaOverride?: number,
-        listTargetIndentWidthOverride?: number
+        listIntent?: ListDropIntent
     ): string {
         return buildInsertTextByPolicy({
             sourceBlockType: sourceBlock.type,
@@ -51,9 +49,7 @@ export class TextMutationPolicy {
                 buildTargetMarker: (_target, source) => source.marker,
                 markerConversionScope: 'none',
                 getListContext: (activeDoc, lineNumber) => this.getListContext(activeDoc, lineNumber),
-                listContextLineNumberOverride,
-                listIndentDeltaOverride,
-                listTargetIndentWidthOverride,
+                listIntent,
             }),
         });
     }

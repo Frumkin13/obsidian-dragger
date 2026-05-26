@@ -1,4 +1,5 @@
 import type { BlockInfo } from '../../../domain/block/block-types';
+import type { ListDropIntent } from '../protocol-types';
 
 export type DragLifecycleState =
     | 'idle'
@@ -7,17 +8,11 @@ export type DragLifecycleState =
     | 'drop_commit'
     | 'cancelled';
 
-export interface DragListIntent {
-    listContextLineNumber?: number;
-    listIndentDelta?: number;
-    listTargetIndentWidth?: number;
-}
-
 export interface DragLifecycleEvent {
     state: DragLifecycleState;
     sourceBlock: BlockInfo | null;
     targetLine: number | null;
-    listIntent: DragListIntent | null;
+    listIntent: ListDropIntent | null;
     rejectReason: string | null;
     pointerType: string | null;
     pressReady?: boolean;

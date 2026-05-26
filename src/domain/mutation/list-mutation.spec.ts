@@ -42,7 +42,7 @@ describe('list-mutation', () => {
             targetLineNumber: 2,
             parseLineWithQuote: parse,
             getIndentUnitWidth: () => 2,
-            listIndentDeltaOverride: 1,
+            listIntent: { indentDelta: 1 },
         });
 
         expect(plan.targetIndentWidth).toBe(2);
