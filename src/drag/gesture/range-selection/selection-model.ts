@@ -43,7 +43,6 @@ export type MouseRangeSelectState = {
     isIntercepting: boolean;
     timeoutId: number | null;
     dragTimeoutId: number | null;
-    sourceHandle: HTMLElement | null;
     anchorStartLineNumber: number;
     anchorEndLineNumber: number;
     currentLineNumber: number;

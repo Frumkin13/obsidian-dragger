@@ -23,7 +23,6 @@ type CreateInitialRangeSelectionStateOptions = {
     startX: number;
     startY: number;
     pointerType: string | null;
-    sourceHandle: HTMLElement | null;
 };
 
 export function resolveRangeSelectConfig(
@@ -84,7 +83,6 @@ export function createInitialRangeSelectionState(
         isIntercepting: options.pointerType !== 'mouse',
         timeoutId: null,
         dragTimeoutId: null,
-        sourceHandle: options.sourceHandle,
         anchorStartLineNumber,
         anchorEndLineNumber,
         currentLineNumber: anchorEndLineNumber,

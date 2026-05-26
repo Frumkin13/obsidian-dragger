@@ -280,7 +280,6 @@ export class DragEventHandler {
             startX: e.clientX,
             startY: e.clientY,
             pointerType,
-            sourceHandle: handle,
         });
         if (!initialRangeSelectState) return;
         const preferLongPressDrag = (

@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../domain/block/block-types';
-import { DROP_HIGHLIGHT_SELECTOR, DROP_INDICATOR_SELECTOR, HIDDEN_CLASS } from '../../shared/dom-selectors';
+import { DROP_HIGHLIGHT_SELECTOR, DROP_INDICATOR_SELECTOR, DRAGGING_BODY_CLASS, HIDDEN_CLASS } from '../../shared/dom-selectors';
 
 const activeDragSourceByView = new WeakMap<EditorView, BlockInfo | null>();
 const knownViewRefs = new Set<WeakRef<EditorView>>();
@@ -9,6 +9,24 @@ export type ActiveDragSourceEntry = {
     view: EditorView;
     block: BlockInfo;
 };
+
+export function beginDragSession(blockInfo: BlockInfo, view: EditorView): void {
+    setActiveDragSourceBlock(view, blockInfo);
+    document.body.classList.add(DRAGGING_BODY_CLASS);
+}
+
+export function finishDragSession(view?: EditorView): void {
+    if (view) {
+        clearActiveDragSourceBlock(view);
+    } else {
+        clearAllActiveDragSourceBlocks();
+    }
+
+    if (!getActiveDragSourceEntry()) {
+        document.body.classList.remove(DRAGGING_BODY_CLASS);
+    }
+    hideDropVisuals();
+}
 
 export function setActiveDragSourceBlock(view: EditorView, block: BlockInfo | null): void {
     if (block) {

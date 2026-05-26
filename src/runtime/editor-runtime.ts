@@ -4,16 +4,17 @@ import {
     MOBILE_GESTURE_LOCK_CLASS,
     DRAGGING_BODY_CLASS,
 } from '../shared/dom-selectors';
-import { getActiveDragSourceBlock, getActiveDragSourceView } from '../drag/gesture/drag-session';
+import {
+    beginDragSession,
+    finishDragSession,
+    getActiveDragSourceBlock,
+    getActiveDragSourceView,
+} from '../drag/gesture/drag-session';
 import { isPosInsideRenderedTableCell } from '../platform/dom/table-guard';
 import { BlockMover } from '../drag/move/block-mover';
 import { DropIndicatorManager } from '../drag/drop/drop-indicator';
 import { DropPlanner } from '../drag/drop/drop-planner';
 import { DragEventHandler } from '../drag/gesture/drag-controller';
-import {
-    beginDragSession,
-    finishDragSession,
-} from '../drag/gesture/drag-ghost';
 import { getVisibleHandleForBlockStart } from '../drag/source/handle-renderer';
 import { HandleVisibilityController } from '../drag/source/handle-visibility-controller';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';

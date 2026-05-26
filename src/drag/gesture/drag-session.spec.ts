@@ -7,8 +7,8 @@ import { BlockInfo, BlockType } from '../../domain/block/block-types';
 import {
     beginDragSession,
     finishDragSession,
-} from './drag-ghost';
-import { getActiveDragSourceBlock } from './drag-session';
+    getActiveDragSourceBlock,
+} from './drag-session';
 
 function createViewStub(docText = 'line'): EditorView {
     const state = EditorState.create({ doc: docText });
@@ -43,7 +43,7 @@ afterEach(() => {
     document.body.innerHTML = '';
 });
 
-describe('DragTransfer session scoping', () => {
+describe('pointer drag session scoping', () => {
     it('keeps drag source state isolated per editor view', () => {
         const viewA = createViewStub('a');
         const viewB = createViewStub('b');
