@@ -29,7 +29,7 @@ export class DragDropServiceContainer {
     createDropPlannerDeps(
         hooks?: Pick<DropPlannerSharedDeps, 'onDragTargetEvaluated' | 'recordPerfDuration' | 'incrementPerfCounter'>
     ): DropPlannerSharedDeps {
-        const sharedDeps = this.createSharedMutationPolicyDeps();
+        const sharedDeps = this.createSharedDropPolicyDeps();
         return {
             ...sharedDeps,
             getBlockInfoForEmbed: (el) => this.dragSource.getBlockInfoForEmbed(el),
@@ -53,7 +53,7 @@ export class DragDropServiceContainer {
         };
     }
 
-    private createSharedMutationPolicyDeps(): Pick<
+    private createSharedDropPolicyDeps(): Pick<
         DropPlannerSharedDeps,
         'parseLineWithQuote' | 'getAdjustedTargetLocation' | 'resolveDropRuleAtInsertion' | 'getListContext' | 'getIndentUnitWidth'
     > {

@@ -3,6 +3,7 @@ import { BlockInfo } from '../../domain/block/block-types';
 import { InsertionSlotContext } from '../../domain/rules/insertion-rules';
 import { getLineMap, LineMap } from '../../domain/markdown/line-map';
 import { DocLike, DocLikeWithRange, DropPlan, ListContext, ParsedLine } from '../../shared/types/protocol-types';
+import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
 import { captureSourcePayload } from './source-payload';
 import { resolveInsertionChange } from './document-change';
 import { ListRenumberer } from './list-renumberer';
@@ -67,7 +68,7 @@ function moveSingleRangeAcrossEditors(params: CrossEditorMoveParams): void {
     } = params;
     const sourceDoc = sourceView.state.doc as unknown as DocLikeWithRange;
     const targetDoc = targetView.state.doc as unknown as DocLikeWithRange;
-    const targetLineNumber = resolveTargetLineNumber(targetDoc, dropPlan);
+    const targetLineNumber = clampTargetLineNumber(targetDoc.lines, dropPlan.targetLineNumber);
     const lineMap = getLineMap(targetView.state);
     const containerRule = deps.resolveDropRuleAtInsertion(sourceBlock, targetLineNumber, { lineMap });
     if (!containerRule.decision.allowDrop) {
@@ -125,7 +126,7 @@ function moveCompositeAcrossEditors(params: CrossEditorMoveParams): void {
         return;
     }
 
-    const targetLineNumber = resolveTargetLineNumber(targetDoc, dropPlan);
+    const targetLineNumber = clampTargetLineNumber(targetDoc.lines, dropPlan.targetLineNumber);
     const lineMap = getLineMap(targetView.state);
     const containerRule = deps.resolveDropRuleAtInsertion(sourceBlock, targetLineNumber, { lineMap });
     if (!containerRule.decision.allowDrop) {
@@ -167,10 +168,6 @@ function moveCompositeAcrossEditors(params: CrossEditorMoveParams): void {
         parseLineWithQuote: deps.parseLineWithQuote,
         restoreTargetBlockFoldState: () => deps.blockFoldState?.restore(targetView, targetLineNumber, capturedBlockFoldState ?? null),
     });
-}
-
-function resolveTargetLineNumber(doc: DocLikeWithRange, dropPlan: DropPlan): number {
-    return Math.max(1, Math.min(doc.lines + 1, dropPlan.targetLineNumber));
 }
 
 function finalizeMove(params: {

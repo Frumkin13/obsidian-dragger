@@ -3,7 +3,7 @@ import { BlockInfo } from '../../domain/block/block-types';
 import { DropPlan } from '../../shared/types/protocol-types';
 import { DROP_INDICATOR_CLASS, DROP_HIGHLIGHT_CLASS, HIDDEN_CLASS } from '../../shared/dom-selectors';
 
-type DropTargetResolver = (info: {
+type DropPlanResolver = (info: {
     clientX: number;
     clientY: number;
     dragSource: BlockInfo | null;
@@ -28,11 +28,11 @@ export class DropIndicatorManager {
     private pendingDragInfo: { x: number; y: number; dragSource: BlockInfo | null; pointerType: string | null } | null = null;
     private rafId: number | null = null;
     private lastEvaluatedInput: { x: number; y: number; dragSource: BlockInfo | null; pointerType: string | null } | null = null;
-    private lastTargetInfo: DropPlan | null = null;
+    private lastDropPlan: DropPlan | null = null;
 
     constructor(
         private readonly view: EditorView,
-        private readonly resolveDropTarget: DropTargetResolver,
+        private readonly resolveDropPlan: DropPlanResolver,
         private readonly options?: DropIndicatorManagerOptions
     ) {
         DropIndicatorManager.instances.add(this);
@@ -63,7 +63,7 @@ export class DropIndicatorManager {
         }
         this.pendingDragInfo = null;
         this.lastEvaluatedInput = null;
-        this.lastTargetInfo = null;
+        this.lastDropPlan = null;
         this.indicatorEl.classList.add(HIDDEN_CLASS);
         this.highlightEl.classList.add(HIDDEN_CLASS);
     }
@@ -77,9 +77,9 @@ export class DropIndicatorManager {
 
     private updateFromPoint(info: { x: number; y: number; dragSource: BlockInfo | null; pointerType: string | null }): void {
         if (this.shouldReuseLastResult(info)) {
-            const reused = this.lastTargetInfo !== null;
-            if (this.lastTargetInfo) {
-                this.renderTargetInfo(this.lastTargetInfo);
+            const reused = this.lastDropPlan !== null;
+            if (this.lastDropPlan) {
+                this.renderDropPlan(this.lastDropPlan);
             } else {
                 this.indicatorEl.classList.add(HIDDEN_CLASS);
                 this.highlightEl.classList.add(HIDDEN_CLASS);
@@ -94,7 +94,7 @@ export class DropIndicatorManager {
         }
 
         const startedAt = this.now();
-        const targetInfo = this.resolveDropTarget({
+        const dropPlan = this.resolveDropPlan({
             clientX: info.x,
             clientY: info.y,
             dragSource: info.dragSource,
@@ -109,16 +109,16 @@ export class DropIndicatorManager {
             durationMs,
         });
         this.lastEvaluatedInput = { ...info };
-        this.lastTargetInfo = targetInfo;
-        if (!targetInfo) {
+        this.lastDropPlan = dropPlan;
+        if (!dropPlan) {
             this.indicatorEl.classList.add(HIDDEN_CLASS);
             this.highlightEl.classList.add(HIDDEN_CLASS);
             return;
         }
-        this.renderTargetInfo(targetInfo);
+        this.renderDropPlan(dropPlan);
     }
 
-    private renderTargetInfo(dropPlan: DropPlan): void {
+    private renderDropPlan(dropPlan: DropPlan): void {
         this.hideOtherInstancesVisuals();
         const editorRect = this.view.dom.getBoundingClientRect();
         const indicatorY = dropPlan.preview.indicatorY;

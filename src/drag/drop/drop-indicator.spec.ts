@@ -37,7 +37,7 @@ afterEach(() => {
 describe('DropIndicatorManager', () => {
     it('skips target recalculation for tiny pointer moves on same source', () => {
         const view = createViewStub();
-        const resolveDropTarget = vi.fn(() => dropPlan(1, {
+        const resolveDropPlan = vi.fn(() => dropPlan(1, {
             indicatorY: 10,
             lineRect: { left: 5, width: 100 },
         }));
@@ -50,7 +50,7 @@ describe('DropIndicatorManager', () => {
         vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => { });
         vi.spyOn(window, 'getComputedStyle').mockReturnValue({ paddingRight: '0' } as CSSStyleDeclaration);
 
-        const manager = new DropIndicatorManager(view, resolveDropTarget, { onFrameMetrics });
+        const manager = new DropIndicatorManager(view, resolveDropPlan, { onFrameMetrics });
         const source = {
             type: BlockType.Paragraph,
             startLine: 0,
@@ -66,7 +66,7 @@ describe('DropIndicatorManager', () => {
         manager.scheduleFromPoint(11, 10, source, 'mouse');
         queuedFrames.shift()?.(16);
 
-        expect(resolveDropTarget).toHaveBeenCalledTimes(1);
+        expect(resolveDropPlan).toHaveBeenCalledTimes(1);
         expect(onFrameMetrics).toHaveBeenCalledTimes(2);
         expect(onFrameMetrics).toHaveBeenLastCalledWith(
             expect.objectContaining({
@@ -81,7 +81,7 @@ describe('DropIndicatorManager', () => {
 
     it('shows list drop highlight when highlightRect is provided', () => {
         const view = createViewStub();
-        const resolveDropTarget = vi.fn(() => dropPlan(2, {
+        const resolveDropPlan = vi.fn(() => dropPlan(2, {
             indicatorY: 24,
             lineRect: { left: 8, width: 140 },
             highlightRect: { top: 16, left: 10, width: 180, height: 30 },
@@ -94,7 +94,7 @@ describe('DropIndicatorManager', () => {
         vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => { });
         vi.spyOn(window, 'getComputedStyle').mockReturnValue({ paddingRight: '0' } as CSSStyleDeclaration);
 
-        const manager = new DropIndicatorManager(view, resolveDropTarget);
+        const manager = new DropIndicatorManager(view, resolveDropPlan);
 
         manager.scheduleFromPoint(12, 18, null, 'mouse');
         queuedFrames.shift()?.(0);
@@ -110,7 +110,7 @@ describe('DropIndicatorManager', () => {
 
     it('hides list drop highlight when disabled by setting callback', () => {
         const view = createViewStub();
-        const resolveDropTarget = vi.fn(() => dropPlan(2, {
+        const resolveDropPlan = vi.fn(() => dropPlan(2, {
             indicatorY: 24,
             lineRect: { left: 8, width: 140 },
             highlightRect: { top: 16, left: 10, width: 180, height: 30 },
@@ -123,7 +123,7 @@ describe('DropIndicatorManager', () => {
         vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => { });
         vi.spyOn(window, 'getComputedStyle').mockReturnValue({ paddingRight: '0' } as CSSStyleDeclaration);
 
-        const manager = new DropIndicatorManager(view, resolveDropTarget, {
+        const manager = new DropIndicatorManager(view, resolveDropPlan, {
             isDropHighlightEnabled: () => false,
         });
 
@@ -142,11 +142,11 @@ describe('DropIndicatorManager', () => {
     it('keeps only one editor indicator visible across manager instances', () => {
         const viewA = createViewStub();
         const viewB = createViewStub();
-        const resolveDropTargetA = vi.fn(() => dropPlan(1, {
+        const resolveDropPlanA = vi.fn(() => dropPlan(1, {
             indicatorY: 12,
             lineRect: { left: 6, width: 120 },
         }));
-        const resolveDropTargetB = vi.fn(() => dropPlan(2, {
+        const resolveDropPlanB = vi.fn(() => dropPlan(2, {
             indicatorY: 26,
             lineRect: { left: 10, width: 140 },
         }));
@@ -158,8 +158,8 @@ describe('DropIndicatorManager', () => {
         vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => { });
         vi.spyOn(window, 'getComputedStyle').mockReturnValue({ paddingRight: '0' } as CSSStyleDeclaration);
 
-        const managerA = new DropIndicatorManager(viewA, resolveDropTargetA);
-        const managerB = new DropIndicatorManager(viewB, resolveDropTargetB);
+        const managerA = new DropIndicatorManager(viewA, resolveDropPlanA);
+        const managerB = new DropIndicatorManager(viewB, resolveDropPlanB);
 
         managerA.scheduleFromPoint(10, 10, null, 'mouse');
         queuedFrames.shift()?.(0);

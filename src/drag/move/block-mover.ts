@@ -3,6 +3,7 @@ import { BlockInfo } from '../../domain/block/block-types';
 import { validateInPlaceDrop } from '../../domain/rules/drop-validation';
 import { getLineMap } from '../../domain/markdown/line-map';
 import { DocLikeWithRange, DropPlan } from '../../shared/types/protocol-types';
+import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
 import { ListRenumberer } from './list-renumberer';
 import { moveBlockAcrossEditors } from './cross-editor-mover';
 import { DragDocumentRelation } from '../../shared/types/drag';
@@ -77,7 +78,7 @@ export class BlockMover {
 
         const view = this.deps.view;
         const doc = view.state.doc as unknown as DocLikeWithRange;
-        const targetLineNumber = this.resolveTargetLineNumber(doc, dropPlan);
+        const targetLineNumber = clampTargetLineNumber(doc.lines, dropPlan.targetLineNumber);
         const lineMap = getLineMap(view.state);
         const containerRule = this.deps.resolveDropRuleAtInsertion(
             normalizedSourceBlock,
@@ -180,7 +181,7 @@ export class BlockMover {
             return;
         }
 
-        const targetLineNumber = this.resolveTargetLineNumber(doc, dropPlan);
+        const targetLineNumber = clampTargetLineNumber(doc.lines, dropPlan.targetLineNumber);
         const lineMap = getLineMap(view.state);
         const containerRule = this.deps.resolveDropRuleAtInsertion(
             sourceBlock,
@@ -232,10 +233,6 @@ export class BlockMover {
             this.listRenumberer.renumberOrderedListAround(lineNumber);
         }
         this.deps.blockFoldState?.restore(view, targetStartLineNumber, capturedBlockFoldState ?? null);
-    }
-
-    private resolveTargetLineNumber(doc: DocLikeWithRange, dropPlan: DropPlan): number {
-        return Math.max(1, Math.min(doc.lines + 1, dropPlan.targetLineNumber));
     }
 
     private isTargetInsideCompositeRanges(
