@@ -48,11 +48,6 @@ export interface DropPlannerDeps {
         endLineNumber: number
     ) => { top: number; left: number; width: number; height: number } | undefined;
     listDropPlanner: ListDropPlannerPort;
-    onDragTargetEvaluated?: (info: {
-        sourceBlock: BlockInfo | null;
-        pointerType: string | null;
-        validation: DropValidationResult;
-    }) => void;
     recordPerfDuration?: (key: PerfDurationKey, durationMs: number) => void;
     incrementPerfCounter?: (
         key:
@@ -127,11 +122,6 @@ export class DropPlanner {
         ) {
             this.deps.incrementPerfCounter?.('resolve_cache_hits', 1);
             const cached = this.lastResolvedCache.result;
-            this.deps.onDragTargetEvaluated?.({
-                sourceBlock: dragSource,
-                pointerType,
-                validation: cached,
-            });
             this.deps.recordPerfDuration?.('resolve_total', this.now() - startedAt);
             return cached;
         }
@@ -151,11 +141,6 @@ export class DropPlanner {
             result,
         };
         this.deps.recordPerfDuration?.('resolve_total', this.now() - startedAt);
-        this.deps.onDragTargetEvaluated?.({
-            sourceBlock: dragSource,
-            pointerType,
-            validation: result,
-        });
         return result;
     }
 

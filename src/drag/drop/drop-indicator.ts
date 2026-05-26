@@ -1,14 +1,15 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../domain/block/block-types';
 import { DropPlan } from '../../shared/types/protocol-types';
+import { DropValidationResult } from './drop-planner';
 import { DROP_INDICATOR_CLASS, DROP_HIGHLIGHT_CLASS, HIDDEN_CLASS } from '../../shared/dom-selectors';
 
-type DropPlanResolver = (info: {
+type DropValidationResolver = (info: {
     clientX: number;
     clientY: number;
     dragSource: BlockInfo | null;
     pointerType: string | null;
-}) => DropPlan | null;
+}) => DropValidationResult;
 
 interface DropIndicatorManagerOptions {
     isDropHighlightEnabled?: () => boolean;
@@ -19,6 +20,11 @@ interface DropIndicatorManagerOptions {
         durationMs: number;
     }) => void;
     recordPerfDuration?: (key: 'drop_indicator_resolve', durationMs: number) => void;
+    onDropTargetEvaluated?: (info: {
+        sourceBlock: BlockInfo | null;
+        pointerType: string | null;
+        validation: DropValidationResult;
+    }) => void;
 }
 
 export class DropIndicatorManager {
@@ -32,7 +38,7 @@ export class DropIndicatorManager {
 
     constructor(
         private readonly view: EditorView,
-        private readonly resolveDropPlan: DropPlanResolver,
+        private readonly resolveDropValidation: DropValidationResolver,
         private readonly options?: DropIndicatorManagerOptions
     ) {
         DropIndicatorManager.instances.add(this);
@@ -94,14 +100,20 @@ export class DropIndicatorManager {
         }
 
         const startedAt = this.now();
-        const dropPlan = this.resolveDropPlan({
+        const validation = this.resolveDropValidation({
             clientX: info.x,
             clientY: info.y,
             dragSource: info.dragSource,
             pointerType: info.pointerType,
         });
+        const dropPlan = validation.allowed ? validation.plan ?? null : null;
         const durationMs = this.now() - startedAt;
         this.options?.recordPerfDuration?.('drop_indicator_resolve', durationMs);
+        this.options?.onDropTargetEvaluated?.({
+            sourceBlock: info.dragSource,
+            pointerType: info.pointerType,
+            validation,
+        });
         this.options?.onFrameMetrics?.({
             evaluated: true,
             skipped: false,

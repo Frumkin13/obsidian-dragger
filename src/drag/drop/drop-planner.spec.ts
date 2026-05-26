@@ -76,7 +76,6 @@ function createDeps(overrides?: Partial<DropPlannerDeps>): DropPlannerDeps {
             computeListTarget: () => ({}),
             getListMarkerBounds: () => null,
         },
-        onDragTargetEvaluated: () => { },
         ...overrides,
     };
 }

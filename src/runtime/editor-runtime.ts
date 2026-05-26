@@ -20,7 +20,9 @@ import { HandleVisibilityController } from '../drag/source/handle-visibility-con
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
 import { DragDropServiceContainer } from './drag-service-container';
-import { DragLifecycleEmitter, buildListIntent } from './drag-lifecycle-emitter';
+import { DragLifecycleEmitter } from './drag-lifecycle-emitter';
+import { buildListIntent } from '../shared/utils/drop-protocol';
+import { buildDragTargetChangedLifecycleEvent, buildIdleLifecycleEvent } from '../drag/gesture/drag-lifecycle-flow';
 import { DragInteractionOrchestrator } from '../drag/gesture/interaction-orchestrator';
 import { DragLifecycleEvent, DragSourceScope } from '../shared/types/drag';
 import { DND_DRAG_SOURCE_HIGHLIGHT_ATTR, DND_DRAG_SOURCE_STYLE_ATTR } from '../shared/dom-attrs';
@@ -81,20 +83,9 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 view: this.view,
                 services: this.services,
                 dragPerfManager: this.dragPerfManager,
-                onDragTargetEvaluated: ({ sourceBlock, pointerType, validation }) => {
-                    if (!sourceBlock) return;
-                    this.orchestrator.emitDragLifecycle({
-                        state: 'drag_active',
-                        sourceBlock,
-                        targetLine: validation.plan?.targetLineNumber ?? null,
-                        listIntent: buildListIntent(validation.plan?.listIntent),
-                        rejectReason: validation.allowed ? null : (validation.reason ?? null),
-                        pointerType: pointerType ?? null,
-                    });
-                },
             }));
             this.dropIndicator = new DropIndicatorManager(view, (info) =>
-                this.dropPlanner.getDropPlan({
+                this.dropPlanner.resolveValidatedDropTarget({
                     clientX: info.clientX,
                     clientY: info.clientY,
                     dragSource: info.dragSource ?? getActiveDragSourceBlock(this.view) ?? null,
@@ -105,6 +96,16 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                     isDropHighlightEnabled: () => plugin.settings.enableListDropHighlight !== false,
                     recordPerfDuration: (key, durationMs) => {
                         this.dragPerfManager.recordDuration(key, durationMs);
+                    },
+                    onDropTargetEvaluated: ({ sourceBlock, pointerType, validation }) => {
+                        if (!sourceBlock) return;
+                        this.orchestrator.emitDragLifecycle(buildDragTargetChangedLifecycleEvent({
+                            sourceBlock,
+                            targetLine: validation.plan?.targetLineNumber ?? null,
+                            listIntent: buildListIntent(validation.plan?.listIntent),
+                            rejectReason: validation.allowed ? null : (validation.reason ?? null),
+                            pointerType: pointerType ?? null,
+                        }));
                     },
                     onFrameMetrics: (metrics) => {
                         this.dragPerfManager.incrementCounter('drop_indicator_frames');
@@ -168,9 +169,6 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 isCrossFileDragEnabled: () => plugin.settings.enableCrossFileDrag === true,
                 beginPointerDragSession: (blockInfo) => {
                     this.orchestrator.ensureDragPerfSession();
-                    if (this.isDragSourceHighlightEnabled()) {
-                        this.handleVisibility.enterGrabVisualStateForBlock(blockInfo, null);
-                    }
                     beginDragSession(blockInfo, this.view);
                 },
                 finishDragSession: () => {
@@ -251,14 +249,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
             this.view.dom.removeAttribute(DND_DRAG_SOURCE_STYLE_ATTR);
             this.view.dom.removeAttribute(DND_DRAG_SOURCE_HIGHLIGHT_ATTR);
             this.dropIndicator.destroy();
-            this.orchestrator.emitDragLifecycle({
-                state: 'idle',
-                sourceBlock: null,
-                targetLine: null,
-                listIntent: null,
-                rejectReason: null,
-                pointerType: null,
-            });
+            this.orchestrator.emitDragLifecycle(buildIdleLifecycleEvent());
         }
 
         private handleDocumentPointerMove(e: PointerEvent): void {
@@ -353,7 +344,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         }
 
         private handleSourceVisualByLifecycle(event: DragLifecycleEvent): void {
-            if (event.state === 'press_pending') {
+            if (event.type === 'drag_press_pending') {
                 if (event.pressReady && event.sourceBlock && this.isDragSourceHighlightEnabled()) {
                     this.handleVisibility.enterGrabVisualStateForBlock(event.sourceBlock, null);
                 } else {
@@ -362,7 +353,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 }
                 return;
             }
-            if (event.state === 'drag_active') {
+            if (event.type === 'drag_started') {
                 if (event.sourceBlock && this.isDragSourceHighlightEnabled()) {
                     this.handleVisibility.enterGrabVisualStateForBlock(event.sourceBlock, null);
                 } else if (!this.isDragSourceHighlightEnabled()) {
@@ -370,7 +361,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 }
                 return;
             }
-            if (event.state === 'cancelled' || event.state === 'idle') {
+            if (event.type === 'drag_cancelled' || event.type === 'drag_idle') {
                 // Desktop native drag can coexist with pointer-range session cancellation.
                 // While a drag session is active, keep source visual instead of clearing.
                 const hasActiveNativeDrag = document.body.classList.contains(DRAGGING_BODY_CLASS)
@@ -379,7 +370,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 this.handleVisibility.clearGrabbedLineNumbers();
                 return;
             }
-            if (event.state === 'drop_commit') {
+            if (event.type === 'drag_drop_commit') {
                 this.handleVisibility.clearGrabbedLineNumbers();
             }
         }

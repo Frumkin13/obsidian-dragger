@@ -27,7 +27,7 @@ export class DragDropServiceContainer {
     }
 
     createDropPlannerDeps(
-        hooks?: Pick<DropPlannerSharedDeps, 'onDragTargetEvaluated' | 'recordPerfDuration' | 'incrementPerfCounter'>
+        hooks?: Pick<DropPlannerSharedDeps, 'recordPerfDuration' | 'incrementPerfCounter'>
     ): DropPlannerSharedDeps {
         const sharedDeps = this.createSharedDropPolicyDeps();
         return {

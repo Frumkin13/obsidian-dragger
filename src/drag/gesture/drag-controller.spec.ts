@@ -584,7 +584,7 @@ describe('DragEventHandler', () => {
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
         expect(line).not.toBeNull();
         const sourceBlock = createBlock('- item', 0, 0);
-        const lifecycleEvents: Array<{ state: string; pressReady?: boolean }> = [];
+        const lifecycleEvents: Array<{ type: string; phase: string; pressReady?: boolean }> = [];
 
         const handler = new DragEventHandler(view, {
             getDragSourceBlock: () => null,
@@ -598,8 +598,9 @@ describe('DragEventHandler', () => {
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
             onDragLifecycleEvent: (event) => lifecycleEvents.push({
-                state: event.state,
-                pressReady: event.pressReady,
+                type: event.type,
+                phase: event.phase,
+                pressReady: event.type === 'drag_press_pending' ? event.pressReady : undefined,
             }),
         });
 
@@ -624,12 +625,12 @@ describe('DragEventHandler', () => {
             clientY: 10,
         });
 
-        const pressPendingWaiting = lifecycleEvents.find((event) => event.state === 'press_pending' && event.pressReady === false);
-        const pressPendingReady = lifecycleEvents.find((event) => event.state === 'press_pending' && event.pressReady === true);
+        const pressPendingWaiting = lifecycleEvents.find((event) => event.type === 'drag_press_pending' && event.pressReady === false);
+        const pressPendingReady = lifecycleEvents.find((event) => event.type === 'drag_press_pending' && event.pressReady === true);
         expect(pressPendingWaiting).toBeDefined();
         expect(pressPendingReady).toBeDefined();
-        expect(lifecycleEvents.some((event) => event.state === 'drag_active')).toBe(true);
-        expect(lifecycleEvents.some((event) => event.state === 'idle')).toBe(true);
+        expect(lifecycleEvents.some((event) => event.type === 'drag_started')).toBe(true);
+        expect(lifecycleEvents.some((event) => event.type === 'drag_idle')).toBe(true);
         handler.destroy();
     });
 
@@ -641,7 +642,7 @@ describe('DragEventHandler', () => {
         view.dom.appendChild(handle);
 
         const sourceBlock = createBlock('- item', 1, 1);
-        const lifecycleEvents: Array<{ state: string; pressReady?: boolean }> = [];
+        const lifecycleEvents: Array<{ type: string; phase: string; pressReady?: boolean }> = [];
 
         const handler = new DragEventHandler(view, {
             getDragSourceBlock: () => null,
@@ -655,8 +656,9 @@ describe('DragEventHandler', () => {
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
             onDragLifecycleEvent: (event) => lifecycleEvents.push({
-                state: event.state,
-                pressReady: event.pressReady,
+                type: event.type,
+                phase: event.phase,
+                pressReady: event.type === 'drag_press_pending' ? event.pressReady : undefined,
             }),
         });
 
@@ -681,12 +683,12 @@ describe('DragEventHandler', () => {
             clientY: 80,
         });
 
-        const pressPendingWaiting = lifecycleEvents.find((event) => event.state === 'press_pending' && event.pressReady === false);
-        const pressPendingReady = lifecycleEvents.find((event) => event.state === 'press_pending' && event.pressReady === true);
+        const pressPendingWaiting = lifecycleEvents.find((event) => event.type === 'drag_press_pending' && event.pressReady === false);
+        const pressPendingReady = lifecycleEvents.find((event) => event.type === 'drag_press_pending' && event.pressReady === true);
         expect(pressPendingWaiting).toBeDefined();
         expect(pressPendingReady).toBeDefined();
-        expect(lifecycleEvents.some((event) => event.state === 'drag_active')).toBe(true);
-        expect(lifecycleEvents.some((event) => event.state === 'idle')).toBe(true);
+        expect(lifecycleEvents.some((event) => event.type === 'drag_started')).toBe(true);
+        expect(lifecycleEvents.some((event) => event.type === 'drag_idle')).toBe(true);
         handler.destroy();
     });
 

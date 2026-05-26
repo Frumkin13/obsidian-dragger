@@ -43,7 +43,7 @@ import {
 import { cloneSelectedBlocks } from './range-selection/block-selection';
 import {
     buildCancelledLifecycleEvent,
-    buildDragActiveLifecycleEvent,
+    buildDragStartedLifecycleEvent,
     buildIdleLifecycleEvent,
     buildPressPendingLifecycleEvent,
 } from './drag-lifecycle-flow';
@@ -486,7 +486,7 @@ export class DragEventHandler {
         this.gesture = { phase: 'dragging', drag: { sourceBlock, pointerId } };
         this.deps.beginPointerDragSession(sourceBlock);
         this.deps.scheduleDropIndicatorUpdate(clientX, clientY, sourceBlock, pointerType);
-        this.emitDragActiveLifecycle(sourceBlock, pointerType);
+        this.emitDragStartedLifecycle(sourceBlock, pointerType);
     }
 
 
@@ -938,8 +938,8 @@ export class DragEventHandler {
         this.emitLifecycle(buildPressPendingLifecycleEvent(sourceBlock, pointerType, pressReady));
     }
 
-    private emitDragActiveLifecycle(sourceBlock: BlockInfo, pointerType: string | null): void {
-        this.emitLifecycle(buildDragActiveLifecycleEvent(sourceBlock, pointerType));
+    private emitDragStartedLifecycle(sourceBlock: BlockInfo, pointerType: string | null): void {
+        this.emitLifecycle(buildDragStartedLifecycleEvent(sourceBlock, pointerType));
     }
 
     private emitCancelledLifecycle(
@@ -947,7 +947,11 @@ export class DragEventHandler {
         rejectReason: string,
         pointerType: string | null
     ): void {
-        this.emitLifecycle(buildCancelledLifecycleEvent(sourceBlock, rejectReason, pointerType));
+        this.emitLifecycle(buildCancelledLifecycleEvent({
+            sourceBlock,
+            rejectReason,
+            pointerType,
+        }));
     }
 
     private emitIdleLifecycle(): void {

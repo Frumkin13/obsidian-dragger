@@ -5,12 +5,14 @@ import {
     DragLifecycleEvent,
     DragSourceScope,
 } from '../../shared/types/drag';
+import { buildCancelledLifecycleEvent, buildDragStartedLifecycleEvent, buildDropCommitLifecycleEvent, buildIdleLifecycleEvent } from './drag-lifecycle-flow';
 import { createDragHandleElement } from '../source/handle-renderer';
 import {
     finishDragSession,
     startDragFromHandle,
 } from './drag-ghost';
-import { buildListIntent, DragLifecycleEmitter } from '../../runtime/drag-lifecycle-emitter';
+import { DragLifecycleEmitter } from '../../runtime/drag-lifecycle-emitter';
+import { buildListIntent } from '../../shared/utils/drop-protocol';
 import { DragDropServiceContainer } from '../../runtime/drag-service-container';
 import { BlockMover } from '../move/block-mover';
 import { DropPlanner } from '../drop/drop-planner';
@@ -70,12 +72,7 @@ export class DragInteractionOrchestrator {
                     fallback: getBlockInfo,
                 });
                 const sourceBlock = resolveCurrentBlock();
-                if (sourceBlock) {
-                    this.handleVisibility.enterGrabVisualStateForBlock(
-                        sourceBlock,
-                        el
-                    );
-                } else {
+                if (!sourceBlock) {
                     this.handleVisibility.setActiveVisibleHandle(el);
                 }
                 const started = startDragFromHandle(e, this.view, () => resolveCurrentBlock(), el);
@@ -83,48 +80,25 @@ export class DragInteractionOrchestrator {
                     this.handleVisibility.setActiveVisibleHandle(null);
                     finishDragSession(this.view);
                     this.flushDragPerfSession('drag_start_failed');
-                    this.emitDragLifecycle({
-                        state: 'cancelled',
+                    this.emitDragLifecycle(buildCancelledLifecycleEvent({
                         sourceBlock: sourceBlock ?? null,
-                        targetLine: null,
-                        listIntent: null,
                         rejectReason: 'drag_start_failed',
                         pointerType: 'mouse',
-                    });
-                    this.emitDragLifecycle({
-                        state: 'idle',
-                        sourceBlock: null,
-                        targetLine: null,
-                        listIntent: null,
-                        rejectReason: null,
-                        pointerType: null,
-                    });
+                    }));
+                    this.emitDragLifecycle(buildIdleLifecycleEvent());
                     return;
                 }
                 this.ensureDragPerfSession();
-                this.emitDragLifecycle({
-                    state: 'drag_active',
-                    sourceBlock: sourceBlock ?? null,
-                    targetLine: null,
-                    listIntent: null,
-                    rejectReason: null,
-                    pointerType: 'mouse',
-                });
+                if (sourceBlock) {
+                    this.emitDragLifecycle(buildDragStartedLifecycleEvent(sourceBlock, 'mouse'));
+                }
             },
             onDragEnd: () => {
-                this.handleVisibility.clearGrabbedLineNumbers();
                 this.handleVisibility.setActiveVisibleHandle(null);
                 finishDragSession(this.view);
                 this.flushDragPerfSession('drag_end');
                 this.refreshDecorationsAndEmbeds();
-                this.emitDragLifecycle({
-                    state: 'idle',
-                    sourceBlock: null,
-                    targetLine: null,
-                    listIntent: null,
-                    rejectReason: null,
-                    pointerType: null,
-                });
+                this.emitDragLifecycle(buildIdleLifecycleEvent());
             },
         });
         handle.addEventListener('pointerdown', (e: PointerEvent) => {
@@ -158,14 +132,13 @@ export class DragInteractionOrchestrator {
         });
         const listIntent = buildListIntent(validation.plan?.listIntent);
         if (!validation.allowed || !validation.plan) {
-            this.emitDragLifecycle({
-                state: 'cancelled',
+            this.emitDragLifecycle(buildCancelledLifecycleEvent({
                 sourceBlock,
                 targetLine: validation.plan?.targetLineNumber ?? null,
                 listIntent,
                 rejectReason: validation.reason ?? 'no_target',
                 pointerType,
-            });
+            }));
             return;
         }
 
@@ -178,14 +151,12 @@ export class DragInteractionOrchestrator {
             sourceView: sourceScope === 'cross_editor' && sourceView ? sourceView : undefined,
             sourceDocumentRelation,
         });
-        this.emitDragLifecycle({
-            state: 'drop_commit',
+        this.emitDragLifecycle(buildDropCommitLifecycleEvent({
             sourceBlock,
             targetLine: targetLineNumber,
             listIntent,
-            rejectReason: null,
             pointerType,
-        });
+        }));
     }
 
     resolveInteractionBlockInfo(params: {

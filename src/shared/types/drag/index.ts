@@ -6,5 +6,5 @@ export type {
 export type {
     DragLifecycleEvent,
     DragLifecycleListener,
-    DragLifecycleState,
+    DragSessionPhase,
 } from './events';
