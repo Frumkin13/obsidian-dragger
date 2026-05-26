@@ -53,6 +53,6 @@ export const en: ZhCnStrings = {
     mobileTextLongPressDrag: 'Mobile text long-press drag',
     mobileTextLongPressDragDesc: 'On mobile, long-press a text line or rendered block content to drag the current block directly without using the left handle',
     enableCrossFileDrag: 'Cross-file drag',
-    enableCrossFileDragDesc: 'Allow dragging blocks into another open file editor',
+    enableCrossFileDragDesc: 'Allow dragging blocks into open editors, internal links, and file explorer notes',
 
 };
