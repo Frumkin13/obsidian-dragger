@@ -3,28 +3,10 @@ import type { App, MarkdownView, TFile } from 'obsidian';
 import { BlockInfo } from '../../domain/block/block-types';
 import { LineParsingService } from '../../domain/markdown/line-parsing-service';
 import { DocLikeWithRange } from '../../shared/types/protocol-types';
-import { normalizeCompositeRanges } from '../../shared/utils/composite-selection';
 import { getCodeMirrorView } from '../../platform/obsidian/editor-view';
 import { ListRenumberer } from './list-renumberer';
-
-type SourceSegment = {
-    startLineNumber: number;
-    from: number;
-    to: number;
-    deleteFrom: number;
-    deleteTo: number;
-};
-
-type SourcePayload = {
-    content: string;
-    segments: SourceSegment[];
-};
-
-type TextChange = {
-    from: number;
-    to: number;
-    insert?: string;
-};
+import { captureSourcePayload, SourcePayload } from './source-payload';
+import { TextChange } from './document-change';
 
 type MarkdownViewWithFile = MarkdownView & {
     file?: TFile | null;
@@ -48,7 +30,7 @@ export class FileBlockMover {
             return { moved: false, reason: 'target_not_markdown' };
         }
 
-        const payload = this.captureSourcePayload(sourceView, sourceBlock);
+        const payload = captureSourcePayload(sourceView.state.doc as unknown as DocLikeWithRange, sourceBlock);
         if (!payload || payload.content.length === 0) {
             return { moved: false, reason: 'empty_source' };
         }
@@ -82,36 +64,6 @@ export class FileBlockMover {
             return getCodeMirrorView(markdownView);
         }
         return null;
-    }
-
-    private captureSourcePayload(sourceView: EditorView, sourceBlock: BlockInfo): SourcePayload | null {
-        const doc = sourceView.state.doc as unknown as DocLikeWithRange;
-        const rawRanges = sourceBlock.compositeSelection?.ranges ?? [{
-            startLine: sourceBlock.startLine,
-            endLine: sourceBlock.endLine,
-        }];
-        const ranges = normalizeCompositeRanges(rawRanges, doc.lines);
-        if (ranges.length === 0) return null;
-
-        const segments = ranges.map((range) => {
-            const startLineNumber = range.startLine + 1;
-            const endLineNumber = range.endLine + 1;
-            const startLine = doc.line(startLineNumber);
-            const endLine = doc.line(endLineNumber);
-            const deleteRange = resolveDeleteRange(doc, startLine.from, endLine.to);
-            return {
-                startLineNumber,
-                from: startLine.from,
-                to: endLine.to,
-                deleteFrom: deleteRange.from,
-                deleteTo: deleteRange.to,
-            };
-        });
-        const content = segments
-            .map((segment) => doc.sliceString(segment.from, segment.to))
-            .join('\n');
-
-        return { content, segments };
     }
 
     private appendToEditor(view: EditorView, content: string): void {
@@ -208,29 +160,4 @@ function applyDeleteChanges(existing: string, deletes: TextChange[]): string {
         cursor = change.to;
     }
     return result + existing.slice(cursor);
-}
-
-function resolveDeleteRange(
-    doc: DocLikeWithRange,
-    sourceFrom: number,
-    sourceTo: number
-): { from: number; to: number } {
-    if (sourceTo < doc.length) {
-        return {
-            from: sourceFrom,
-            to: Math.min(sourceTo + 1, doc.length),
-        };
-    }
-
-    if (sourceFrom > 0) {
-        return {
-            from: sourceFrom - 1,
-            to: sourceTo,
-        };
-    }
-
-    return {
-        from: sourceFrom,
-        to: sourceTo,
-    };
 }

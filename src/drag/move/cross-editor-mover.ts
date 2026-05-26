@@ -4,7 +4,8 @@ import { InsertionSlotContext } from '../../domain/rules/insertion-rules';
 import { getLineMap, LineMap } from '../../domain/markdown/line-map';
 import { DocLike, DocLikeWithRange, ListContext, ParsedLine } from '../../shared/types/protocol-types';
 import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
-import { normalizeCompositeRanges } from '../../shared/utils/composite-selection';
+import { captureSourcePayload } from './source-payload';
+import { resolveInsertionChange } from './document-change';
 import { ListRenumberer } from './list-renumberer';
 import { BlockFoldStateManager, CapturedBlockFoldState } from './block-fold-state';
 
@@ -83,18 +84,14 @@ function moveSingleRangeAcrossEditors(params: CrossEditorMoveParams): void {
         return;
     }
 
-    const sourceStartLineNumber = clampLineNumber(sourceDoc.lines, sourceBlock.startLine + 1);
-    const sourceEndLineNumber = Math.max(sourceStartLineNumber, clampLineNumber(sourceDoc.lines, sourceBlock.endLine + 1));
-    const sourceStartLine = sourceDoc.line(sourceStartLineNumber);
-    const sourceEndLine = sourceDoc.line(sourceEndLineNumber);
-    const sourceFrom = sourceStartLine.from;
-    const sourceTo = sourceEndLine.to;
-    const sourceContent = sourceDoc.sliceString(sourceFrom, sourceTo);
+    const payload = captureSourcePayload(sourceDoc, sourceBlock);
+    if (!payload) return;
+    const segment = payload.segments[0];
     const insertText = deps.buildInsertText(
         targetDoc,
         sourceBlock,
         targetLineNumber,
-        sourceContent,
+        payload.content,
         listContextLineNumberOverride,
         listIndentDeltaOverride,
         listTargetIndentWidthOverride
@@ -108,16 +105,15 @@ function moveSingleRangeAcrossEditors(params: CrossEditorMoveParams): void {
         scrollIntoView: false,
     });
 
-    const deleteRange = resolveDeleteRange(sourceDoc, sourceFrom, sourceTo);
     sourceView.dispatch({
-        changes: { from: deleteRange.from, to: deleteRange.to },
+        changes: { from: segment.deleteFrom, to: segment.deleteTo },
         scrollIntoView: false,
     });
 
     finalizeMove({
         sourceView,
         targetView,
-        sourceLineNumbers: [sourceStartLineNumber],
+        sourceLineNumbers: [segment.startLineNumber],
         targetLineNumbers: [targetLineNumber],
         parseLineWithQuote: deps.parseLineWithQuote,
         restoreTargetBlockFoldState: () => deps.blockFoldState?.restore(targetView, targetLineNumber, capturedBlockFoldState ?? null),
@@ -134,8 +130,8 @@ function moveCompositeAcrossEditors(params: CrossEditorMoveParams): void {
     } = params;
     const sourceDoc = sourceView.state.doc as unknown as DocLikeWithRange;
     const targetDoc = targetView.state.doc as unknown as DocLikeWithRange;
-    const normalizedRanges = normalizeCompositeRanges(sourceBlock.compositeSelection?.ranges ?? [], sourceDoc.lines);
-    if (normalizedRanges.length <= 1) {
+    const payload = captureSourcePayload(sourceDoc, sourceBlock);
+    if (!payload || payload.segments.length <= 1) {
         moveSingleRangeAcrossEditors(params);
         return;
     }
@@ -146,23 +142,6 @@ function moveCompositeAcrossEditors(params: CrossEditorMoveParams): void {
     if (!containerRule.decision.allowDrop) {
         return;
     }
-
-    const segments = normalizedRanges.map((range) => {
-        const startLineNumber = range.startLine + 1;
-        const endLineNumber = range.endLine + 1;
-        const startLine = sourceDoc.line(startLineNumber);
-        const endLine = sourceDoc.line(endLineNumber);
-        const sourceFrom = startLine.from;
-        const sourceTo = endLine.to;
-        const deleteRange = resolveDeleteRange(sourceDoc, sourceFrom, sourceTo);
-        return {
-            sourceFrom,
-            sourceTo,
-            deleteFrom: deleteRange.from,
-            deleteTo: deleteRange.to,
-            startLineNumber,
-        };
-    });
 
     const insertText = deps.buildInsertText(
         targetDoc,
@@ -186,13 +165,13 @@ function moveCompositeAcrossEditors(params: CrossEditorMoveParams): void {
     });
 
     sourceView.dispatch({
-        changes: segments
+        changes: payload.segments
             .map((segment) => ({ from: segment.deleteFrom, to: segment.deleteTo }))
             .sort((a, b) => b.from - a.from),
         scrollIntoView: false,
     });
 
-    const sourceLineNumbers = segments.map((segment) => segment.startLineNumber);
+    const sourceLineNumbers = payload.segments.map((segment) => segment.startLineNumber);
     finalizeMove({
         sourceView,
         targetView,
@@ -253,64 +232,3 @@ function finalizeMove(params: {
     }
     restoreTargetBlockFoldState?.();
 }
-
-function resolveInsertionChange(
-    doc: DocLikeWithRange,
-    targetLineNumber: number,
-    insertText: string,
-    options?: {
-        remainingLengthAfterDelete?: number;
-    }
-): { pos: number; text: string } {
-    if (targetLineNumber <= doc.lines) {
-        return {
-            pos: doc.line(targetLineNumber).from,
-            text: insertText,
-        };
-    }
-    const normalized = insertText.endsWith('\n')
-        ? insertText.slice(0, -1)
-        : insertText;
-    if (!normalized.length) {
-        return { pos: doc.length, text: normalized };
-    }
-    const remainingLengthAfterDelete = options?.remainingLengthAfterDelete ?? doc.length;
-    if (remainingLengthAfterDelete <= 0) {
-        return { pos: 0, text: normalized };
-    }
-    return {
-        pos: doc.length,
-        text: `\n${normalized}`,
-    };
-}
-
-function resolveDeleteRange(
-    doc: DocLikeWithRange,
-    sourceFrom: number,
-    sourceTo: number
-): { from: number; to: number } {
-    if (sourceTo < doc.length) {
-        return {
-            from: sourceFrom,
-            to: Math.min(sourceTo + 1, doc.length),
-        };
-    }
-
-    if (sourceFrom > 0) {
-        return {
-            from: sourceFrom - 1,
-            to: sourceTo,
-        };
-    }
-
-    return {
-        from: sourceFrom,
-        to: sourceTo,
-    };
-}
-
-function clampLineNumber(totalLines: number, lineNumber: number): number {
-    return Math.max(1, Math.min(totalLines, lineNumber));
-}
-
-

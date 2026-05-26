@@ -8,6 +8,7 @@ import {
 } from '../../shared/dom-selectors';
 import { RangeSelectionVisualManager } from './range-selection/selection-visual-manager';
 import { MobileGestureController } from './mobile-gesture-controller';
+import { NativeDragController } from './native-drag-controller';
 import { PointerSessionController } from './pointer-session-controller';
 import {
     type RangeSelectionBoundary,
@@ -16,7 +17,6 @@ import {
     buildRangeSelectionBoundaryFromBlock,
 } from './range-selection/selection-model';
 import { resolveRangeBoundaryAtPoint } from './range-selection/hit-boundary';
-import { resolveDragTransferGuard as resolveDragTransferGuardDecision } from './drag-transfer-guard';
 import {
     shouldClearCommittedSelectionOnPointerDown as shouldClearCommittedSelectionOnPointerDownByGrip,
     isCommittedSelectionGripHit as isCommittedSelectionGripHitByGrip,
@@ -87,6 +87,7 @@ export class DragEventHandler {
     private committedRangeSelection: CommittedRangeSelection | null = null;
     readonly rangeVisual: RangeSelectionVisualManager;
     readonly mobile: MobileGestureController;
+    readonly nativeDrag: NativeDragController;
     readonly pointer: PointerSessionController;
 
     private readonly onEditorPointerDown = (e: PointerEvent) => {
@@ -146,69 +147,6 @@ export class DragEventHandler {
         }
     };
 
-    private readonly onEditorDragEnter = (e: DragEvent) => {
-        const transferGuard = this.resolveDragTransferGuard(e);
-        if (transferGuard.decision === 'ignore') return;
-        if (this.gesture.phase === 'range_selecting') {
-            this.clearMouseRangeSelectState();
-            this.pointer.detachPointerListeners();
-            this.pointer.releasePointerCapture();
-        }
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.dataTransfer) {
-            e.dataTransfer.dropEffect = transferGuard.dropEffect;
-        }
-        if (transferGuard.decision === 'block') {
-            this.deps.hideDropIndicator();
-        }
-    };
-
-    private readonly onEditorDragOver = (e: DragEvent) => {
-        const transferGuard = this.resolveDragTransferGuard(e);
-        if (transferGuard.decision === 'ignore') return;
-        e.preventDefault();
-        e.stopPropagation();
-        if (!e.dataTransfer) return;
-        e.dataTransfer.dropEffect = transferGuard.dropEffect;
-        if (transferGuard.decision === 'block') {
-            this.deps.hideDropIndicator();
-            return;
-        }
-        this.deps.scheduleDropIndicatorUpdate(e.clientX, e.clientY, this.deps.getDragSourceBlock(e), 'mouse');
-    };
-
-    private readonly onEditorDragLeave = (e: DragEvent) => {
-        const transferGuard = this.resolveDragTransferGuard(e);
-        if (transferGuard.decision === 'ignore') return;
-        if (transferGuard.decision === 'block') {
-            this.deps.hideDropIndicator();
-            return;
-        }
-        const rect = this.view.dom.getBoundingClientRect();
-        if (e.clientX < rect.left || e.clientX > rect.right ||
-            e.clientY < rect.top || e.clientY > rect.bottom) {
-            this.deps.hideDropIndicator();
-        }
-    };
-
-    private readonly onEditorDrop = (e: DragEvent) => {
-        const transferGuard = this.resolveDragTransferGuard(e);
-        if (transferGuard.decision === 'ignore') return;
-        e.preventDefault();
-        e.stopPropagation();
-        if (transferGuard.decision === 'block') {
-            this.deps.hideDropIndicator();
-            return;
-        }
-        if (!e.dataTransfer) return;
-        const sourceBlock = this.deps.getDragSourceBlock(e);
-        if (!sourceBlock) return;
-        this.deps.performDropAtPoint(sourceBlock, e.clientX, e.clientY, 'mouse');
-        this.deps.hideDropIndicator();
-        this.deps.finishDragSession();
-    };
-
     private readonly onLostPointerCapture = (e: PointerEvent) => this.handleLostPointerCapture(e);
     private readonly onDocumentFocusIn = (e: FocusEvent) => this.handleDocumentFocusIn(e);
     constructor(
@@ -223,6 +161,24 @@ export class DragEventHandler {
             () => this.deps.isRangeSelectionDeleteEnabled?.() === true
         );
         this.mobile = new MobileGestureController(this.view, (e) => this.handleDocumentFocusIn(e));
+        this.nativeDrag = new NativeDragController(this.view, {
+            getDragSourceBlock: (e) => this.deps.getDragSourceBlock(e),
+            isCrossEditorDragActive: this.deps.isCrossEditorDragActive,
+            isCrossFileDragEnabled: this.deps.isCrossFileDragEnabled,
+            onAcceptedDragEnter: () => {
+                if (this.gesture.phase === 'range_selecting') {
+                    this.clearMouseRangeSelectState();
+                    this.pointer.detachPointerListeners();
+                    this.pointer.releasePointerCapture();
+                }
+            },
+            scheduleDropIndicatorUpdate: (clientX, clientY, dragSource, pointerType) =>
+                this.deps.scheduleDropIndicatorUpdate(clientX, clientY, dragSource, pointerType),
+            hideDropIndicator: () => this.deps.hideDropIndicator(),
+            performDropAtPoint: (sourceBlock, clientX, clientY, pointerType) =>
+                this.deps.performDropAtPoint(sourceBlock, clientX, clientY, pointerType),
+            finishDragSession: () => this.deps.finishDragSession(),
+        });
         this.pointer = new PointerSessionController(this.view, {
             onPointerMove: (e) => this.handlePointerMove(e),
             onPointerUp: (e) => this.handlePointerUp(e),
@@ -237,10 +193,7 @@ export class DragEventHandler {
         const editorDom = this.view.dom;
         editorDom.addEventListener('pointerdown', this.onEditorPointerDown, true);
         editorDom.addEventListener('lostpointercapture', this.onLostPointerCapture, true);
-        editorDom.addEventListener('dragenter', this.onEditorDragEnter, true);
-        editorDom.addEventListener('dragover', this.onEditorDragOver, true);
-        editorDom.addEventListener('dragleave', this.onEditorDragLeave, true);
-        editorDom.addEventListener('drop', this.onEditorDrop, true);
+        this.nativeDrag.attach();
         editorDom.addEventListener('focusin', this.onDocumentFocusIn, true);
     }
 
@@ -284,10 +237,7 @@ export class DragEventHandler {
         const editorDom = this.view.dom;
         editorDom.removeEventListener('pointerdown', this.onEditorPointerDown, true);
         editorDom.removeEventListener('lostpointercapture', this.onLostPointerCapture, true);
-        editorDom.removeEventListener('dragenter', this.onEditorDragEnter, true);
-        editorDom.removeEventListener('dragover', this.onEditorDragOver, true);
-        editorDom.removeEventListener('dragleave', this.onEditorDragLeave, true);
-        editorDom.removeEventListener('drop', this.onEditorDrop, true);
+        this.nativeDrag.destroy();
         editorDom.removeEventListener('focusin', this.onDocumentFocusIn, true);
     }
 
@@ -301,14 +251,6 @@ export class DragEventHandler {
             return;
         }
         this.rangeVisual.scheduleRefresh();
-    }
-
-    private resolveDragTransferGuard(e: DragEvent) {
-        return resolveDragTransferGuardDecision({
-            event: e,
-            isCrossEditorDrag: this.deps.isCrossEditorDragActive?.() ?? false,
-            isCrossFileDragEnabled: this.deps.isCrossFileDragEnabled?.() ?? false,
-        });
     }
 
     private isMobileEnvironment(): boolean {

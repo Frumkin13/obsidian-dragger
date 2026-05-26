@@ -10,6 +10,8 @@ import { DragDocumentRelation } from '../../shared/types/drag';
 import { BlockMoverDeps } from './block-mover-deps';
 import { CapturedBlockFoldState } from './block-fold-state';
 import { normalizeCompositeRanges } from '../../shared/utils/composite-selection';
+import { resolveInsertionChange } from './document-change';
+import { captureSourcePayload } from './source-payload';
 
 export class BlockMover {
     private readonly listRenumberer: ListRenumberer;
@@ -129,11 +131,10 @@ export class BlockMover {
             return;
         }
 
-        const sourceStartLine = doc.line(normalizedSourceBlock.startLine + 1);
-        const sourceEndLine = doc.line(normalizedSourceBlock.endLine + 1);
-        const sourceFrom = sourceStartLine.from;
-        const sourceTo = sourceEndLine.to;
-        const sourceContent = doc.sliceString(sourceFrom, sourceTo);
+        const payload = captureSourcePayload(doc, normalizedSourceBlock);
+        if (!payload) return;
+        const segment = payload.segments[0];
+        const sourceContent = payload.content;
         const insertText = this.deps.buildInsertText(
             doc,
             normalizedSourceBlock,
@@ -143,10 +144,9 @@ export class BlockMover {
             listIndentDeltaOverride,
             listTargetIndentWidthOverride
         );
-        const deleteRange = this.resolveDeleteRange(doc, sourceFrom, sourceTo);
-        const deleteFrom = deleteRange.from;
-        const deleteTo = deleteRange.to;
-        const insertion = this.resolveInsertionChange(doc, targetLineNumber, insertText, {
+        const deleteFrom = segment.deleteFrom;
+        const deleteTo = segment.deleteTo;
+        const insertion = resolveInsertionChange(doc, targetLineNumber, insertText, {
             remainingLengthAfterDelete: doc.length - (deleteTo - deleteFrom),
         });
         const insertPos = insertion.pos;
@@ -197,6 +197,8 @@ export class BlockMover {
         } = params;
         const view = this.deps.view;
         const doc = view.state.doc as unknown as DocLikeWithRange;
+        const payload = captureSourcePayload(doc, sourceBlock);
+        if (!payload) return;
         const normalizedRanges = normalizeCompositeRanges(
             sourceBlock.compositeSelection?.ranges ?? [],
             doc.lines
@@ -239,21 +241,6 @@ export class BlockMover {
             return;
         }
 
-        const segments = normalizedRanges.map((range) => {
-            const startLine = doc.line(range.startLine + 1);
-            const endLine = doc.line(range.endLine + 1);
-            const sourceFrom = startLine.from;
-            const sourceTo = endLine.to;
-            const deleteRange = this.resolveDeleteRange(doc, sourceFrom, sourceTo);
-            return {
-                sourceFrom,
-                sourceTo,
-                deleteFrom: deleteRange.from,
-                deleteTo: deleteRange.to,
-                startLineNumber: range.startLine + 1,
-            };
-        });
-
         const insertText = this.deps.buildInsertText(
             doc,
             sourceBlock,
@@ -264,20 +251,20 @@ export class BlockMover {
             params.listTargetIndentWidthOverride
         );
         if (!insertText.length) return;
-        const totalDeletedLength = segments.reduce(
+        const totalDeletedLength = payload.segments.reduce(
             (sum, segment) => sum + (segment.deleteTo - segment.deleteFrom),
             0
         );
-        const insertion = this.resolveInsertionChange(doc, targetLineNumber, insertText, {
+        const insertion = resolveInsertionChange(doc, targetLineNumber, insertText, {
             remainingLengthAfterDelete: doc.length - totalDeletedLength,
         });
-        if (segments.some((segment) => insertion.pos > segment.deleteFrom && insertion.pos < segment.deleteTo)) {
+        if (payload.segments.some((segment) => insertion.pos > segment.deleteFrom && insertion.pos < segment.deleteTo)) {
             return;
         }
 
         const changes = [
             { from: insertion.pos, to: insertion.pos, insert: insertion.text },
-            ...segments.map((segment) => ({ from: segment.deleteFrom, to: segment.deleteTo })),
+            ...payload.segments.map((segment) => ({ from: segment.deleteFrom, to: segment.deleteTo })),
         ].sort((a, b) => b.from - a.from);
 
         view.dispatch({
@@ -287,7 +274,7 @@ export class BlockMover {
 
         const targetStartLineNumber = this.resolveFinalCompositeInsertedStartLineNumber(targetLineNumber, normalizedRanges);
         const renumberTargets = new Set<number>([targetLineNumber]);
-        for (const segment of segments) {
+        for (const segment of payload.segments) {
             renumberTargets.add(segment.startLineNumber);
         }
         for (const lineNumber of renumberTargets) {
@@ -314,6 +301,10 @@ export class BlockMover {
     }
 
     private normalizeSourceBlock(doc: DocLikeWithRange, sourceBlock: BlockInfo): BlockInfo {
+        const payload = captureSourcePayload(doc, sourceBlock);
+        if (!payload) {
+            return sourceBlock;
+        }
         const compositeRanges = normalizeCompositeRanges(
             sourceBlock.compositeSelection?.ranges ?? [],
             doc.lines
@@ -326,13 +317,6 @@ export class BlockMover {
         const lastRange = compositeRanges[compositeRanges.length - 1];
         const firstLine = doc.line(firstRange.startLine + 1);
         const lastLine = doc.line(lastRange.endLine + 1);
-        const content = compositeRanges
-            .map((range) => {
-                const startLine = doc.line(range.startLine + 1);
-                const endLine = doc.line(range.endLine + 1);
-                return doc.sliceString(startLine.from, endLine.to);
-            })
-            .join('\n');
 
         return {
             ...sourceBlock,
@@ -340,7 +324,7 @@ export class BlockMover {
             endLine: lastRange.endLine,
             from: firstLine.from,
             to: lastLine.to,
-            content,
+            content: payload.content,
             compositeSelection: compositeRanges.length > 1
                 ? { ranges: compositeRanges }
                 : undefined,
@@ -370,61 +354,4 @@ export class BlockMover {
         }
         return Math.max(1, targetLineNumber - removedLineCountBeforeTarget);
     }
-
-    private resolveInsertionChange(
-        doc: DocLikeWithRange,
-        targetLineNumber: number,
-        insertText: string,
-        options?: {
-            remainingLengthAfterDelete?: number;
-        }
-    ): { pos: number; text: string } {
-        if (targetLineNumber <= doc.lines) {
-            return {
-                pos: doc.line(targetLineNumber).from,
-                text: insertText,
-            };
-        }
-        const normalized = insertText.endsWith('\n')
-            ? insertText.slice(0, -1)
-            : insertText;
-        if (!normalized.length) {
-            return { pos: doc.length, text: normalized };
-        }
-        const remainingLengthAfterDelete = options?.remainingLengthAfterDelete ?? doc.length;
-        if (remainingLengthAfterDelete <= 0) {
-            return { pos: 0, text: normalized };
-        }
-        return {
-            pos: doc.length,
-            text: `\n${normalized}`,
-        };
-    }
-
-    private resolveDeleteRange(
-        doc: DocLikeWithRange,
-        sourceFrom: number,
-        sourceTo: number
-    ): { from: number; to: number } {
-        if (sourceTo < doc.length) {
-            return {
-                from: sourceFrom,
-                to: Math.min(sourceTo + 1, doc.length),
-            };
-        }
-
-        if (sourceFrom > 0) {
-            return {
-                from: sourceFrom - 1,
-                to: sourceTo,
-            };
-        }
-
-        return {
-            from: sourceFrom,
-            to: sourceTo,
-        };
-    }
 }
-
-

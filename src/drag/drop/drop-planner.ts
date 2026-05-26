@@ -12,6 +12,7 @@ import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
 import { getRenderedMainLineNumberAtPoint } from '../../platform/dom/line-hit';
 
 import { DragSourceScope } from '../../shared/types/drag';
+import { DropListIntent, DropPlan } from './drop-plan';
 import { ListDropTargetCalculatorPort } from './list-drop-planner-port';
 
 type PerfDurationKey =
@@ -84,6 +85,7 @@ export type DropValidationResult = {
     indicatorY?: number;
     lineRect?: { left: number; width: number };
     highlightRect?: { top: number; left: number; width: number; height: number };
+    plan?: DropPlan;
 };
 
 export type DropTargetCalculatorSharedDeps = Omit<DropTargetCalculatorDeps, 'listDropTargetCalculator'>;
@@ -114,15 +116,7 @@ export class DropTargetCalculator {
         if (!validated.allowed || typeof validated.targetLineNumber !== 'number' || typeof validated.indicatorY !== 'number') {
             return null;
         }
-        return {
-            lineNumber: validated.targetLineNumber,
-            indicatorY: validated.indicatorY,
-            listContextLineNumber: validated.listContextLineNumber,
-            listIndentDelta: validated.listIndentDelta,
-            listTargetIndentWidth: validated.listTargetIndentWidth,
-            lineRect: validated.lineRect,
-            highlightRect: validated.highlightRect,
-        };
+        return this.toDropTargetInfo(validated.plan);
     }
 
     resolveValidatedDropTarget(info: {
@@ -227,12 +221,13 @@ export class DropTargetCalculator {
                 }
 
                 const indicatorY = showAtBottom ? rect.bottom : rect.top;
-                return {
-                    allowed: true,
+                return this.buildAllowedResult({
                     targetLineNumber: lineNumber,
-                    indicatorY,
-                    lineRect: { left: rect.left, width: rect.width },
-                };
+                    preview: {
+                        indicatorY,
+                        lineRect: { left: rect.left, width: rect.width },
+                    },
+                });
             }
         }
 
@@ -305,15 +300,64 @@ export class DropTargetCalculator {
         }
         this.deps.recordPerfDuration?.('geometry', this.now() - geometryStartedAt);
 
+        return this.buildAllowedResult({
+            targetLineNumber: vertical.targetLineNumber,
+            listIntent: this.toDropListIntent({
+                listContextLineNumber: listTarget.listContextLineNumber,
+                listIndentDelta: listTarget.listIndentDelta,
+                listTargetIndentWidth: listTarget.listTargetIndentWidth,
+            }),
+            preview: {
+                indicatorY,
+                lineRect,
+                highlightRect: listTarget.highlightRect,
+            },
+        });
+    }
+
+    private buildAllowedResult(plan: DropPlan): DropValidationResult {
         return {
             allowed: true,
-            targetLineNumber: vertical.targetLineNumber,
-            indicatorY,
-            listContextLineNumber: listTarget.listContextLineNumber,
-            listIndentDelta: listTarget.listIndentDelta,
-            listTargetIndentWidth: listTarget.listTargetIndentWidth,
-            lineRect,
-            highlightRect: listTarget.highlightRect,
+            targetLineNumber: plan.targetLineNumber,
+            listContextLineNumber: plan.listIntent?.contextLineNumber,
+            listIndentDelta: plan.listIntent?.indentDelta,
+            listTargetIndentWidth: plan.listIntent?.targetIndentWidth,
+            indicatorY: plan.preview.indicatorY,
+            lineRect: plan.preview.lineRect,
+            highlightRect: plan.preview.highlightRect,
+            plan,
+        };
+    }
+
+    private toDropListIntent(info: {
+        listContextLineNumber?: number;
+        listIndentDelta?: number;
+        listTargetIndentWidth?: number;
+    }): DropListIntent | undefined {
+        if (
+            info.listContextLineNumber === undefined
+            && info.listIndentDelta === undefined
+            && info.listTargetIndentWidth === undefined
+        ) {
+            return undefined;
+        }
+        return {
+            contextLineNumber: info.listContextLineNumber,
+            indentDelta: info.listIndentDelta,
+            targetIndentWidth: info.listTargetIndentWidth,
+        };
+    }
+
+    private toDropTargetInfo(plan: DropPlan | undefined): DropTargetInfo | null {
+        if (!plan) return null;
+        return {
+            lineNumber: plan.targetLineNumber,
+            indicatorY: plan.preview.indicatorY,
+            listContextLineNumber: plan.listIntent?.contextLineNumber,
+            listIndentDelta: plan.listIntent?.indentDelta,
+            listTargetIndentWidth: plan.listIntent?.targetIndentWidth,
+            lineRect: plan.preview.lineRect,
+            highlightRect: plan.preview.highlightRect,
         };
     }
 
