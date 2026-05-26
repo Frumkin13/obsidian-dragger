@@ -1,10 +1,11 @@
 import { BlockInfo } from '../../domain/block/block-types';
 import { DocLikeWithRange } from '../../shared/types/protocol-types';
-import { normalizeCompositeRanges } from '../../shared/utils/composite-selection';
+import { normalizeCompositeRanges, type CompositeLineRange } from '../../shared/utils/composite-selection';
 import { resolveDeleteRange } from './document-change';
 
 export type SourceSegment = {
     startLineNumber: number;
+    endLineNumber: number;
     from: number;
     to: number;
     deleteFrom: number;
@@ -13,8 +14,37 @@ export type SourceSegment = {
 
 export type SourcePayload = {
     content: string;
+    ranges: CompositeLineRange[];
     segments: SourceSegment[];
 };
+
+export type CapturedMoveSource = {
+    block: BlockInfo;
+    payload: SourcePayload;
+};
+
+export function captureMoveSource(doc: DocLikeWithRange, sourceBlock: BlockInfo): CapturedMoveSource | null {
+    const payload = captureSourcePayload(doc, sourceBlock);
+    if (!payload) return null;
+
+    const firstRange = payload.ranges[0];
+    const lastRange = payload.ranges[payload.ranges.length - 1];
+    const firstLine = doc.line(firstRange.startLine + 1);
+    const lastLine = doc.line(lastRange.endLine + 1);
+
+    return {
+        block: {
+            ...sourceBlock,
+            startLine: firstRange.startLine,
+            endLine: lastRange.endLine,
+            from: firstLine.from,
+            to: lastLine.to,
+            content: payload.content,
+            compositeSelection: { ranges: payload.ranges },
+        },
+        payload,
+    };
+}
 
 export function captureSourcePayload(doc: DocLikeWithRange, sourceBlock: BlockInfo): SourcePayload | null {
     const rawRanges = sourceBlock.compositeSelection?.ranges ?? [{
@@ -32,6 +62,7 @@ export function captureSourcePayload(doc: DocLikeWithRange, sourceBlock: BlockIn
         const deleteRange = resolveDeleteRange(doc, startLine.from, endLine.to);
         return {
             startLineNumber,
+            endLineNumber,
             from: startLine.from,
             to: endLine.to,
             deleteFrom: deleteRange.from,
@@ -42,5 +73,5 @@ export function captureSourcePayload(doc: DocLikeWithRange, sourceBlock: BlockIn
         .map((segment) => doc.sliceString(segment.from, segment.to))
         .join('\n');
 
-    return { content, segments };
+    return { content, ranges, segments };
 }

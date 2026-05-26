@@ -516,7 +516,9 @@ describe('BlockMover', () => {
             expect.objectContaining({
                 startLine: 1,
                 endLine: 2,
-                compositeSelection: undefined,
+                compositeSelection: {
+                    ranges: [{ startLine: 1, endLine: 2 }],
+                },
             })
         );
         expect(blockFoldState.restore).toHaveBeenCalledWith(

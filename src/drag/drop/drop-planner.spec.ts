@@ -189,7 +189,12 @@ describe('DropPlanner', () => {
     it('rejects self-range drop before indicator rendering', () => {
         mockElementFromPoint(null);
         const view = createViewStub('- first\n- second');
-        const calculator = new DropPlanner(view, createDeps());
+        const calculator = new DropPlanner(view, createDeps({
+            listDropPlanner: {
+                computeListTarget: () => ({}),
+                getListMarkerBounds: () => ({ contentStartX: 0, markerLeft: 0, markerRight: 8 }),
+            },
+        }));
 
         const validation = calculator.resolveValidatedDropTarget({
             clientX: 40,

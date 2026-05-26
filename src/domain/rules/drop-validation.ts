@@ -1,4 +1,4 @@
-import { BlockInfo } from '../block/block-types';
+import { BlockInfo, BlockType } from '../block/block-types';
 import { ListDropIntent } from '../../shared/types/protocol-types';
 import {
     InsertionRuleRejectReason,
@@ -23,6 +23,29 @@ export type InPlaceDropValidationResult = {
     listContextLineNumber?: number;
     targetIndentWidth?: number;
 };
+
+function sourceRangesAreListStructured(params: {
+    doc: DocLike;
+    sourceBlock: BlockInfo;
+    parseLineWithQuote: (line: string) => ParsedLine;
+    ranges: Array<{ startLine: number; endLine: number }>;
+}): boolean {
+    const { doc, sourceBlock, parseLineWithQuote, ranges } = params;
+    if (sourceBlock.type !== BlockType.ListItem) return false;
+
+    for (const range of ranges) {
+        let foundContent = false;
+        for (let lineNumber = range.startLine + 1; lineNumber <= range.endLine + 1; lineNumber++) {
+            const text = doc.line(lineNumber).text;
+            if (text.trim().length === 0) continue;
+            foundContent = true;
+            if (!parseLineWithQuote(text).isListItem) return false;
+        }
+        if (!foundContent) return false;
+    }
+
+    return true;
+}
 
 export function validateInPlaceDrop(params: {
     doc: DocLike;
@@ -66,28 +89,21 @@ export function validateInPlaceDrop(params: {
         sourceBlock.compositeSelection?.ranges ?? [],
         doc.lines
     );
-    const hasCompositeSelection = compositeRanges.length > 1;
-    const effectiveSourceRange = compositeRanges.length === 1
-        ? compositeRanges[0]
-        : {
-            startLine: sourceBlock.startLine,
-            endLine: sourceBlock.endLine,
-        };
-    const inSelfRange = hasCompositeSelection
-        ? compositeRanges.some((range) => {
-            const start = Math.min(range.startLine, range.endLine);
-            const end = Math.max(range.startLine, range.endLine);
-            return targetLineIdx >= start && targetLineIdx <= end;
-        })
-        : (
-            targetLineIdx >= effectiveSourceRange.startLine
-            && targetLineIdx <= effectiveSourceRange.endLine + 1
-        );
+    const effectiveSourceRange = {
+        startLine: compositeRanges[0]?.startLine ?? sourceBlock.startLine,
+        endLine: compositeRanges[compositeRanges.length - 1]?.endLine ?? sourceBlock.endLine,
+    };
+
+    const inSelectedRange = compositeRanges.some((range) => (
+        targetLineIdx >= range.startLine && targetLineIdx <= range.endLine
+    ));
+    const inSelfRange = inSelectedRange || targetLineIdx === effectiveSourceRange.endLine + 1;
     if (!inSelfRange) {
         return { inSelfRange: false, allowInPlaceIndentChange: false };
     }
 
-    if (hasCompositeSelection) {
+    const hasListIntent = listIntent?.targetIndentWidth !== undefined || listIntent?.indentDelta !== undefined;
+    if (!hasListIntent) {
         return {
             inSelfRange: true,
             allowInPlaceIndentChange: false,
@@ -95,8 +111,12 @@ export function validateInPlaceDrop(params: {
         };
     }
 
-    const hasListIntent = listIntent?.targetIndentWidth !== undefined || listIntent?.indentDelta !== undefined;
-    if (!hasListIntent) {
+    if (!sourceRangesAreListStructured({
+        doc,
+        sourceBlock,
+        parseLineWithQuote,
+        ranges: compositeRanges.length > 0 ? compositeRanges : [effectiveSourceRange],
+    })) {
         return {
             inSelfRange: true,
             allowInPlaceIndentChange: false,

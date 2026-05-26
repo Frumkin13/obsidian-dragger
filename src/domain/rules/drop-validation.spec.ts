@@ -137,6 +137,36 @@ describe('drop-validation', () => {
         expect(result.allowInPlaceIndentChange).toBe(true);
         expect(result.rejectReason).toBeUndefined();
     });
+
+    it('blocks in-place list indent when a composite source contains non-list content', () => {
+        const sourceBlock: BlockInfo = {
+            ...createBlock(BlockType.ListItem, 0, 2, '- root\nparagraph\n- child'),
+            compositeSelection: {
+                ranges: [
+                    { startLine: 0, endLine: 0 },
+                    { startLine: 1, endLine: 1 },
+                    { startLine: 2, endLine: 2 },
+                ],
+            },
+        };
+
+        const result = validateInPlaceDrop({
+            doc: createDoc(['- root', 'paragraph', '- child', 'after']),
+            sourceBlock,
+            targetLineNumber: 4,
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            listIntent: {
+                contextLineNumber: 4,
+                targetIndentWidth: 2,
+            },
+        });
+
+        expect(result.inSelfRange).toBe(true);
+        expect(result.allowInPlaceIndentChange).toBe(false);
+        expect(result.rejectReason).toBe('self_range_blocked');
+    });
 });
 
 
