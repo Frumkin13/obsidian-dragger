@@ -83,11 +83,13 @@ export class DragInteractionOrchestrator {
         }
         this.ensureDragPerfSession();
         if (sourceBlock) {
+            this.handleVisibility.enterGrabVisualStateForBlock(sourceBlock, handle);
             this.emitDragLifecycle(buildDragStartedLifecycleEvent(sourceBlock, 'mouse'));
         }
     }
 
     finishNativeDragFromHandle(): void {
+        this.handleVisibility.clearGrabbedLineNumbers();
         this.handleVisibility.setActiveVisibleHandle(null);
         finishDragSession(this.view);
         this.flushDragPerfSession('drag_end');
