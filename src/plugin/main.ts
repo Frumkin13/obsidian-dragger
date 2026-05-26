@@ -1,7 +1,15 @@
 import { Plugin } from 'obsidian';
 import { dragHandleExtension } from '../runtime/editor-extension';
 import { ExternalFileDropController } from '../platform/obsidian/external-file-drop-controller';
-import { setHandleHorizontalOffsetPx, setHandleSizePx } from '../shared/constants';
+import {
+    DEFAULT_HANDLE_SIZE_PX,
+    HANDLE_CORE_SIZE_RATIO,
+    GRIP_DOTS_CORE_SIZE_RATIO,
+    MAX_HANDLE_SIZE_PX,
+    MIN_HANDLE_SIZE_PX,
+    setHandleHorizontalOffsetPx,
+    setHandleSizePx,
+} from '../shared/constants';
 import {
     DND_DRAG_SOURCE_HIGHLIGHT_ATTR,
     DND_DRAG_SOURCE_STYLE_ATTR,
@@ -136,13 +144,17 @@ export default class DragNDropPlugin extends Plugin {
             });
         }
 
-        const handleSize = Math.max(12, Math.min(28, this.settings.handleSize ?? 16));
+        const handleSize = Math.max(
+            MIN_HANDLE_SIZE_PX,
+            Math.min(MAX_HANDLE_SIZE_PX, this.settings.handleSize ?? DEFAULT_HANDLE_SIZE_PX)
+        );
         setHandleSizePx(handleSize);
         body.setCssProps({
             '--dnd-handle-size': `${handleSize}px`,
-            '--dnd-handle-core-size': `${Math.round(handleSize * 0.5)}px`,
+            '--dnd-handle-core-size': `${Math.round(handleSize * HANDLE_CORE_SIZE_RATIO)}px`,
+            '--dnd-grip-dots-core-size': `${Math.round(handleSize * GRIP_DOTS_CORE_SIZE_RATIO)}px`,
         });
-        body.setAttribute(DND_HANDLE_ICON_ATTR, this.settings.handleIcon ?? 'dot');
+        body.setAttribute(DND_HANDLE_ICON_ATTR, this.settings.handleIcon ?? 'grip-dots');
 
         window.dispatchEvent(new Event('dnd:settings-updated'));
     }

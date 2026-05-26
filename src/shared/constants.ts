@@ -28,8 +28,14 @@ export const HANDLE_INTERACTION_ZONE_PX = 64;
  *
  * Centralised mutable config – set once per plugin load via `applySettings()`.
  */
+export const DEFAULT_HANDLE_SIZE_PX = 20;
+export const MIN_HANDLE_SIZE_PX = 10;
+export const MAX_HANDLE_SIZE_PX = 40;
+export const HANDLE_CORE_SIZE_RATIO = 0.5;
+export const GRIP_DOTS_CORE_SIZE_RATIO = 0.8;
+
 const handleConfig = {
-    sizePx: 16,
+    sizePx: DEFAULT_HANDLE_SIZE_PX,
     horizontalOffsetPx: -8,
 };
 
@@ -38,7 +44,7 @@ export function getHandleSizePx(): number {
 }
 
 export function setHandleSizePx(size: number): void {
-    handleConfig.sizePx = Math.max(12, Math.min(28, size));
+    handleConfig.sizePx = Math.max(MIN_HANDLE_SIZE_PX, Math.min(MAX_HANDLE_SIZE_PX, size));
 }
 
 export function getHandleHorizontalOffsetPx(): number {

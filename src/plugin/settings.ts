@@ -1,6 +1,11 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import DragNDropPlugin from './main';
 import { t } from './i18n';
+import {
+    DEFAULT_HANDLE_SIZE_PX,
+    MAX_HANDLE_SIZE_PX,
+    MIN_HANDLE_SIZE_PX,
+} from '../shared/constants';
 import type {
     DragNDropSettings,
     DragSourceVisualStyle,
@@ -35,8 +40,8 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     handleColorMode: 'theme',
     handleColor: '#8a8a8a',
     handleVisibility: 'hover',
-    handleIcon: 'dot',
-    handleSize: 16,
+    handleIcon: 'grip-dots',
+    handleSize: DEFAULT_HANDLE_SIZE_PX,
     indicatorColorMode: 'theme',
     indicatorColor: '#7a7a7a',
     enableCrossFileDrag: false,
@@ -165,7 +170,7 @@ export class DragNDropSettingTab extends PluginSettingTab {
             .setName(i.handleSize)
             .setDesc(i.handleSizeDesc)
             .addSlider((slider) => slider
-                .setLimits(12, 28, 2)
+                .setLimits(MIN_HANDLE_SIZE_PX, MAX_HANDLE_SIZE_PX, 2)
                 .setDynamicTooltip()
                 .setValue(this.plugin.settings.handleSize)
                 .onChange(async (value) => {

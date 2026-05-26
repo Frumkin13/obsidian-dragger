@@ -7,8 +7,8 @@
 /* 拖拽手柄 */
 .dnd-drag-handle {
     position: relative;
-    width: var(--dnd-handle-size, 16px);
-    height: var(--dnd-handle-size, 16px);
+    width: var(--dnd-handle-size, 20px);
+    height: var(--dnd-handle-size, 20px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -25,8 +25,8 @@
 }
 
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter {
-    width: var(--dnd-handle-size, 16px);
-    min-width: var(--dnd-handle-size, 16px);
+    width: var(--dnd-handle-size, 20px);
+    min-width: var(--dnd-handle-size, 20px);
     overflow: visible;
     pointer-events: none;
     z-index: 4;
@@ -58,8 +58,8 @@
 }
 
 .dnd-handle-core {
-    width: var(--dnd-handle-core-size, 8px);
-    height: var(--dnd-handle-core-size, 8px);
+    width: var(--dnd-handle-core-size, 10px);
+    height: var(--dnd-handle-core-size, 10px);
     border-radius: 999px;
     background: currentColor;
     box-shadow:
@@ -74,7 +74,7 @@
     border-radius: 0;
     background: none;
     box-shadow: none;
-    font-size: var(--dnd-handle-core-size, 8px);
+    font-size: var(--dnd-grip-dots-core-size, 16px);
     line-height: 1;
 }
 [data-dnd-handle-icon="grip-dots"] .dnd-handle-core::before {
@@ -88,7 +88,7 @@
     border-radius: 0;
     background: none;
     box-shadow: none;
-    font-size: var(--dnd-handle-core-size, 8px);
+    font-size: var(--dnd-handle-core-size, 10px);
     line-height: 1;
 }
 [data-dnd-handle-icon="grip-lines"] .dnd-handle-core::before {
