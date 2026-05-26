@@ -5,7 +5,6 @@ import { DRAG_HANDLE_CLASS, HANDLE_CORE_CLASS, LINE_HANDLE_CLASS } from '../../s
 export function createLineDragHandleElement(block: Pick<BlockInfo, 'startLine' | 'endLine'>): HTMLElement {
     const handle = document.createElement('div');
     handle.className = `${DRAG_HANDLE_CLASS} ${LINE_HANDLE_CLASS} dnd-handle-gutter-bound`;
-    handle.setAttribute('draggable', 'true');
     handle.setAttribute('data-block-start', String(block.startLine));
     handle.setAttribute('data-block-end', String(block.endLine));
 

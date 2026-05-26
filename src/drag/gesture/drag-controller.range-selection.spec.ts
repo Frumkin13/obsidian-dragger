@@ -30,7 +30,6 @@ describe('DragEventHandler Range Selection', () => {
         const endBlock = createBlock('line 6', 5, 5);
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
             isBlockInsideRenderedTableCell: () => false,
@@ -45,6 +44,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 7,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -53,18 +53,21 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 7,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointermove', {
             pointerId: 7,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 7,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -75,6 +78,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(link!, 'pointerdown', {
             pointerId: 8,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 80,
         });
@@ -82,6 +86,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 8,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 90,
             clientY: 105,
         });
@@ -97,13 +102,13 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointerup', {
             pointerId: 8,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 90,
             clientY: 105,
         });
 
         expect(performDropAtPoint).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
-        expect(handle.getAttribute('draggable')).toBe('true');
         handler.destroy();
     });
 
@@ -114,7 +119,6 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => null,
             isBlockInsideRenderedTableCell: () => false,
@@ -129,6 +133,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 72,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -136,12 +141,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 72,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 72,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -170,7 +177,6 @@ describe('DragEventHandler Range Selection', () => {
         const sourceBlock = createBlock('anchor', 1, 1);
         const codeBlock = createBlock('```ts', 4, 6);
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: (handle) => {
                 if (handle === anchorHandle) return sourceBlock;
                 if (handle === codeBlockHandle) return codeBlock;
@@ -189,6 +195,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(anchorHandle, 'pointerdown', {
             pointerId: 73,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -196,18 +203,21 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 73,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 125,
         });
         dispatchPointer(window, 'pointermove', {
             pointerId: 73,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 125,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 73,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 125,
         });
@@ -227,7 +237,6 @@ describe('DragEventHandler Range Selection', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const endBlock = createBlock('- end', 5, 5);
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: (_x, y) => (y >= 160 ? endBlock : sourceBlock),
             isBlockInsideRenderedTableCell: () => false,
@@ -242,6 +251,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 74,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -249,12 +259,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 74,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 182,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 74,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 182,
         });
@@ -274,7 +286,6 @@ describe('DragEventHandler Range Selection', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const endBlock = createBlock('- end', 5, 5);
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
             isBlockInsideRenderedTableCell: () => false,
@@ -289,6 +300,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 76,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -296,12 +308,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 76,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 112,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 76,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 112,
         });
@@ -321,7 +335,6 @@ describe('DragEventHandler Range Selection', () => {
         const beginPointerDragSession = vi.fn();
         const scheduleDropIndicatorUpdate = vi.fn();
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => null,
             isBlockInsideRenderedTableCell: () => false,
@@ -336,6 +349,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 70,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -343,12 +357,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 70,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 70,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -359,12 +375,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(link!, 'pointerdown', {
             pointerId: 71,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 80,
         });
         dispatchPointer(window, 'pointermove', {
             pointerId: 71,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 13,
             clientY: 80,
         });
@@ -376,6 +394,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 71,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 90,
             clientY: 80,
         });
@@ -395,7 +414,6 @@ describe('DragEventHandler Range Selection', () => {
         const beginPointerDragSession = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: (handle) => (handle === endHandle ? endBlock : sourceBlock),
             getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
             isBlockInsideRenderedTableCell: () => false,
@@ -410,6 +428,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(startHandle, 'pointerdown', {
             pointerId: 171,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -417,12 +436,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 171,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 171,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -433,18 +454,21 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(endHandle, 'pointerdown', {
             pointerId: 172,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointermove', {
             pointerId: 172,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 172,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -465,7 +489,6 @@ describe('DragEventHandler Range Selection', () => {
         const scheduleDropIndicatorUpdate = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: (handle) => (handle === endHandle ? endBlock : sourceBlock),
             getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
             isBlockInsideRenderedTableCell: () => false,
@@ -480,6 +503,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(startHandle, 'pointerdown', {
             pointerId: 181,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -487,12 +511,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 181,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 181,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -503,6 +529,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(endHandle, 'pointerdown', {
             pointerId: 182,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -510,6 +537,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 182,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 90,
             clientY: 105,
         });
@@ -535,7 +563,6 @@ describe('DragEventHandler Range Selection', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: (handle) => (handle === endHandle ? endBlock : sourceBlock),
             getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
             isBlockInsideRenderedTableCell: () => false,
@@ -550,6 +577,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(startHandle, 'pointerdown', {
             pointerId: 281,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -557,12 +585,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 281,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 281,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -572,6 +602,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(endHandle, 'pointerdown', {
             pointerId: 282,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -579,6 +610,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 282,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 90,
             clientY: 105,
         });
@@ -588,6 +620,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointerup', {
             pointerId: 282,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 90,
             clientY: 105,
         });
@@ -608,7 +641,6 @@ describe('DragEventHandler Range Selection', () => {
         const scheduleDropIndicatorUpdate = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: (handle) => (handle === endHandle ? endBlock : sourceBlock),
             getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
             isBlockInsideRenderedTableCell: () => false,
@@ -623,6 +655,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(startHandle, 'pointerdown', {
             pointerId: 281,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -630,12 +663,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 281,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 281,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -643,12 +678,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(endHandle, 'pointerdown', {
             pointerId: 282,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointermove', {
             pointerId: 282,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 14,
             clientY: 106,
         });
@@ -656,6 +693,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 282,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 90,
             clientY: 105,
         });
@@ -678,7 +716,6 @@ describe('DragEventHandler Range Selection', () => {
         const beginPointerDragSession = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: (handle) => (handle === endHandle ? endBlock : sourceBlock),
             getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
             isBlockInsideRenderedTableCell: () => false,
@@ -693,6 +730,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(startHandle, 'pointerdown', {
             pointerId: 191,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -700,12 +738,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 191,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 191,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -716,6 +756,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(endHandle, 'pointerdown', {
             pointerId: 192,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -723,6 +764,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointerup', {
             pointerId: 192,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -740,7 +782,6 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => null,
             getBlockInfoAtPoint: () => sourceBlock,
             isBlockInsideRenderedTableCell: () => false,
@@ -755,6 +796,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 75,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -762,12 +804,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 75,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 90,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 75,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 90,
         });
@@ -782,7 +826,6 @@ describe('DragEventHandler Range Selection', () => {
         const view = createViewStub(8);
         const handle = document.createElement('div');
         handle.className = 'dnd-drag-handle';
-        handle.setAttribute('draggable', 'true');
         view.dom.appendChild(handle);
 
         const sourceBlock = createBlock('- item', 1, 1);
@@ -793,7 +836,6 @@ describe('DragEventHandler Range Selection', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => null,
             isBlockInsideRenderedTableCell: () => false,
@@ -863,7 +905,6 @@ describe('DragEventHandler Range Selection', () => {
         expect(performDropAtPoint).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-range-selection-link')).toBeNull();
-        expect(handle.getAttribute('draggable')).toBe('true');
         handler.destroy();
     });
 
@@ -871,14 +912,12 @@ describe('DragEventHandler Range Selection', () => {
         const view = createViewStub(8);
         const handle = document.createElement('div');
         handle.className = 'dnd-drag-handle';
-        handle.setAttribute('draggable', 'true');
         view.dom.appendChild(handle);
 
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
         const performDropAtPoint = vi.fn();
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => null,
             isBlockInsideRenderedTableCell: () => false,
@@ -925,7 +964,6 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => null,
             isBlockInsideRenderedTableCell: () => false,
@@ -940,6 +978,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 41,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -947,12 +986,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 41,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 41,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -964,6 +1005,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(view.contentDOM, 'pointerdown', {
             pointerId: 42,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 220,
             clientY: 40,
         });
@@ -994,7 +1036,6 @@ describe('DragEventHandler Range Selection', () => {
         };
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
             isBlockInsideRenderedTableCell: () => false,
@@ -1010,6 +1051,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 51,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -1017,12 +1059,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 51,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 51,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -1034,6 +1078,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(deleteButton!, 'pointerdown', {
             pointerId: 52,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 80,
         });
@@ -1052,7 +1097,6 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => null,
             isBlockInsideRenderedTableCell: () => false,
@@ -1067,6 +1111,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 53,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -1074,12 +1119,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 53,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 53,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -1096,7 +1143,6 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => null,
             isBlockInsideRenderedTableCell: () => false,
@@ -1111,6 +1157,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 61,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -1118,12 +1165,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 61,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 61,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -1165,7 +1214,6 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => null,
             isBlockInsideRenderedTableCell: () => false,
@@ -1180,6 +1228,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 43,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -1187,12 +1236,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 43,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 43,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 105,
         });
@@ -1221,7 +1272,6 @@ describe('DragEventHandler Range Selection', () => {
         const middleBlock = createBlock('line 5', 4, 4);
         const endBlock = createBlock('line 8', 7, 7);
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: (handle) => {
                 if (handle === topHandle) return sourceBlock;
                 if (handle === middleHandle) return middleBlock;
@@ -1241,6 +1291,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(topHandle, 'pointerdown', {
             pointerId: 440,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -1248,12 +1299,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 440,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 150,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 440,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 150,
         });
@@ -1306,7 +1359,6 @@ describe('DragEventHandler Range Selection', () => {
         const scheduleDropIndicatorUpdate = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: (_x, y) => (y >= 20 ? listParentBlock : sourceBlock),
             isBlockInsideRenderedTableCell: () => false,
@@ -1321,6 +1373,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 9,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 10,
         });
@@ -1328,18 +1381,21 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 9,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 25, // line 2: list parent
         });
         dispatchPointer(window, 'pointermove', {
             pointerId: 9,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 25,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 9,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 25,
         });
@@ -1350,6 +1406,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(link!, 'pointerdown', {
             pointerId: 10,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 25,
         });
@@ -1357,6 +1414,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 10,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 90,
             clientY: 25,
         });
@@ -1427,7 +1485,6 @@ describe('DragEventHandler Range Selection', () => {
         };
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: (_x, y) => (y >= 82 && y <= 138 ? calloutBlock : null),
             isBlockInsideRenderedTableCell: () => false,
@@ -1442,6 +1499,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 11,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -1449,18 +1507,21 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 11,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 92,
         });
         dispatchPointer(window, 'pointermove', {
             pointerId: 11,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 92,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 11,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 92,
         });
@@ -1471,6 +1532,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(link!, 'pointerdown', {
             pointerId: 12,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 92,
         });
@@ -1478,6 +1540,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 12,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 90,
             clientY: 92,
         });
@@ -1505,7 +1568,6 @@ describe('DragEventHandler Range Selection', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: (handle) => {
                 if (handle === handleA) return blockA;
                 if (handle === handleB) return blockB;
@@ -1525,6 +1587,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handleA, 'pointerdown', {
             pointerId: 30,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -1532,12 +1595,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 30,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 30,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 30,
         });
@@ -1545,6 +1610,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(handleB, 'pointerdown', {
             pointerId: 31,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 150,
         });
@@ -1552,12 +1618,14 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 31,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 150,
         });
         dispatchPointer(window, 'pointerup', {
             pointerId: 31,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 150,
         });
@@ -1568,6 +1636,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(link!, 'pointerdown', {
             pointerId: 32,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 12,
             clientY: 80,
         });
@@ -1575,6 +1644,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointermove', {
             pointerId: 32,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 90,
             clientY: 80,
         });
@@ -1599,6 +1669,7 @@ describe('DragEventHandler Range Selection', () => {
         dispatchPointer(window, 'pointerup', {
             pointerId: 32,
             pointerType: 'mouse',
+            shiftKey: true,
             clientX: 90,
             clientY: 80,
         });
@@ -1612,11 +1683,10 @@ describe('DragEventHandler Range Selection', () => {
         handler.destroy();
     });
 
-    it('keeps mouse quick-drag path untouched before long-press selection activates', () => {
+    it('starts pointer drag immediately on mouse handle drag before long-press selection activates', () => {
         const view = createViewStub(6);
         const handle = document.createElement('div');
         handle.className = 'dnd-drag-handle';
-        handle.setAttribute('draggable', 'true');
         view.dom.appendChild(handle);
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
@@ -1624,7 +1694,6 @@ describe('DragEventHandler Range Selection', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => null,
             isBlockInsideRenderedTableCell: () => false,
@@ -1642,8 +1711,7 @@ describe('DragEventHandler Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        expect(downEvent.defaultPrevented).toBe(false);
-        expect(handle.getAttribute('draggable')).toBe('true');
+        expect(downEvent.defaultPrevented).toBe(true);
 
         dispatchPointer(window, 'pointermove', {
             pointerId: 8,
@@ -1659,11 +1727,17 @@ describe('DragEventHandler Range Selection', () => {
             clientY: 30,
         });
 
-        expect(beginPointerDragSession).not.toHaveBeenCalled();
-        expect(scheduleDropIndicatorUpdate).not.toHaveBeenCalled();
-        expect(performDropAtPoint).not.toHaveBeenCalled();
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(12, 30, expect.objectContaining({
+            startLine: 1,
+            endLine: 1,
+        }), 'mouse');
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(120, 30, expect.objectContaining({
+            startLine: 1,
+            endLine: 1,
+        }), 'mouse');
+        expect(performDropAtPoint).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-range-selection-link')).toBeNull();
-        expect(handle.getAttribute('draggable')).toBe('true');
         handler.destroy();
     });
 
@@ -1684,7 +1758,6 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => null,
             isBlockInsideRenderedTableCell: () => false,
@@ -1730,7 +1803,6 @@ describe('DragEventHandler Range Selection', () => {
         const beginPointerDragSession = vi.fn();
         const scheduleDropIndicatorUpdate = vi.fn();
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => sourceBlock,
             isBlockInsideRenderedTableCell: () => false,
@@ -1761,26 +1833,27 @@ describe('DragEventHandler Range Selection', () => {
         handler.destroy();
     });
 
-    it('skips range-selection flow on mouse when multi-line selection is disabled', () => {
+    it('uses pointer drag on mouse when multi-line selection is disabled', () => {
         const view = createViewStub(6);
         const handle = document.createElement('div');
         handle.className = 'dnd-drag-handle';
-        handle.setAttribute('draggable', 'true');
         view.dom.appendChild(handle);
 
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
+        const scheduleDropIndicatorUpdate = vi.fn();
+        const performDropAtPoint = vi.fn();
+        const finishDragSession = vi.fn();
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => null,
             isBlockInsideRenderedTableCell: () => false,
             isMultiLineSelectionEnabled: () => false,
             beginPointerDragSession,
-            finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            finishDragSession,
+            scheduleDropIndicatorUpdate,
             hideDropIndicator: vi.fn(),
-            performDropAtPoint: vi.fn(),
+            performDropAtPoint,
         });
 
         handler.attach();
@@ -1804,7 +1877,17 @@ describe('DragEventHandler Range Selection', () => {
             clientY: 90,
         });
 
-        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(12, 30, expect.objectContaining({
+            startLine: 1,
+            endLine: 1,
+        }), 'mouse');
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(12, 90, expect.objectContaining({
+            startLine: 1,
+            endLine: 1,
+        }), 'mouse');
+        expect(performDropAtPoint).toHaveBeenCalledTimes(1);
+        expect(finishDragSession).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-range-selection-link')).toBeNull();
         handler.destroy();
     });
@@ -1813,7 +1896,6 @@ describe('DragEventHandler Range Selection', () => {
         const view = createViewStub(8);
         const handle = document.createElement('div');
         handle.className = 'dnd-drag-handle';
-        handle.setAttribute('draggable', 'true');
         view.dom.appendChild(handle);
 
         const sourceBlock = createBlock('- item', 1, 1);
@@ -1823,7 +1905,6 @@ describe('DragEventHandler Range Selection', () => {
         const finishDragSession = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => null,
             isBlockInsideRenderedTableCell: () => false,

@@ -5,11 +5,7 @@ import {
     DragLifecycleEvent,
     DragSourceScope,
 } from '../../shared/types/drag';
-import { buildCancelledLifecycleEvent, buildDragStartedLifecycleEvent, buildDropCommitLifecycleEvent, buildIdleLifecycleEvent } from './drag-lifecycle-flow';
-import {
-    finishDragSession,
-    startDragFromHandle,
-} from './drag-ghost';
+import { buildCancelledLifecycleEvent, buildDropCommitLifecycleEvent } from './drag-lifecycle-flow';
 import { DragLifecycleEmitter } from '../../runtime/drag-lifecycle-emitter';
 import { buildListIntent } from '../../shared/utils/drop-protocol';
 import { DragDropServiceContainer } from '../../runtime/drag-service-container';
@@ -30,6 +26,7 @@ export interface DragInteractionOrchestratorDeps {
     getSemanticRefreshScheduler: () => SemanticRefreshPort;
     refreshDecorationsAndEmbeds: () => void;
     resolveEditorDocumentKey?: (view: EditorView) => string | null;
+    allowCrossDocumentDrop?: () => boolean;
 }
 
 export class DragInteractionOrchestrator {
@@ -43,6 +40,7 @@ export class DragInteractionOrchestrator {
     private readonly getSemanticRefreshScheduler: () => SemanticRefreshPort;
     private readonly refreshDecorationsAndEmbeds: () => void;
     private readonly resolveEditorDocumentKey?: (view: EditorView) => string | null;
+    private readonly allowCrossDocumentDrop?: () => boolean;
 
     constructor(deps: DragInteractionOrchestratorDeps) {
         this.view = deps.view;
@@ -55,46 +53,7 @@ export class DragInteractionOrchestrator {
         this.getSemanticRefreshScheduler = deps.getSemanticRefreshScheduler;
         this.refreshDecorationsAndEmbeds = deps.refreshDecorationsAndEmbeds;
         this.resolveEditorDocumentKey = deps.resolveEditorDocumentKey;
-    }
-
-    startNativeDragFromHandle(handle: HTMLElement, e: DragEvent): void {
-        this.getSemanticRefreshScheduler().ensureSemanticReadyForInteraction();
-        const resolveCurrentBlock = () => this.resolveInteractionBlockInfo({
-            handle,
-            clientX: e.clientX,
-            clientY: e.clientY,
-        });
-        const sourceBlock = resolveCurrentBlock();
-        if (!sourceBlock) {
-            this.handleVisibility.setActiveVisibleHandle(handle);
-        }
-        const started = startDragFromHandle(e, this.view, () => resolveCurrentBlock(), handle);
-        if (!started) {
-            this.handleVisibility.setActiveVisibleHandle(null);
-            finishDragSession(this.view);
-            this.flushDragPerfSession('drag_start_failed');
-            this.emitDragLifecycle(buildCancelledLifecycleEvent({
-                sourceBlock: sourceBlock ?? null,
-                rejectReason: 'drag_start_failed',
-                pointerType: 'mouse',
-            }));
-            this.emitDragLifecycle(buildIdleLifecycleEvent());
-            return;
-        }
-        this.ensureDragPerfSession();
-        if (sourceBlock) {
-            this.handleVisibility.enterGrabVisualStateForBlock(sourceBlock, handle);
-            this.emitDragLifecycle(buildDragStartedLifecycleEvent(sourceBlock, 'mouse'));
-        }
-    }
-
-    finishNativeDragFromHandle(): void {
-        this.handleVisibility.clearGrabbedLineNumbers();
-        this.handleVisibility.setActiveVisibleHandle(null);
-        finishDragSession(this.view);
-        this.flushDragPerfSession('drag_end');
-        this.refreshDecorationsAndEmbeds();
-        this.emitDragLifecycle(buildIdleLifecycleEvent());
+        this.allowCrossDocumentDrop = deps.allowCrossDocumentDrop;
     }
 
     performDropAtPoint(sourceBlock: BlockInfo, clientX: number, clientY: number, pointerType: string | null): void {
@@ -105,6 +64,18 @@ export class DragInteractionOrchestrator {
             ? 'cross_editor'
             : 'same_editor';
         const sourceDocumentRelation = this.resolveDragDocumentRelation(sourceView);
+        if (
+            sourceScope === 'cross_editor'
+            && sourceDocumentRelation === 'different_document'
+            && this.allowCrossDocumentDrop?.() !== true
+        ) {
+            this.emitDragLifecycle(buildCancelledLifecycleEvent({
+                sourceBlock,
+                rejectReason: 'cross_document_disabled',
+                pointerType,
+            }));
+            return;
+        }
         const validation = this.dropPlanner.resolveValidatedDropTarget({
             clientX,
             clientY,

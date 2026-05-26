@@ -13,7 +13,6 @@ import { DragEventHandler } from '../drag/gesture/drag-controller';
 import {
     beginDragSession,
     finishDragSession,
-    getDragSourceBlockFromEvent,
 } from '../drag/gesture/drag-ghost';
 import { getVisibleHandleForBlockStart } from '../drag/source/handle-renderer';
 import { HandleVisibilityController } from '../drag/source/handle-visibility-controller';
@@ -42,6 +41,13 @@ import { reconfigureHandleGutterExtension } from './handle-gutter-extension';
 import { getHandleGutterSide } from '../platform/codemirror/gutter';
 import { GlobalPointerMoveClient } from './global-pointermove-router';
 import { createHoverPointerSnapshot, HoverPointerSnapshot } from './hover-pointer-snapshot';
+import {
+    hidePointerDropIndicators,
+    performPointerDropAtPoint,
+    PointerDragTargetClient,
+    registerPointerDragTargetClient,
+    schedulePointerDropIndicatorFromPoint,
+} from './pointer-drag-target-router';
 
 export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
     return class {
@@ -61,6 +67,8 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         private readonly onDocumentPointerMove = (e: PointerEvent) => this.handleDocumentPointerMove(e);
         private readonly onSettingsUpdated = () => this.handleSettingsUpdated();
         private readonly pointerMoveClient: GlobalPointerMoveClient;
+        private readonly pointerDragTargetClient: PointerDragTargetClient;
+        private readonly unregisterPointerDragTargetClient: () => void;
         private handleGutterReconfigureRafId: number | null = null;
         private cachedHandleGutterSide: 'left' | 'right';
         private destroyed = false;
@@ -135,9 +143,18 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 getSemanticRefreshScheduler: () => this.semanticRefreshScheduler,
                 refreshDecorationsAndEmbeds: () => this.refreshDecorationsAndEmbeds(),
                 resolveEditorDocumentKey: (editorView) => resolveEditorDocumentKey(plugin.app, editorView),
+                allowCrossDocumentDrop: () => plugin.settings.enableCrossFileDrag === true,
             });
+            this.pointerDragTargetClient = {
+                containsPoint: (clientX, clientY) => this.containsPoint(clientX, clientY),
+                scheduleDropIndicatorUpdate: (clientX, clientY, dragSource, pointerType) =>
+                    this.dropIndicator.scheduleFromPoint(clientX, clientY, dragSource, pointerType),
+                hideDropIndicator: () => this.dropIndicator.hide(),
+                performDropAtPoint: (sourceBlock, clientX, clientY, pointerType) =>
+                    this.orchestrator.performDropAtPoint(sourceBlock, clientX, clientY, pointerType),
+            };
+            this.unregisterPointerDragTargetClient = registerPointerDragTargetClient(this.pointerDragTargetClient);
             this.dragEventHandler = new DragEventHandler(this.view, {
-                getDragSourceBlock: (e) => getDragSourceBlockFromEvent(e, this.view),
                 getBlockInfoForHandle: (handle) =>
                     this.orchestrator.resolveInteractionBlockInfo({
                         handle,
@@ -157,10 +174,6 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 isRangeSelectionDeleteEnabled: () => plugin.settings.enableMultiSelectionDeleteButton === true,
                 getMultiLineSelectionLongPressMs: () => plugin.settings.multiLineSelectionLongPressMs,
                 isMobileTextLongPressDragEnabled: () => plugin.settings.enableMobileTextLongPressDrag,
-                isCrossEditorDragActive: () => this.resolveDragSourceScope() === 'cross_editor',
-                isCrossFileDragEnabled: () => plugin.settings.enableCrossFileDrag === true,
-                startNativeDragFromHandle: (handle, e) => this.orchestrator.startNativeDragFromHandle(handle, e),
-                finishNativeDragFromHandle: () => this.orchestrator.finishNativeDragFromHandle(),
                 beginPointerDragSession: (blockInfo) => {
                     this.orchestrator.ensureDragPerfSession();
                     beginDragSession(blockInfo, this.view);
@@ -169,14 +182,27 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                     this.handleVisibility.clearGrabbedLineNumbers();
                     this.handleVisibility.setActiveVisibleHandle(null);
                     finishDragSession(this.view);
+                    hidePointerDropIndicators();
                     this.orchestrator.flushDragPerfSession('finish_drag_session');
                     this.refreshDecorationsAndEmbeds();
                 },
                 scheduleDropIndicatorUpdate: (clientX, clientY, dragSource, pointerType) =>
-                    this.dropIndicator.scheduleFromPoint(clientX, clientY, dragSource, pointerType ?? null),
+                    schedulePointerDropIndicatorFromPoint(
+                        this.pointerDragTargetClient,
+                        clientX,
+                        clientY,
+                        dragSource,
+                        pointerType ?? null
+                    ),
                 hideDropIndicator: () => this.dropIndicator.hide(),
                 performDropAtPoint: (sourceBlock, clientX, clientY, pointerType) =>
-                    this.orchestrator.performDropAtPoint(sourceBlock, clientX, clientY, pointerType ?? null),
+                    performPointerDropAtPoint(
+                        this.pointerDragTargetClient,
+                        sourceBlock,
+                        clientX,
+                        clientY,
+                        pointerType ?? null
+                    ),
                 onDragLifecycleEvent: (event) => {
                     this.handleSourceVisualByLifecycle(event);
                     this.orchestrator.emitDragLifecycle(event);
@@ -235,6 +261,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
             });
             this.handleVisibility.clearGrabbedLineNumbers();
             this.handleVisibility.setActiveVisibleHandle(null);
+            this.unregisterPointerDragTargetClient();
             finishDragSession(this.view);
             this.orchestrator.flushDragPerfSession('destroy');
             clearEditorRootClasses(this.view);
@@ -329,6 +356,14 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
             return createHoverPointerSnapshot(this.view, clientX, clientY, this.cachedHandleGutterSide);
         }
 
+        private containsPoint(clientX: number, clientY: number): boolean {
+            const rect = this.view.dom.getBoundingClientRect();
+            return clientX >= rect.left
+                && clientX <= rect.right
+                && clientY >= rect.top
+                && clientY <= rect.bottom;
+        }
+
         private resolveConfiguredHandleGutterSide(): 'left' | 'right' {
             return plugin.settings.handleGutterPosition === 'right' ? 'right' : 'left';
         }
@@ -352,11 +387,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 return;
             }
             if (event.type === 'drag_cancelled' || event.type === 'drag_idle') {
-                // Desktop native drag can coexist with pointer-range session cancellation.
-                // While a drag session is active, keep source visual instead of clearing.
-                const hasActiveNativeDrag = document.body.classList.contains(DRAGGING_BODY_CLASS)
-                    || !!getActiveDragSourceBlock(this.view);
-                if (hasActiveNativeDrag) return;
+                if (getActiveDragSourceBlock(this.view)) return;
                 this.handleVisibility.clearGrabbedLineNumbers();
                 return;
             }

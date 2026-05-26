@@ -2,7 +2,6 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
-import { DND_BLOCK_TRANSFER_MIME_TYPE } from '../../shared/drag';
 
 type RectLike = {
     left: number;
@@ -146,7 +145,6 @@ export function appendHandleForBlockStart(
     }
     const handle = document.createElement('div');
     handle.className = 'dnd-drag-handle';
-    handle.setAttribute('draggable', 'true');
     handle.setAttribute('data-block-start', String(blockStart));
     handle.setAttribute('data-block-end', String(blockEnd ?? blockStart));
     Object.defineProperty(handle, 'getBoundingClientRect', {
@@ -177,7 +175,7 @@ export function appendHandleGutterMarker(
 export function dispatchPointer(
     target: EventTarget,
     type: string,
-    init: { pointerId: number; pointerType: string; clientX: number; clientY: number; button?: number; buttons?: number }
+    init: { pointerId: number; pointerType: string; clientX: number; clientY: number; button?: number; buttons?: number; shiftKey?: boolean }
 ): PointerEvent {
     const event = new Event(type, { bubbles: true, cancelable: true }) as PointerEvent;
     const inferredButtons = init.buttons ?? (
@@ -191,29 +189,7 @@ export function dispatchPointer(
     Object.defineProperty(event, 'clientY', { value: init.clientY });
     Object.defineProperty(event, 'button', { value: init.button ?? 0 });
     Object.defineProperty(event, 'buttons', { value: inferredButtons });
-    target.dispatchEvent(event);
-    return event;
-}
-
-export function createDataTransferStub(types: string[] = [DND_BLOCK_TRANSFER_MIME_TYPE]): DataTransfer {
-    return {
-        types,
-        dropEffect: 'none',
-    } as unknown as DataTransfer;
-}
-
-export function dispatchDrag(
-    target: EventTarget,
-    type: string,
-    init: { clientX: number; clientY: number; dataTransfer?: DataTransfer }
-): DragEvent {
-    const event = new Event(type, { bubbles: true, cancelable: true }) as DragEvent;
-    Object.defineProperty(event, 'clientX', { value: init.clientX });
-    Object.defineProperty(event, 'clientY', { value: init.clientY });
-    Object.defineProperty(event, 'dataTransfer', {
-        configurable: true,
-        value: init.dataTransfer ?? createDataTransferStub(),
-    });
+    Object.defineProperty(event, 'shiftKey', { value: init.shiftKey ?? false });
     target.dispatchEvent(event);
     return event;
 }

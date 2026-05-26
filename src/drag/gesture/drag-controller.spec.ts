@@ -7,8 +7,6 @@ import {
     createBlock,
     createViewStub,
     dispatchPointer,
-    createDataTransferStub,
-    dispatchDrag,
     dispatchTouchMove,
     createRect,
 } from './drag-controller.test-helpers';
@@ -22,7 +20,6 @@ describe('DragEventHandler', () => {
         const beginPointerDragSession = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => null,
             getBlockInfoAtPoint: () => sourceBlock,
             isBlockInsideRenderedTableCell: () => false,
@@ -67,7 +64,6 @@ describe('DragEventHandler', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => null,
             getBlockInfoAtPoint: () => createBlock(),
             isBlockInsideRenderedTableCell: () => false,
@@ -115,7 +111,6 @@ describe('DragEventHandler', () => {
         const finishDragSession = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => sourceBlock,
             isBlockInsideRenderedTableCell: () => false,
@@ -159,56 +154,6 @@ describe('DragEventHandler', () => {
         handler.destroy();
     });
 
-    it('blocks cross-editor drag transfer when cross-file drag is disabled', () => {
-        const view = createViewStub(4);
-        const sourceBlock = createBlock('- item', 0, 0);
-        const scheduleDropIndicatorUpdate = vi.fn();
-        const hideDropIndicator = vi.fn();
-        const performDropAtPoint = vi.fn();
-        const finishDragSession = vi.fn();
-        const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => sourceBlock,
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
-            isBlockInsideRenderedTableCell: () => false,
-            isCrossEditorDragActive: () => true,
-            isCrossFileDragEnabled: () => false,
-            beginPointerDragSession: vi.fn(),
-            finishDragSession,
-            scheduleDropIndicatorUpdate,
-            hideDropIndicator,
-            performDropAtPoint,
-        });
-
-        handler.attach();
-        const dataTransfer = createDataTransferStub();
-        const dragEnter = dispatchDrag(view.dom, 'dragenter', {
-            clientX: 90,
-            clientY: 10,
-            dataTransfer,
-        });
-        const dragOver = dispatchDrag(view.dom, 'dragover', {
-            clientX: 90,
-            clientY: 10,
-            dataTransfer,
-        });
-        const drop = dispatchDrag(view.dom, 'drop', {
-            clientX: 90,
-            clientY: 10,
-            dataTransfer,
-        });
-
-        expect(dragEnter.defaultPrevented).toBe(true);
-        expect(dragOver.defaultPrevented).toBe(true);
-        expect(drop.defaultPrevented).toBe(true);
-        expect(dataTransfer.dropEffect).toBe('none');
-        expect(scheduleDropIndicatorUpdate).not.toHaveBeenCalled();
-        expect(performDropAtPoint).not.toHaveBeenCalled();
-        expect(finishDragSession).not.toHaveBeenCalled();
-        expect(hideDropIndicator).toHaveBeenCalled();
-        handler.destroy();
-    });
-
     it('does not start text long-press drag while editor is focused with a caret', () => {
         const view = createViewStub(6);
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
@@ -224,7 +169,6 @@ describe('DragEventHandler', () => {
         });
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => sourceBlock,
             isBlockInsideRenderedTableCell: () => false,
@@ -280,7 +224,6 @@ describe('DragEventHandler', () => {
         const blurSpy = vi.spyOn(input, 'blur');
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => sourceBlock,
             isBlockInsideRenderedTableCell: () => false,
@@ -322,7 +265,6 @@ describe('DragEventHandler', () => {
         const sourceBlock = createBlock('- item', 0, 0);
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => sourceBlock,
             isBlockInsideRenderedTableCell: () => false,
@@ -370,7 +312,6 @@ describe('DragEventHandler', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => sourceBlock,
             isBlockInsideRenderedTableCell: () => false,
@@ -418,7 +359,6 @@ describe('DragEventHandler', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => sourceBlock,
             isBlockInsideRenderedTableCell: () => false,
@@ -474,7 +414,6 @@ describe('DragEventHandler', () => {
         });
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => sourceBlock,
             isBlockInsideRenderedTableCell: () => false,
@@ -538,7 +477,6 @@ describe('DragEventHandler', () => {
         });
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => sourceBlock,
             isBlockInsideRenderedTableCell: () => false,
@@ -587,7 +525,6 @@ describe('DragEventHandler', () => {
         const lifecycleEvents: Array<{ type: string; phase: string; pressReady?: boolean }> = [];
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => sourceBlock,
             isBlockInsideRenderedTableCell: () => false,
@@ -638,14 +575,12 @@ describe('DragEventHandler', () => {
         const view = createViewStub(6);
         const handle = document.createElement('div');
         handle.className = 'dnd-drag-handle';
-        handle.setAttribute('draggable', 'true');
         view.dom.appendChild(handle);
 
         const sourceBlock = createBlock('- item', 1, 1);
         const lifecycleEvents: Array<{ type: string; phase: string; pressReady?: boolean }> = [];
 
         const handler = new DragEventHandler(view, {
-            getDragSourceBlock: () => null,
             getBlockInfoForHandle: () => sourceBlock,
             getBlockInfoAtPoint: () => sourceBlock,
             isBlockInsideRenderedTableCell: () => false,

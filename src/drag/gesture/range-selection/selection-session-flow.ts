@@ -65,7 +65,6 @@ export function createInitialRangeSelectionState(
         ? subtractSelectedBlocks(options.doc.lines, options.committedBlocksSnapshot, [anchorBlock])
         : mergeSelectedBlocks(options.doc.lines, [...options.committedBlocksSnapshot, anchorBlock]);
     const anchorSelectionBlock = buildDragSourceBlockFromBlocks(options.doc, selectionBlocks, options.blockInfo);
-    const sourceHandleDraggableAttr = options.sourceHandle?.getAttribute('draggable') ?? null;
 
     return {
         anchorSelectionBlock,
@@ -86,7 +85,6 @@ export function createInitialRangeSelectionState(
         timeoutId: null,
         dragTimeoutId: null,
         sourceHandle: options.sourceHandle,
-        sourceHandleDraggableAttr,
         anchorStartLineNumber,
         anchorEndLineNumber,
         currentLineNumber: anchorEndLineNumber,

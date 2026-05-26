@@ -44,7 +44,6 @@ export type MouseRangeSelectState = {
     timeoutId: number | null;
     dragTimeoutId: number | null;
     sourceHandle: HTMLElement | null;
-    sourceHandleDraggableAttr: string | null;
     anchorStartLineNumber: number;
     anchorEndLineNumber: number;
     currentLineNumber: number;

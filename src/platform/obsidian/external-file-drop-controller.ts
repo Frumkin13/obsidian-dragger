@@ -2,16 +2,15 @@ import { Notice, normalizePath } from 'obsidian';
 import type { TFile } from 'obsidian';
 import type DragNDropPlugin from '../../plugin/main';
 import { FILE_DROP_TARGET_CLASS } from '../../shared/dom-selectors';
-import { DND_BLOCK_TRANSFER_MIME_TYPE } from '../../shared/drag';
 import {
-    getActiveDragSourceBlock,
     getActiveDragSourceView,
 } from '../../drag/gesture/drag-session';
-import {
-    finishDragSession,
-    getDragSourceBlockFromEvent,
-} from '../../drag/gesture/drag-ghost';
 import { FileBlockMover } from '../../drag/move/file-mover';
+import { BlockInfo } from '../../domain/block/block-types';
+import {
+    PointerDragTargetClient,
+    registerPointerDragTargetClient,
+} from '../../runtime/pointer-drag-target-router';
 
 type FileDropTarget = {
     file: TFile;
@@ -31,54 +30,42 @@ export class ExternalFileDropController {
     private readonly fileBlockMover: FileBlockMover;
     private highlightedTarget: HTMLElement | null = null;
 
+    private readonly pointerDragTargetClient: PointerDragTargetClient = {
+        containsPoint: (clientX, clientY) => this.resolveDropTargetAtPoint(clientX, clientY) !== null,
+        scheduleDropIndicatorUpdate: (clientX, clientY) => {
+            const target = this.resolveDropTargetAtPoint(clientX, clientY);
+            if (!target) {
+                this.clearHighlight();
+                return;
+            }
+            this.setHighlightedTarget(target.element);
+        },
+        hideDropIndicator: () => this.clearHighlight(),
+        performDropAtPoint: (sourceBlock, clientX, clientY) => this.performDropAtPoint(sourceBlock, clientX, clientY),
+    };
+
     constructor(private readonly plugin: DragNDropPlugin) {
         this.fileBlockMover = new FileBlockMover(plugin.app);
     }
 
     register(): void {
-        this.plugin.registerDomEvent(document, 'dragover', this.onDragOver, true);
-        this.plugin.registerDomEvent(document, 'dragleave', this.onDragLeave, true);
-        this.plugin.registerDomEvent(document, 'drop', this.onDrop, true);
-        this.plugin.registerDomEvent(document, 'dragend', this.onDragEnd, true);
+        const unregister = registerPointerDragTargetClient(this.pointerDragTargetClient);
+        this.plugin.register(() => {
+            unregister();
+            this.clearHighlight();
+        });
     }
 
-    private readonly onDragOver = (event: DragEvent): void => {
-        const target = this.resolveDropTarget(event);
+    private performDropAtPoint(sourceBlock: BlockInfo, clientX: number, clientY: number): void {
+        const target = this.resolveDropTargetAtPoint(clientX, clientY);
         if (!target) {
             this.clearHighlight();
             return;
         }
 
-        event.preventDefault();
-        event.stopPropagation();
-        if (event.dataTransfer) {
-            event.dataTransfer.dropEffect = 'move';
-        }
-        this.setHighlightedTarget(target.element);
-    };
-
-    private readonly onDragLeave = (event: DragEvent): void => {
-        if (!this.highlightedTarget) return;
-        const nextTarget = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-        if (nextTarget && this.highlightedTarget.contains(nextTarget)) return;
         this.clearHighlight();
-    };
-
-    private readonly onDrop = (event: DragEvent): void => {
-        const target = this.resolveDropTarget(event);
-        if (!target) {
-            this.clearHighlight();
-            return;
-        }
-
-        event.preventDefault();
-        event.stopPropagation();
-        this.clearHighlight();
-
         const sourceView = getActiveDragSourceView();
-        const sourceBlock = this.getSourceBlock(event);
-        if (!sourceView || !sourceBlock) {
-            finishDragSession();
+        if (!sourceView) {
             new Notice('Dragger could not find the dragged block.');
             return;
         }
@@ -94,23 +81,19 @@ export class ExternalFileDropController {
         }).catch((error) => {
             console.error('[Dragger] failed to move block to file target:', error);
             new Notice('Dragger could not move this block to the target note.');
-        }).finally(() => {
-            finishDragSession();
         });
-    };
+    }
 
-    private readonly onDragEnd = (): void => {
-        this.clearHighlight();
-    };
+    private resolveDropTargetAtPoint(clientX: number, clientY: number): FileDropTarget | null {
+        if (typeof document.elementFromPoint !== 'function') return null;
+        const target = document.elementFromPoint(clientX, clientY);
+        return this.resolveDropTargetFromElement(target instanceof HTMLElement ? target : null);
+    }
 
-    private resolveDropTarget(event: DragEvent): FileDropTarget | null {
-        if (!this.isFileDropEnabled()) return null;
-        if (!hasBlockTransfer(event)) return null;
-        const sourceView = getActiveDragSourceView();
-        if (!sourceView || !getActiveDragSourceBlock(sourceView)) return null;
-
-        const target = event.target instanceof HTMLElement ? event.target : null;
+    private resolveDropTargetFromElement(target: HTMLElement | null): FileDropTarget | null {
         if (!target) return null;
+
+        if (!this.isFileDropEnabled()) return null;
 
         const sidebarFile = target.closest<HTMLElement>(SIDEBAR_FILE_SELECTOR);
         if (sidebarFile) {
@@ -202,15 +185,6 @@ export class ExternalFileDropController {
         return this.plugin.settings.enableCrossFileDrag === true;
     }
 
-    private getSourceBlock(event: DragEvent) {
-        try {
-            return getDragSourceBlockFromEvent(event);
-        } catch {
-            const sourceView = getActiveDragSourceView();
-            return sourceView ? getActiveDragSourceBlock(sourceView) : null;
-        }
-    }
-
     private setHighlightedTarget(element: HTMLElement): void {
         if (this.highlightedTarget === element) return;
         this.clearHighlight();
@@ -222,12 +196,6 @@ export class ExternalFileDropController {
         this.highlightedTarget?.classList.remove(FILE_DROP_TARGET_CLASS);
         this.highlightedTarget = null;
     }
-}
-
-function hasBlockTransfer(event: DragEvent): boolean {
-    const types = event.dataTransfer?.types;
-    if (!types) return false;
-    return Array.from(types).includes(DND_BLOCK_TRANSFER_MIME_TYPE);
 }
 
 function normalizeInternalLinkAttribute(value: string): string | null {

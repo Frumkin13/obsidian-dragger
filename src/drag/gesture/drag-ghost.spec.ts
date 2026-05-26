@@ -7,10 +7,8 @@ import { BlockInfo, BlockType } from '../../domain/block/block-types';
 import {
     beginDragSession,
     finishDragSession,
-    getDragSourceBlockFromEvent,
 } from './drag-ghost';
 import { getActiveDragSourceBlock } from './drag-session';
-import { DND_BLOCK_TRANSFER_MIME_TYPE } from '../../shared/drag';
 
 function createViewStub(docText = 'line'): EditorView {
     const state = EditorState.create({ doc: docText });
@@ -68,34 +66,5 @@ describe('DragTransfer session scoping', () => {
         expect(document.body.classList.contains('dnd-dragging')).toBe(false);
     });
 
-    it('falls back to the current view session when drag event carries no dataTransfer payload', () => {
-        const view = createViewStub('line');
-        const block = createBlock('local-block', 0);
-        beginDragSession(block, view);
-
-        const event = new Event('dragover') as DragEvent;
-        const resolved = getDragSourceBlockFromEvent(event, view);
-
-        expect(resolved?.content).toBe('local-block');
-    });
-
-    it('returns null for payload-only drag events without an active drag session', () => {
-        const view = createViewStub('line');
-        const payloadBlock = createBlock('payload-only', 0);
-        const event = new Event('drop') as DragEvent;
-        Object.defineProperty(event, 'dataTransfer', {
-            configurable: true,
-            value: {
-                types: [DND_BLOCK_TRANSFER_MIME_TYPE],
-                getData: (type: string) => type === DND_BLOCK_TRANSFER_MIME_TYPE
-                    ? JSON.stringify(payloadBlock)
-                    : '',
-            },
-        });
-
-        const resolved = getDragSourceBlockFromEvent(event, view);
-
-        expect(resolved).toBeNull();
-    });
 });
 

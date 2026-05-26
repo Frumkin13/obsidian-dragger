@@ -34,7 +34,6 @@ export const HANDLE_GUTTER_CLASS = 'cm-dnd-handle-gutter';
 export const HANDLE_GUTTER_MARKER_CLASS = 'dnd-handle-gutter-marker';
 export const DROP_INDICATOR_CLASS = 'dnd-drop-indicator';
 export const DROP_HIGHLIGHT_CLASS = 'dnd-drop-highlight';
-export const DRAG_GHOST_CLASS = 'dnd-drag-ghost';
 export const DRAGGING_BODY_CLASS = 'dnd-dragging';
 export const DRAG_SOURCE_LINE_CLASS = 'dnd-drag-source-line';
 export const DRAG_SOURCE_LINE_SINGLE_CLASS = 'dnd-drag-source-line-single';
