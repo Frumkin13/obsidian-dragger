@@ -1,6 +1,6 @@
 import { Plugin } from 'obsidian';
-import { dragHandleExtension } from '../features/entry/extension-factory';
-import { ExternalFileDropController } from '../features/entry/external-file-drop-controller';
+import { dragHandleExtension } from '../runtime/editor-extension';
+import { ExternalFileDropController } from '../platform/obsidian/external-file-drop-controller';
 import { setHandleHorizontalOffsetPx, setHandleSizePx } from '../shared/constants';
 import {
     DND_DRAG_SOURCE_HIGHLIGHT_ATTR,
