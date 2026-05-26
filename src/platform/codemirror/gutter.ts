@@ -1,8 +1,8 @@
 import { EditorView } from '@codemirror/view';
 import {
     CODEMIRROR_EDITOR_SELECTOR,
-    CODEMIRROR_GUTTERS_AFTER_CLASS,
     CODEMIRROR_GUTTERS_BEFORE_CLASS,
+    CODEMIRROR_GUTTERS_SELECTOR,
     HANDLE_GUTTER_CLASS,
 } from '../../shared/dom-selectors';
 
@@ -19,11 +19,13 @@ export function getHandleGutter(view: EditorView): HTMLElement | null {
     )) ?? null;
 }
 
-export function getHandleGutterSide(view: EditorView): 'left' | 'right' | null {
+export function placeHandleGutterForConfiguredSide(view: EditorView, side: 'left' | 'right'): void {
     const gutter = getHandleGutter(view);
-    if (!gutter) return null;
-    const container = gutter.parentElement;
-    if (container?.classList.contains(CODEMIRROR_GUTTERS_AFTER_CLASS)) return 'right';
-    if (container?.classList.contains(CODEMIRROR_GUTTERS_BEFORE_CLASS)) return 'left';
-    return null;
+    if (!gutter) return;
+
+    const parent = side === 'right'
+        ? view.contentDOM.parentElement
+        : view.dom.querySelector<HTMLElement>(`${CODEMIRROR_GUTTERS_SELECTOR}.${CODEMIRROR_GUTTERS_BEFORE_CLASS}`);
+    if (!parent || gutter.parentElement === parent) return;
+    parent.appendChild(gutter);
 }

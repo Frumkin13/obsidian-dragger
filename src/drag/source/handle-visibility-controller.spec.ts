@@ -7,7 +7,6 @@ import { BlockInfo, BlockType } from '../../domain/block/block-types';
 import { createHoverPointerSnapshot } from '../../runtime/hover-pointer-snapshot';
 import {
     CODEMIRROR_GUTTER_ELEMENT_CLASS,
-    CODEMIRROR_GUTTERS_AFTER_CLASS,
     CODEMIRROR_GUTTERS_BEFORE_CLASS,
     DRAG_SOURCE_LINE_CLASS,
     DRAG_SOURCE_LINE_SINGLE_CLASS,
@@ -106,12 +105,15 @@ function createViewStub(lineCount = 8): { view: EditorView; lines: HTMLElement[]
 }
 
 function appendHandleGutter(view: EditorView, side: 'left' | 'right' = 'left'): HTMLElement {
-    const gutters = document.createElement('div');
-    gutters.className = side === 'right'
-        ? `cm-gutters ${CODEMIRROR_GUTTERS_AFTER_CLASS}`
-        : `cm-gutters ${CODEMIRROR_GUTTERS_BEFORE_CLASS}`;
     const gutter = document.createElement('div');
     gutter.className = `cm-gutter ${HANDLE_GUTTER_CLASS}`;
+    if (side === 'right') {
+        view.contentDOM.parentElement?.appendChild(gutter);
+        return gutter;
+    }
+
+    const gutters = document.createElement('div');
+    gutters.className = `cm-gutters ${CODEMIRROR_GUTTERS_BEFORE_CLASS}`;
     gutters.appendChild(gutter);
     view.dom.appendChild(gutters);
     return gutter;

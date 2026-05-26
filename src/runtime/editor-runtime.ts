@@ -38,8 +38,7 @@ import {
 import { createDropPlannerDeps } from './view-runtime';
 import { applyViewUpdate } from './editor-update';
 import { destroyViewLifecycle, startViewLifecycle } from './editor-lifecycle';
-import { reconfigureHandleGutterExtension } from './handle-gutter-extension';
-import { getHandleGutterSide } from '../platform/codemirror/gutter';
+import { placeHandleGutterForConfiguredSide } from '../platform/codemirror/gutter';
 import { GlobalPointerMoveClient } from './global-pointermove-router';
 import { createHoverPointerSnapshot, HoverPointerSnapshot } from './hover-pointer-snapshot';
 import {
@@ -70,9 +69,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         private readonly pointerMoveClient: GlobalPointerMoveClient;
         private readonly pointerDragTargetClient: PointerDragTargetClient;
         private readonly unregisterPointerDragTargetClient: () => void;
-        private handleGutterReconfigureRafId: number | null = null;
         private cachedHandleGutterSide: 'left' | 'right';
-        private destroyed = false;
 
         constructor(view: EditorView) {
             this.view = view;
@@ -226,7 +223,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 onSettingsUpdated: this.onSettingsUpdated,
             });
 
-            this.scheduleHandleGutterReconfigureIfNeeded();
+            this.syncViewDomState();
         }
 
         update(update: ViewUpdate) {
@@ -249,11 +246,6 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         }
 
         destroy(): void {
-            this.destroyed = true;
-            if (this.handleGutterReconfigureRafId !== null) {
-                cancelAnimationFrame(this.handleGutterReconfigureRafId);
-                this.handleGutterReconfigureRafId = null;
-            }
             destroyViewLifecycle({
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
                 pointerMoveClient: this.pointerMoveClient,
@@ -309,6 +301,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
 
         private syncViewDomState(): void {
             ensureEditorRootClasses(this.view);
+            placeHandleGutterForConfiguredSide(this.view, this.resolveConfiguredHandleGutterSide());
             syncDragSourceStyleAttr(this.view, normalizeDragSourceVisualStyle(plugin.settings.dragSourceVisualStyle));
             syncDragSourceHighlightAttr(this.view, this.isDragSourceHighlightEnabled());
         }
@@ -324,33 +317,10 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
 
         private handleSettingsUpdated(): void {
             this.cachedHandleGutterSide = this.resolveConfiguredHandleGutterSide();
-            if (this.scheduleHandleGutterReconfigureIfNeeded()) {
-                return;
-            }
             this.syncViewDomState();
             this.refreshDecorationsAndEmbeds();
             this.dragEventHandler.refreshSelectionVisual();
             this.handleVisibility.refreshGrabVisualState();
-        }
-
-        private scheduleHandleGutterReconfigureIfNeeded(): boolean {
-            const desiredSide = plugin.settings.handleGutterPosition === 'right' ? 'right' : 'left';
-            if (getHandleGutterSide(this.view) === desiredSide) {
-                return false;
-            }
-            if (this.handleGutterReconfigureRafId !== null) {
-                return true;
-            }
-            this.handleGutterReconfigureRafId = requestAnimationFrame(() => {
-                this.handleGutterReconfigureRafId = null;
-                if (this.destroyed) return;
-                reconfigureHandleGutterExtension(this.view, plugin);
-                this.syncViewDomState();
-                this.refreshDecorationsAndEmbeds();
-                this.dragEventHandler.refreshSelectionVisual();
-                this.handleVisibility.refreshGrabVisualState();
-            });
-            return true;
         }
 
         private createHoverPointerSnapshot(clientX: number, clientY: number): HoverPointerSnapshot {
