@@ -35,9 +35,7 @@
 }
 
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter .cm-gutterElement.dnd-handle-gutter-marker {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
     box-sizing: border-box;
     width: 0;
     min-width: 0;
@@ -45,9 +43,13 @@
     padding: 0;
     overflow: visible;
     pointer-events: none;
+    white-space: nowrap;
+    text-align: center;
 }
 
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter .cm-gutterElement.dnd-handle-gutter-marker > .dnd-drag-handle.dnd-handle-gutter-bound {
+    display: inline-flex;
+    vertical-align: middle;
     transform: translateX(var(--dnd-handle-horizontal-offset-px, 0px));
     pointer-events: auto;
 }
