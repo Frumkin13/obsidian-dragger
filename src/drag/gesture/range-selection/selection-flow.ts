@@ -1,4 +1,5 @@
 import { EditorView } from '@codemirror/view';
+import { anchorSelectionBeforeUndoableChange } from '../../move/undo-selection-anchor';
 import { BlockInfo } from '../../../domain/block/block-types';
 import {
     type CommittedRangeSelection,
@@ -93,6 +94,7 @@ export function deleteCommittedSelectionRange(
     const doc = view.state.doc;
     const changes = buildCommittedRangeDeletionChanges(doc, committed.blocks);
     if (changes.length > 0) {
+        anchorSelectionBeforeUndoableChange(view, committed.selectedBlock.from);
         view.dispatch({ changes });
     }
     rangeVisual.clear();

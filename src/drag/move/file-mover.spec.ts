@@ -9,7 +9,7 @@ import { BlockInfo, BlockType } from '../../domain/block/block-types';
 import { appendMarkdownBlock, FileBlockMover } from './file-mover';
 
 type MutableView = EditorView & {
-    dispatchCount: number;
+    documentDispatchCount: number;
 };
 
 describe('FileBlockMover', () => {
@@ -101,7 +101,7 @@ describe('FileBlockMover', () => {
 
         expect(result.moved).toBe(true);
         expect(sourceView.state.doc.toString()).toBe('keep\n\nmove');
-        expect(sourceView.dispatchCount).toBe(1);
+        expect(sourceView.documentDispatchCount).toBe(1);
     });
 
     it('keeps a whole-file same-file move to one undoable dispatch without extra padding', async () => {
@@ -119,7 +119,7 @@ describe('FileBlockMover', () => {
 
         expect(result.moved).toBe(true);
         expect(sourceView.state.doc.toString()).toBe('move');
-        expect(sourceView.dispatchCount).toBe(1);
+        expect(sourceView.documentDispatchCount).toBe(1);
     });
 });
 
@@ -134,16 +134,18 @@ describe('appendMarkdownBlock', () => {
 
 function createMutableView(initialDoc: string): MutableView {
     let state = EditorState.create({ doc: initialDoc });
-    let dispatchCount = 0;
+    let documentDispatchCount = 0;
     return {
         get state() {
             return state;
         },
-        get dispatchCount() {
-            return dispatchCount;
+        get documentDispatchCount() {
+            return documentDispatchCount;
         },
         dispatch(spec: TransactionSpec) {
-            dispatchCount += 1;
+            if (spec.changes) {
+                documentDispatchCount += 1;
+            }
             state = state.update(spec).state;
         },
     } as unknown as MutableView;

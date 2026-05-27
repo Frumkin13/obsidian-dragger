@@ -11,6 +11,7 @@ import { BlockMoverDeps } from './block-mover-deps';
 import { CapturedBlockFoldState } from './block-fold-state';
 import { resolveInsertionChange } from './document-change';
 import { CapturedMoveSource, captureMoveSource } from './source-payload';
+import { anchorSelectionBeforeUndoableChange } from './undo-selection-anchor';
 
 export class BlockMover {
     private readonly listRenumberer: ListRenumberer;
@@ -129,6 +130,7 @@ export class BlockMover {
         }
 
         const firstSegment = payload.segments[0];
+        anchorSelectionBeforeUndoableChange(view, sourceBlock.from);
         if (allowInPlaceIndentChange && insertion.pos === firstSegment.deleteFrom) {
             view.dispatch({
                 changes: { from: firstSegment.deleteFrom, to: firstSegment.deleteTo, insert: insertion.text },

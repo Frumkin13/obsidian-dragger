@@ -7,6 +7,7 @@ import { getCodeMirrorView } from '../../platform/obsidian/editor-view';
 import { ListRenumberer } from './list-renumberer';
 import { captureSourcePayload, SourcePayload } from './source-payload';
 import { TextChange } from './document-change';
+import { anchorSelectionBeforeUndoableChange } from './undo-selection-anchor';
 
 type MarkdownViewWithFile = MarkdownView & {
     file?: TFile | null;
@@ -70,6 +71,7 @@ export class FileBlockMover {
         const doc = view.state.doc as unknown as DocLikeWithRange;
         const insert = buildAppendInsertion(doc.sliceString(0, doc.length), content);
         if (!insert.length) return;
+        anchorSelectionBeforeUndoableChange(view, doc.length);
         view.dispatch({
             changes: { from: doc.length, to: doc.length, insert },
             scrollIntoView: false,
@@ -79,6 +81,7 @@ export class FileBlockMover {
     private deleteSourcePayload(sourceView: EditorView, payload: SourcePayload): void {
         const changes = this.getMergedDeleteChanges(payload).sort((a, b) => b.from - a.from);
         if (changes.length === 0) return;
+        anchorSelectionBeforeUndoableChange(sourceView, payload.segments[0]?.deleteFrom ?? 0);
         sourceView.dispatch({
             changes,
             scrollIntoView: false,
@@ -95,6 +98,7 @@ export class FileBlockMover {
             ...(insert.length ? [{ from: doc.length, to: doc.length, insert }] : []),
         ].sort((a, b) => b.from - a.from);
         if (changes.length === 0) return;
+        anchorSelectionBeforeUndoableChange(view, payload.segments[0]?.deleteFrom ?? 0);
         view.dispatch({
             changes,
             scrollIntoView: false,

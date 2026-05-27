@@ -160,8 +160,13 @@ describe('BlockMover', () => {
             dropPlan: dropPlan(3),
         });
 
-        expect(dispatch).toHaveBeenCalledTimes(1);
-        const payload = dispatch.mock.calls[0][0];
+        expect(dispatch).toHaveBeenCalledTimes(2);
+        expect(dispatch.mock.calls[0][0]).toMatchObject({
+            selection: { anchor: 0 },
+            scrollIntoView: false,
+        });
+        expect(dispatch.mock.calls[0][0].changes).toBeUndefined();
+        const payload = dispatch.mock.calls[1][0];
         expect(Array.isArray(payload.changes)).toBe(true);
         expect(payload.changes).toHaveLength(2);
         setTimeoutSpy.mockRestore();
@@ -343,7 +348,8 @@ describe('BlockMover', () => {
             dropPlan: dropPlan(1),
         });
 
-        expect(dispatch).toHaveBeenCalledTimes(1);
+        expect(dispatch).toHaveBeenCalledTimes(2);
+        expect(dispatch.mock.calls[0][0].changes).toBeUndefined();
         expect(getState().doc.toString()).toBe('b\nc\na\nd');
     });
 
@@ -455,7 +461,8 @@ describe('BlockMover', () => {
         });
 
         expect(getState().doc.toString()).toBe('beta\nalpha\ngamma');
-        expect(targetDispatch).toHaveBeenCalledTimes(1);
+        expect(targetDispatch).toHaveBeenCalledTimes(2);
+        expect(targetDispatch.mock.calls[0][0].changes).toBeUndefined();
         expect(sourceDispatch).not.toHaveBeenCalled();
         setTimeoutSpy.mockRestore();
     });
@@ -526,7 +533,8 @@ describe('BlockMover', () => {
             1,
             { collapsedRelativeLineOffsets: [0] }
         );
-        expect(targetDispatch).toHaveBeenCalledTimes(1);
+        expect(targetDispatch).toHaveBeenCalledTimes(2);
+        expect(targetDispatch.mock.calls[0][0].changes).toBeUndefined();
         expect(sourceDispatch).not.toHaveBeenCalled();
     });
 
@@ -592,8 +600,9 @@ describe('BlockMover', () => {
             dropPlan: dropPlan(1),
         });
 
-        expect(dispatch).toHaveBeenCalledTimes(1);
-        const payload = dispatch.mock.calls[0][0];
+        expect(dispatch).toHaveBeenCalledTimes(2);
+        expect(dispatch.mock.calls[0][0].changes).toBeUndefined();
+        const payload = dispatch.mock.calls[1][0];
         expect(Array.isArray(payload.changes)).toBe(true);
         expect(payload.changes).toHaveLength(3);
         const insertChange = payload.changes.find((change: { insert?: string }) => typeof change.insert === 'string');
@@ -639,7 +648,8 @@ describe('BlockMover', () => {
             dropPlan: dropPlan(3),
         });
 
-        expect(dispatch).toHaveBeenCalledTimes(1);
+        expect(dispatch).toHaveBeenCalledTimes(2);
+        expect(dispatch.mock.calls[0][0].changes).toBeUndefined();
     });
 
     it('moves block to end without merging with existing last line content', () => {
