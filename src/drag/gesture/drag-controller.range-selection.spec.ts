@@ -1993,6 +1993,12 @@ describe('DragEventHandler Range Selection', () => {
             clientX: 12,
             clientY: 105,
         });
+        dispatchPointer(view.dom, 'lostpointercapture', {
+            pointerId: 207,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 105,
+        });
 
         expect(beginPointerDragSession).not.toHaveBeenCalled();
         let selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
@@ -2023,6 +2029,12 @@ describe('DragEventHandler Range Selection', () => {
             clientX: 12,
             clientY: 50,
         });
+        dispatchPointer(view.dom, 'lostpointercapture', {
+            pointerId: 208,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 50,
+        });
 
         selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
         expect(selectedHandles).toHaveLength(4);
@@ -2033,6 +2045,16 @@ describe('DragEventHandler Range Selection', () => {
         }
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
+
+        const shortcutButton = document.createElement('button');
+        const shortcutAction = vi.fn();
+        shortcutButton.addEventListener('click', shortcutAction);
+        document.body.appendChild(shortcutButton);
+        shortcutButton.click();
+        expect(shortcutAction).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(350);
+        shortcutButton.click();
+        expect(shortcutAction).toHaveBeenCalledTimes(1);
         document.body.classList.remove('is-mobile');
         handler.destroy();
     });

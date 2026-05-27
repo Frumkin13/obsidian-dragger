@@ -88,6 +88,8 @@ export interface DragEventHandlerDeps {
 export class DragEventHandler {
     private gesture: InteractionState = { phase: 'idle' };
     private committedRangeSelection: CommittedRangeSelection | null = null;
+    private suppressNextNativeActivation = false;
+    private nativeActivationSuppressTimeoutId: number | null = null;
     readonly rangeVisual: RangeSelectionVisualManager;
     readonly mobile: MobileGestureController;
     readonly pointer: PointerSessionController;
@@ -160,6 +162,7 @@ export class DragEventHandler {
 
     private readonly onLostPointerCapture = (e: PointerEvent) => this.handleLostPointerCapture(e);
     private readonly onDocumentFocusIn = (e: FocusEvent) => this.handleDocumentFocusIn(e);
+    private readonly onDocumentNativeActivation = (e: Event) => this.handleDocumentNativeActivation(e);
     private readonly onEnterMobileSelectionMode = (e: Event) => this.handleEnterMobileSelectionMode(e);
     constructor(
         private readonly view: EditorView,
@@ -188,6 +191,8 @@ export class DragEventHandler {
         editorDom.addEventListener('lostpointercapture', this.onLostPointerCapture, true);
         editorDom.addEventListener('focusin', this.onDocumentFocusIn, true);
         editorDom.addEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
+        document.addEventListener('click', this.onDocumentNativeActivation, true);
+        document.addEventListener('contextmenu', this.onDocumentNativeActivation, true);
     }
 
     startPointerDragFromHandle(handle: HTMLElement, e: PointerEvent, getBlockInfo?: () => BlockInfo | null): void {
@@ -249,6 +254,9 @@ export class DragEventHandler {
         editorDom.removeEventListener('lostpointercapture', this.onLostPointerCapture, true);
         editorDom.removeEventListener('focusin', this.onDocumentFocusIn, true);
         editorDom.removeEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
+        document.removeEventListener('click', this.onDocumentNativeActivation, true);
+        document.removeEventListener('contextmenu', this.onDocumentNativeActivation, true);
+        this.clearNativeActivationSuppression();
     }
 
     isGestureActive(): boolean {
@@ -817,6 +825,7 @@ export class DragEventHandler {
         if (mode === 'up') {
             e.preventDefault();
             e.stopPropagation();
+            this.suppressUpcomingNativeActivation();
         }
         state.activeHandle = null;
         state.pointerId = null;
@@ -824,7 +833,25 @@ export class DragEventHandler {
         this.pointer.releasePointerCapture();
         this.mobile.unlockMobileInteraction();
         this.mobile.detachFocusGuard();
-        this.emitIdleLifecycle();
+    }
+
+    private suppressUpcomingNativeActivation(): void {
+        this.suppressNextNativeActivation = true;
+        if (this.nativeActivationSuppressTimeoutId !== null) {
+            window.clearTimeout(this.nativeActivationSuppressTimeoutId);
+        }
+        this.nativeActivationSuppressTimeoutId = window.setTimeout(() => {
+            this.suppressNextNativeActivation = false;
+            this.nativeActivationSuppressTimeoutId = null;
+        }, 350);
+    }
+
+    private clearNativeActivationSuppression(): void {
+        this.suppressNextNativeActivation = false;
+        if (this.nativeActivationSuppressTimeoutId !== null) {
+            window.clearTimeout(this.nativeActivationSuppressTimeoutId);
+            this.nativeActivationSuppressTimeoutId = null;
+        }
     }
 
     private resolveMobileSelectionBoundaryAtPoint(clientX: number, clientY: number): RangeSelectionBoundary | null {
@@ -1014,6 +1041,10 @@ export class DragEventHandler {
 
     private handleLostPointerCapture(e: PointerEvent): void {
         if (!this.hasActivePointerSession()) return;
+        if (this.gesture.phase === 'mobile_selecting') {
+            const pointerId = this.gesture.mobileSelect.pointerId;
+            if (pointerId === null || e.pointerId !== pointerId) return;
+        }
         this.abortForSessionInterrupted(e.pointerType || null);
     }
 
@@ -1171,6 +1202,17 @@ export class DragEventHandler {
         this.mobile.suppressMobileKeyboard(e.target);
     }
 
+    private handleDocumentNativeActivation(e: Event): void {
+        if (!this.shouldSuppressNativeActivation()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+    }
+
+    private shouldSuppressNativeActivation(): boolean {
+        return this.shouldSuppressNativeInteractionForActiveGesture() || this.suppressNextNativeActivation;
+    }
+
     private handleTouchMove(e: TouchEvent): void {
         if (!this.shouldSuppressNativeInteractionForActiveGesture()) return;
         if (e.cancelable) {
@@ -1210,6 +1252,7 @@ export class DragEventHandler {
         const pointerType = options?.pointerType ?? null;
 
         this.gesture = { phase: 'idle' };
+        this.clearNativeActivationSuppression();
         this.pointer.detachPointerListeners();
         this.pointer.releasePointerCapture();
         this.mobile.unlockMobileInteraction();
