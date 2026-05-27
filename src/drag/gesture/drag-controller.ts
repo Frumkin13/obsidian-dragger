@@ -33,6 +33,8 @@ import {
 import {
     GestureCancelReason,
     InteractionState,
+    MobileSelectionData,
+    MobileSelectionResizeHandle,
     PointerTerminalMode,
 } from './drag-interaction-state';
 import {
@@ -709,6 +711,7 @@ export class DragEventHandler {
         const state = this.gesture.mobileSelect;
         state.activeHandle = rawHandle;
         state.pointerId = e.pointerId;
+        this.startMobileSelectionResize(state, rawHandle);
         e.preventDefault();
         e.stopPropagation();
         this.pointer.tryCapturePointer(e);
@@ -734,8 +737,8 @@ export class DragEventHandler {
             ...state.selectedBlocks,
             blockRange,
         ]);
-        state.activeAnchor = boundary;
-        state.activeFocus = boundary;
+        state.activeFixedBoundary = boundary;
+        state.activeMovingBoundary = boundary;
         state.activeRangeBlocks = [blockRange];
         this.committedRangeSelection = this.buildCommittedSelectionFromBlocks(state.selectedBlocks, blockInfo);
         this.renderMobileSelection(state.selectedBlocks);
@@ -753,25 +756,58 @@ export class DragEventHandler {
         e.stopPropagation();
         const targetBoundary = this.resolveMobileSelectionBoundaryAtPoint(e.clientX, e.clientY);
         if (!targetBoundary) return;
-        const anchor = state.activeHandle === 'top' ? state.activeFocus : state.activeAnchor;
+        this.updateMobileSelectionResize(state, targetBoundary);
+        this.maybeAutoScrollRangeSelection(e.clientY);
+    }
+
+    private startMobileSelectionResize(
+        state: MobileSelectionData,
+        handle: MobileSelectionResizeHandle
+    ): void {
+        const selectedBlocks = mergeSelectedBlocks(this.view.state.doc.lines, state.selectedBlocks);
+        if (selectedBlocks.length === 0) return;
+        const firstBlock = selectedBlocks[0];
+        const lastBlock = selectedBlocks[selectedBlocks.length - 1];
+        state.activeRangeBlocks = selectedBlocks;
+        state.activeFixedBoundary = this.buildMobileSelectionResizeBoundary(handle === 'top' ? lastBlock : firstBlock);
+        state.activeMovingBoundary = this.buildMobileSelectionResizeBoundary(handle === 'top' ? firstBlock : lastBlock);
+    }
+
+    private updateMobileSelectionResize(
+        state: MobileSelectionData,
+        movingBoundary: RangeSelectionBoundary
+    ): void {
         const activeBlocks = collectSelectedBlocksBetween(
             this.view.state,
-            anchor.startLineNumber,
-            anchor.endLineNumber,
-            targetBoundary.startLineNumber,
-            targetBoundary.endLineNumber
+            state.activeFixedBoundary.startLineNumber,
+            state.activeFixedBoundary.endLineNumber,
+            movingBoundary.startLineNumber,
+            movingBoundary.endLineNumber
         );
-        const baseBlocks = state.selectedBlocks.filter((block) => !state.activeRangeBlocks.some((active) => (
-            active.startLineNumber === block.startLineNumber
-            && active.endLineNumber === block.endLineNumber
-        )));
-        state.activeAnchor = anchor;
-        state.activeFocus = targetBoundary;
+        const baseBlocks = this.removeActiveMobileSelectionBlocks(state.selectedBlocks, state.activeRangeBlocks);
+        state.activeMovingBoundary = movingBoundary;
         state.activeRangeBlocks = activeBlocks;
         state.selectedBlocks = mergeSelectedBlocks(this.view.state.doc.lines, [...baseBlocks, ...activeBlocks]);
         this.committedRangeSelection = this.buildCommittedSelectionFromBlocks(state.selectedBlocks, this.getMobileSelectionTemplateBlock(state));
         this.renderMobileSelection(state.selectedBlocks);
-        this.maybeAutoScrollRangeSelection(e.clientY);
+    }
+
+    private removeActiveMobileSelectionBlocks(
+        selectedBlocks: { startLineNumber: number; endLineNumber: number }[],
+        activeRangeBlocks: { startLineNumber: number; endLineNumber: number }[]
+    ): { startLineNumber: number; endLineNumber: number }[] {
+        return selectedBlocks.filter((block) => !activeRangeBlocks.some((active) => (
+            active.startLineNumber === block.startLineNumber
+            && active.endLineNumber === block.endLineNumber
+        )));
+    }
+
+    private buildMobileSelectionResizeBoundary(block: { startLineNumber: number; endLineNumber: number }): RangeSelectionBoundary {
+        return {
+            startLineNumber: block.startLineNumber,
+            endLineNumber: block.endLineNumber,
+            representativeLineNumber: block.startLineNumber,
+        };
     }
 
     private finishMobileSelectionPointer(e: PointerEvent, mode: PointerTerminalMode): void {
@@ -836,8 +872,8 @@ export class DragEventHandler {
         return fallbackPos === null ? null : resolveLineNumberFromPos(this.view, fallbackPos);
     }
 
-    private getMobileSelectionTemplateBlock(state: { activeFocus: RangeSelectionBoundary }): BlockInfo {
-        const line = this.view.state.doc.line(state.activeFocus.representativeLineNumber);
+    private getMobileSelectionTemplateBlock(state: { activeMovingBoundary: RangeSelectionBoundary }): BlockInfo {
+        const line = this.view.state.doc.line(state.activeMovingBoundary.representativeLineNumber);
         return this.deps.getBlockInfoAtPoint(0, this.resolveLineClientY(line.number))
             ?? {
                 type: BlockType.Paragraph,
@@ -1109,8 +1145,8 @@ export class DragEventHandler {
             phase: 'mobile_selecting',
             mobileSelect: {
                 selectedBlocks: [selectedBlock],
-                activeAnchor: boundary,
-                activeFocus: boundary,
+                activeFixedBoundary: boundary,
+                activeMovingBoundary: boundary,
                 activeRangeBlocks: [selectedBlock],
                 activeHandle: null,
                 pointerId: null,

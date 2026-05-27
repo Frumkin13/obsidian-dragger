@@ -25,12 +25,14 @@ export type PointerPressData = {
 export type PointerTerminalMode = 'up' | 'cancel';
 export type GestureCancelReason = 'press_cancelled' | 'pointer_cancelled';
 
+export type MobileSelectionResizeHandle = 'top' | 'bottom';
+
 export type MobileSelectionData = {
     selectedBlocks: SelectedBlockRange[];
-    activeAnchor: RangeSelectionBoundary;
-    activeFocus: RangeSelectionBoundary;
+    activeFixedBoundary: RangeSelectionBoundary;
+    activeMovingBoundary: RangeSelectionBoundary;
     activeRangeBlocks: SelectedBlockRange[];
-    activeHandle: 'top' | 'bottom' | null;
+    activeHandle: MobileSelectionResizeHandle | null;
     pointerId: number | null;
 };
 

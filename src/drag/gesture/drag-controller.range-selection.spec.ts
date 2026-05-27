@@ -1939,6 +1939,104 @@ describe('DragEventHandler Range Selection', () => {
         handler.destroy();
     });
 
+    it('resizes mobile selection symmetrically from top and bottom handles', () => {
+        document.body.classList.add('is-mobile');
+        const view = createViewStub(8);
+        const lineHandles = [
+            appendHandleForBlockStart(view, 0),
+            appendHandleForBlockStart(view, 1),
+            appendHandleForBlockStart(view, 2),
+            appendHandleForBlockStart(view, 3),
+            appendHandleForBlockStart(view, 4),
+            appendHandleForBlockStart(view, 5),
+        ];
+        const beginPointerDragSession = vi.fn();
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => null,
+            getBlockInfoAtPoint: (_x, y) => {
+                const lineIndex = Math.max(0, Math.min(7, Math.floor(y / 20)));
+                return createBlock(`line ${lineIndex + 1}`, lineIndex, lineIndex);
+            },
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        view.dom.dispatchEvent(new CustomEvent('dnd:enter-mobile-selection-mode', {
+            bubbles: true,
+            detail: { handled: false },
+        }));
+        vi.runOnlyPendingTimers();
+
+        const bottomResizeHandle = view.dom.querySelector<HTMLElement>('.dnd-mobile-selection-resize-handle-bottom');
+        expect(bottomResizeHandle).not.toBeNull();
+        dispatchPointer(bottomResizeHandle!, 'pointerdown', {
+            pointerId: 207,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 207,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 105,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 207,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 105,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        let selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
+        expect(selectedHandles).toHaveLength(6);
+        for (const handle of lineHandles) {
+            expect(selectedHandles).toContain(handle);
+        }
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
+
+        const topResizeHandle = view.dom.querySelector<HTMLElement>('.dnd-mobile-selection-resize-handle-top');
+        expect(topResizeHandle).not.toBeNull();
+        dispatchPointer(topResizeHandle!, 'pointerdown', {
+            pointerId: 208,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 208,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 50,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 208,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 50,
+        });
+
+        selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
+        expect(selectedHandles).toHaveLength(4);
+        expect(selectedHandles).not.toContain(lineHandles[0]);
+        expect(selectedHandles).not.toContain(lineHandles[1]);
+        for (const handle of lineHandles.slice(2, 6)) {
+            expect(selectedHandles).toContain(handle);
+        }
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
+        document.body.classList.remove('is-mobile');
+        handler.destroy();
+    });
+
     it('keeps mobile selection mode open while scrolling the document', () => {
         document.body.classList.add('is-mobile');
         const view = createViewStub(8);
