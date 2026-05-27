@@ -7,7 +7,7 @@ import { findEmbedElementAtPoint } from '../../platform/dom/embed-probe';
 const MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX = 16;
 const MOBILE_LINE_HIT_Y_TOLERANCE_PX = 8;
 const MOBILE_EMBED_HIT_PADDING_PX = 6;
-const MOBILE_LONG_PRESS_EMBED_SELECTOR = EMBED_BLOCK_SELECTOR;
+const MOBILE_RANGE_SELECT_SCROLL_CANCEL_THRESHOLD_PX = 14;
 
 export class MobileGestureController {
     private mobileInteractionLocked = false;
@@ -66,6 +66,11 @@ export class MobileGestureController {
         }
 
         return false;
+    }
+
+    isMostlyVerticalScrollGesture(dx: number, dy: number): boolean {
+        return Math.abs(dy) > MOBILE_RANGE_SELECT_SCROLL_CANCEL_THRESHOLD_PX
+            && Math.abs(dy) > Math.abs(dx) * 1.4;
     }
 
     lockMobileInteraction(): void {
@@ -174,7 +179,7 @@ export class MobileGestureController {
 
     private resolveEmbedElement(target: HTMLElement | null, clientX: number, clientY: number): HTMLElement | null {
         if (target) {
-            const fromTarget = target.closest<HTMLElement>(MOBILE_LONG_PRESS_EMBED_SELECTOR);
+            const fromTarget = target.closest<HTMLElement>(EMBED_BLOCK_SELECTOR);
             if (fromTarget && this.view.dom.contains(fromTarget)) {
                 return fromTarget;
             }

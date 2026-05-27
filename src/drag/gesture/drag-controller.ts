@@ -17,6 +17,7 @@ import {
     type RangeSelectionBoundary,
     type CommittedRangeSelection,
     type MouseRangeSelectState,
+    type RangeSelectionOperation,
     buildRangeSelectionBoundaryFromBlock,
 } from './range-selection/selection-model';
 import { resolveRangeBoundaryAtPoint } from './range-selection/hit-boundary';
@@ -102,7 +103,6 @@ export class DragEventHandler {
         const canHandleCommittedSelection = (
             multiLineSelectionEnabled
             && e.button === 0
-            && this.gesture.phase === 'idle'
             && !!this.committedRangeSelection
         );
         if (canHandleCommittedSelection && this.shouldClearCommittedSelectionOnPointerDown(target, e.clientX, pointerType)) {
@@ -111,6 +111,9 @@ export class DragEventHandler {
 
         const handle = target.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`);
         if (handle && !handle.classList.contains(EMBED_HANDLE_CLASS)) {
+            if (this.retargetActiveMobileRangeSelectionFromHandle(handle, e)) {
+                return;
+            }
             e.preventDefault();
             e.stopPropagation();
             this.startPointerDragFromHandle(handle, e);
@@ -120,7 +123,11 @@ export class DragEventHandler {
         if (canHandleCommittedSelection && this.isSelectionDragGripHit(target, e.clientX, e.clientY, pointerType)) {
             const committedBlock = this.getCommittedSelectionBlock();
             if (committedBlock) {
-                this.beginPressPendingDrag(committedBlock, e);
+                if (this.gesture.phase === 'range_selecting') {
+                    this.retargetMobileRangeSelection(e);
+                } else {
+                    this.beginPressPendingDrag(committedBlock, e);
+                }
                 return;
             }
         }
@@ -206,6 +213,10 @@ export class DragEventHandler {
         }
 
         if (this.isMobileEnvironment()) {
+            if (multiLineSelectionEnabled && this.committedRangeSelection) {
+                this.beginRangeSelectionSession(blockInfo, e, handle, { skipLongPress: true });
+                return;
+            }
             this.beginPressPendingDrag(blockInfo, e);
             return;
         }
@@ -263,7 +274,7 @@ export class DragEventHandler {
         blockInfo: BlockInfo,
         e: PointerEvent,
         handle: HTMLElement | null,
-        options?: { skipLongPress?: boolean }
+        options?: { skipLongPress?: boolean; initialOperation?: RangeSelectionOperation }
     ): void {
         const committedBlocksSnapshot = cloneSelectedBlocks(this.committedRangeSelection?.blocks ?? []);
         const pointerType = e.pointerType || null;
@@ -282,6 +293,7 @@ export class DragEventHandler {
             startX: e.clientX,
             startY: e.clientY,
             pointerType,
+            initialOperation: options?.initialOperation,
         });
         if (!initialRangeSelectState) return;
         const preferLongPressDrag = (
@@ -495,7 +507,7 @@ export class DragEventHandler {
     private handleRangeSelectingPointerMove(e: PointerEvent): void {
         if (this.gesture.phase !== 'range_selecting') return;
         const rangeState = this.gesture.rangeSelect;
-        if (e.pointerId !== rangeState.pointerId) return;
+        if (rangeState.pointerId !== -1 && e.pointerId !== rangeState.pointerId) return;
         this.handleRangeSelectionPointerMove(e, rangeState);
     }
 
@@ -534,6 +546,14 @@ export class DragEventHandler {
         state.latestY = e.clientY;
         const pointerType = state.pointerType ?? (e.pointerType || null);
         const distance = Math.hypot(e.clientX - state.startX, e.clientY - state.startY);
+        const dx = e.clientX - state.startX;
+        const dy = e.clientY - state.startY;
+
+        if (state.pointerId === -1 && pointerType !== 'mouse' && this.mobile.isMostlyVerticalScrollGesture(dx, dy)) {
+            this.commitRangeSelection(state);
+            this.finishRangeSelectionSession();
+            return;
+        }
 
         if (!state.longPressReady) {
             if (pointerType === 'mouse') {
@@ -631,6 +651,41 @@ export class DragEventHandler {
         const blockInfo = this.deps.getBlockInfoForHandle(handle);
         if (!blockInfo) return null;
         return buildRangeSelectionBoundaryFromBlock(this.view.state.doc, blockInfo);
+    }
+
+    private retargetMobileRangeSelection(e: PointerEvent): void {
+        if (this.gesture.phase !== 'range_selecting') return;
+        const state = this.gesture.rangeSelect;
+        if (state.pointerType === 'mouse') return;
+        state.pointerId = e.pointerId;
+        state.startX = e.clientX;
+        state.startY = e.clientY;
+        state.latestX = e.clientX;
+        state.latestY = e.clientY;
+        state.longPressReady = true;
+        state.dragReady = false;
+        state.isIntercepting = true;
+        if (state.dragTimeoutId !== null) {
+            window.clearTimeout(state.dragTimeoutId);
+            state.dragTimeoutId = null;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        this.pointer.tryCapturePointer(e);
+    }
+
+    private retargetActiveMobileRangeSelectionFromHandle(handle: HTMLElement, e: PointerEvent): boolean {
+        if (this.gesture.phase !== 'range_selecting') return false;
+        const state = this.gesture.rangeSelect;
+        if (state.pointerType === 'mouse') return false;
+        if (e.pointerType === 'mouse') return false;
+        const blockInfo = this.deps.getBlockInfoForHandle(handle)
+            ?? this.deps.getBlockInfoAtPoint(e.clientX, e.clientY);
+        if (!blockInfo) return false;
+        if (this.deps.isBlockInsideRenderedTableCell(blockInfo)) return false;
+        this.retargetMobileRangeSelection(e);
+        this.updateMouseRangeSelection(state, buildRangeSelectionBoundaryFromBlock(this.view.state.doc, blockInfo));
+        return true;
     }
 
     private commitRangeSelection(state: MouseRangeSelectState): void {
@@ -779,7 +834,7 @@ export class DragEventHandler {
     private handleRangeSelectingPointerTerminalEvent(e: PointerEvent, mode: PointerTerminalMode): void {
         if (this.gesture.phase !== 'range_selecting') return;
         const rangeState = this.gesture.rangeSelect;
-        if (e.pointerId !== rangeState.pointerId) return;
+        if (rangeState.pointerId !== -1 && e.pointerId !== rangeState.pointerId) return;
         if (mode === 'cancel') {
             this.abortForGestureCancel('pointer_cancelled', e.pointerType || null);
             return;
@@ -855,16 +910,31 @@ export class DragEventHandler {
         };
         if (this.deps.isBlockInsideRenderedTableCell(blockInfo)) return;
 
-        this.committedRangeSelection = {
-            selectedBlock: blockInfo,
-            blocks: [{ startLineNumber: blockInfo.startLine + 1, endLineNumber: blockInfo.endLine + 1 }],
-        };
-        this.rangeVisual.render(this.committedRangeSelection.blocks);
         if (e instanceof CustomEvent && e.detail && typeof e.detail === 'object') {
             (e.detail as { handled?: boolean }).handled = true;
         }
+        this.beginRangeSelectionSession(blockInfo, this.createSyntheticMobileSelectionPointerEvent(blockInfo), null, {
+            skipLongPress: true,
+            initialOperation: 'add',
+        });
+        this.mobile.lockMobileInteraction();
+        this.mobile.attachFocusGuard();
         this.mobile.suppressMobileKeyboard(document.activeElement);
         this.emitPressPendingLifecycle(blockInfo, 'touch', true);
+    }
+
+    private createSyntheticMobileSelectionPointerEvent(blockInfo: BlockInfo): PointerEvent {
+        const line = this.view.state.doc.line(Math.max(1, Math.min(this.view.state.doc.lines, blockInfo.startLine + 1)));
+        const coords = this.view.coordsAtPos(line.from, 1);
+        return {
+            pointerId: -1,
+            pointerType: 'touch',
+            clientX: coords?.left ?? 0,
+            clientY: coords ? ((coords.top + coords.bottom) / 2) : 0,
+            button: 0,
+            preventDefault: () => undefined,
+            stopPropagation: () => undefined,
+        } as unknown as PointerEvent;
     }
 
     private handleDocumentFocusIn(e: FocusEvent): void {

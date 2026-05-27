@@ -23,6 +23,7 @@ type CreateInitialRangeSelectionStateOptions = {
     startX: number;
     startY: number;
     pointerType: string | null;
+    initialOperation?: RangeSelectionOperation;
 };
 
 export function resolveRangeSelectConfig(
@@ -55,11 +56,11 @@ export function createInitialRangeSelectionState(
     }
 
     const anchorBlock = buildSelectedBlockRangeFromBlockInfo(options.blockInfo);
-    const operation: RangeSelectionOperation = isSelectedBlockCoveredByBlocks(
+    const operation: RangeSelectionOperation = options.initialOperation ?? (isSelectedBlockCoveredByBlocks(
         options.doc.lines,
         anchorBlock,
         options.committedBlocksSnapshot
-    ) ? 'remove' : 'add';
+    ) ? 'remove' : 'add');
     const selectionBlocks = operation === 'remove'
         ? subtractSelectedBlocks(options.doc.lines, options.committedBlocksSnapshot, [anchorBlock])
         : mergeSelectedBlocks(options.doc.lines, [...options.committedBlocksSnapshot, anchorBlock]);

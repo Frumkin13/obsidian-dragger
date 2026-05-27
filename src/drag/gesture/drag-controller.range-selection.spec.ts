@@ -1941,6 +1941,103 @@ describe('DragEventHandler Range Selection', () => {
         expect(finishDragSession).toHaveBeenCalledTimes(1);
         handler.destroy();
     });
+
+    it('keeps mobile selection mode open and supports sliding handles to extend selection', () => {
+        document.body.classList.add('is-mobile');
+        const view = createViewStub(8);
+        const startHandle = appendHandleForBlockStart(view, 0);
+        const endHandle = appendHandleForBlockStart(view, 5);
+        const sourceBlock = createBlock('- item', 0, 0);
+        const endBlock = createBlock('line 6', 5, 5);
+        const beginPointerDragSession = vi.fn();
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: (handle) => (handle === endHandle ? endBlock : sourceBlock),
+            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        const event = new CustomEvent('dnd:enter-mobile-selection-mode', {
+            bubbles: true,
+            detail: { handled: false },
+        });
+        view.dom.dispatchEvent(event);
+        vi.runOnlyPendingTimers();
+
+        expect(event.detail.handled).toBe(true);
+        expect(view.dom.querySelector('.dnd-selection-rail')).not.toBeNull();
+        expect(view.dom.querySelector<HTMLElement>('.dnd-mobile-selection-bar')?.classList.contains('is-active')).toBe(true);
+
+        dispatchPointer(endHandle, 'pointerdown', {
+            pointerId: 205,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 105,
+        });
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 205,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 105,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 205,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 105,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        const selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
+        expect(selectedHandles).toHaveLength(2);
+        expect(selectedHandles).toContain(startHandle);
+        expect(selectedHandles).toContain(endHandle);
+        expect(view.dom.querySelector<HTMLElement>('.dnd-mobile-selection-bar')?.textContent).toContain('6 selected');
+        document.body.classList.remove('is-mobile');
+        handler.destroy();
+    });
+
+    it('keeps mobile selection mode open while scrolling the document', () => {
+        document.body.classList.add('is-mobile');
+        const view = createViewStub(8);
+        appendHandleForBlockStart(view, 0);
+        const sourceBlock = createBlock('- item', 0, 0);
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        view.dom.dispatchEvent(new CustomEvent('dnd:enter-mobile-selection-mode', {
+            bubbles: true,
+            detail: { handled: false },
+        }));
+        vi.runOnlyPendingTimers();
+
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 206,
+            pointerType: 'touch',
+            clientX: 40,
+            clientY: 40,
+        });
+
+        expect(view.dom.querySelector('.dnd-selection-rail')).not.toBeNull();
+        expect(view.dom.querySelector<HTMLElement>('.dnd-mobile-selection-bar')?.classList.contains('is-active')).toBe(true);
+        document.body.classList.remove('is-mobile');
+        handler.destroy();
+    });
 });
 
 
