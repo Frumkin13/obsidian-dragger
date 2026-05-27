@@ -271,36 +271,6 @@ body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-edi
     box-shadow: none !important;
 }
 
-.dnd-selection-rail {
-    position: absolute;
-    width: 4px;
-    transform: translateX(-50%);
-    border-radius: 999px;
-    background-color: var(--dnd-handle-color, var(--interactive-accent));
-    box-shadow: 0 0 6px color-mix(in srgb, var(--dnd-handle-color, var(--interactive-accent)) 36%, transparent);
-    will-change: left, top, height, opacity;
-    opacity: 0;
-    pointer-events: none;
-    cursor: grab;
-    /* Keep selection connector below drag handles to avoid blocking handle interactions. */
-    z-index: 2;
-}
-
-.dnd-selection-rail.is-active {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-.dnd-selection-rail::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: -10px;
-    right: -10px;
-    background: transparent;
-}
-
 .dnd-selection-floating-grip {
     position: absolute;
     min-width: 28px;

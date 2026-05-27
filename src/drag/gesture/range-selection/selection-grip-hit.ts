@@ -4,7 +4,6 @@ import {
     CODEMIRROR_GUTTERS_SELECTOR,
     DRAG_HANDLE_CLASS,
     RANGE_SELECTED_HANDLE_CLASS,
-    RANGE_SELECTION_LINK_CLASS,
 } from '../../../shared/dom-selectors';
 import {
     groupSelectedBlocksIntoSegments,
@@ -52,7 +51,6 @@ type ShouldClearCommittedSelectionOptions = {
 export function shouldClearCommittedSelectionOnPointerDown(options: ShouldClearCommittedSelectionOptions): boolean {
     const committedSelection = options.committedSelection;
     if (!committedSelection) return false;
-    if (options.target.closest(`.${RANGE_SELECTION_LINK_CLASS}`)) return false;
     if (options.target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`)) return false;
     if (options.target.closest(`.${DRAG_HANDLE_CLASS}`)) return false;
 
@@ -83,9 +81,6 @@ type IsCommittedSelectionGripHitOptions = {
 export function isCommittedSelectionGripHit(options: IsCommittedSelectionGripHitOptions): boolean {
     const committedSelection = options.committedSelection;
     if (!committedSelection) return false;
-
-    const hitLink = options.target.closest(`.${RANGE_SELECTION_LINK_CLASS}`);
-    if (hitLink) return true;
 
     const hitHandle = options.target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`);
     if (hitHandle) return true;

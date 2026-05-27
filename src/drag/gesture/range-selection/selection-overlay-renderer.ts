@@ -5,7 +5,6 @@ import {
     MOBILE_SELECTION_DELETE_CLASS,
     MOBILE_SELECTION_DONE_CLASS,
     RANGE_SELECTION_FLOATING_GRIP_CLASS,
-    RANGE_SELECTION_LINK_CLASS,
 } from '../../../shared/dom-selectors';
 import { viewportXToEditorLocalX, viewportYToEditorLocalY } from './editor-local-coordinates';
 import { RangeAnchorSpan } from './selection-anchor';
@@ -17,7 +16,6 @@ import {
 export type SelectionOverlayAction = 'delete' | 'done' | 'convert';
 
 export class RangeSelectionOverlayRenderer {
-    private readonly railEls: HTMLElement[] = [];
     private readonly floatingGripEl: HTMLElement;
     private readonly mobileBarEl: HTMLElement;
     private readonly countEl: HTMLElement;
@@ -75,37 +73,13 @@ export class RangeSelectionOverlayRenderer {
         );
 
         let gripAnchor: { topY: number; x: number; host: HTMLElement } | null = null;
-        for (let i = 0; i < segments.length; i++) {
-            const segment = segments[i];
+        for (const segment of segments) {
             const anchorSpan = resolveRangeAnchorSpan(segment);
-            const rail = this.ensureRailEl(i);
-            if (!anchorSpan) {
-                rail.classList.remove('is-active');
-                continue;
-            }
-            if (rail.parentElement !== anchorSpan.host) {
-                anchorSpan.host.appendChild(rail);
-            }
-
-            const top = viewportYToHostLocalY(anchorSpan.host, anchorSpan.topY);
-            const bottom = viewportYToHostLocalY(anchorSpan.host, anchorSpan.bottomY);
-            const railTop = Math.min(top, bottom);
-            const railHeight = Math.max(2, Math.abs(bottom - top));
-            const left = viewportXToHostLocalX(anchorSpan.host, anchorSpan.x);
+            if (!anchorSpan) continue;
 
             if (!gripAnchor || anchorSpan.topY < gripAnchor.topY) {
                 gripAnchor = { topY: anchorSpan.topY, x: anchorSpan.x, host: anchorSpan.host };
             }
-
-            rail.classList.add('is-active');
-            rail.setCssStyles({
-                left: `${left.toFixed(2)}px`,
-                top: `${railTop.toFixed(2)}px`,
-                height: `${railHeight.toFixed(2)}px`,
-            });
-        }
-        for (let i = segments.length; i < this.railEls.length; i++) {
-            this.railEls[i].classList.remove('is-active');
         }
 
         this.renderFloatingGrip(gripAnchor, viewportXToHostLocalX, viewportYToHostLocalY);
@@ -113,9 +87,6 @@ export class RangeSelectionOverlayRenderer {
     }
 
     clear(): void {
-        for (const rail of this.railEls) {
-            rail.classList.remove('is-active');
-        }
         this.currentRenderedBlocks = [];
         this.floatingGripEl.classList.remove('is-active');
         this.mobileBarEl.classList.remove('is-active');
@@ -123,10 +94,6 @@ export class RangeSelectionOverlayRenderer {
 
     destroy(): void {
         this.clear();
-        for (const rail of this.railEls) {
-            rail.remove();
-        }
-        this.railEls.length = 0;
         this.floatingGripEl.remove();
         this.mobileBarEl.remove();
     }
@@ -171,17 +138,6 @@ export class RangeSelectionOverlayRenderer {
         button.textContent = label;
         button.addEventListener('click', this.onActionClick(action));
         return button;
-    }
-
-    private ensureRailEl(index: number): HTMLElement {
-        const existing = this.railEls[index];
-        if (existing) {
-            return existing;
-        }
-        const rail = document.createElement('div');
-        rail.className = RANGE_SELECTION_LINK_CLASS;
-        this.railEls[index] = rail;
-        return rail;
     }
 
     private cloneCurrentBlocks(): SelectedBlockRange[] {
