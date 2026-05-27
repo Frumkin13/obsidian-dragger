@@ -2045,16 +2045,95 @@ describe('DragEventHandler Range Selection', () => {
         }
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
+        document.body.classList.remove('is-mobile');
+        handler.destroy();
+    });
 
-        const shortcutButton = document.createElement('button');
-        const shortcutAction = vi.fn();
-        shortcutButton.addEventListener('click', shortcutAction);
-        document.body.appendChild(shortcutButton);
-        shortcutButton.click();
-        expect(shortcutAction).not.toHaveBeenCalled();
-        vi.advanceTimersByTime(350);
-        shortcutButton.click();
-        expect(shortcutAction).toHaveBeenCalledTimes(1);
+    it('cancels blocks and exits mobile selection from explicit taps', () => {
+        document.body.classList.add('is-mobile');
+        const view = createViewStub(4);
+        const firstHandle = appendHandleForBlockStart(view, 0);
+        const secondHandle = appendHandleForBlockStart(view, 1);
+        const thirdHandle = appendHandleForBlockStart(view, 2);
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => null,
+            getBlockInfoAtPoint: (_x, y) => {
+                if (!Number.isFinite(y)) return null;
+                const lineIndex = Math.max(0, Math.min(3, Math.floor(y / 20)));
+                return createBlock(`line ${lineIndex + 1}`, lineIndex, lineIndex);
+            },
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        view.dom.dispatchEvent(new CustomEvent('dnd:enter-mobile-selection-mode', {
+            bubbles: true,
+            detail: { handled: false },
+        }));
+        vi.runOnlyPendingTimers();
+
+        dispatchPointer(view.contentDOM, 'pointerdown', {
+            pointerId: 301,
+            pointerType: 'touch',
+            clientX: 120,
+            clientY: 25,
+        });
+
+        let selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
+        expect(selectedHandles).toContain(firstHandle);
+        expect(selectedHandles).toContain(secondHandle);
+        expect(selectedHandles).toHaveLength(2);
+        expect(view.dom.querySelectorAll('.dnd-range-selected-line')).toHaveLength(2);
+
+        dispatchPointer(view.contentDOM, 'pointerdown', {
+            pointerId: 302,
+            pointerType: 'touch',
+            clientX: 120,
+            clientY: 5,
+        });
+
+        selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
+        expect(selectedHandles).not.toContain(firstHandle);
+        expect(selectedHandles).toContain(secondHandle);
+        expect(selectedHandles).toHaveLength(1);
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
+
+        dispatchPointer(view.contentDOM, 'pointerdown', {
+            pointerId: 303,
+            pointerType: 'touch',
+            clientX: 120,
+            clientY: 25,
+        });
+
+        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).toHaveLength(0);
+        expect(view.dom.querySelector('.dnd-range-selected-line')).toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top.is-active')).toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom.is-active')).toBeNull();
+
+        view.dom.dispatchEvent(new CustomEvent('dnd:enter-mobile-selection-mode', {
+            bubbles: true,
+            detail: { handled: false },
+        }));
+        vi.runOnlyPendingTimers();
+        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).toHaveLength(1);
+
+        dispatchPointer(view.contentDOM, 'pointerdown', {
+            pointerId: 304,
+            pointerType: 'touch',
+            clientX: 120,
+            clientY: Number.NaN,
+        });
+
+        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).toHaveLength(0);
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top.is-active')).toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom.is-active')).toBeNull();
+        expect(thirdHandle.classList.contains('dnd-range-selected-handle')).toBe(false);
         document.body.classList.remove('is-mobile');
         handler.destroy();
     });

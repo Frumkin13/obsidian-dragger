@@ -47,7 +47,7 @@ import {
     updateSelectionFromBoundary as updateSelectionFromBoundaryByFlow,
     updateSelectionFromLine as updateSelectionFromLineByFlow,
 } from './range-selection/selection-flow';
-import { cloneSelectedBlocks, mergeSelectedBlocks } from './range-selection/block-selection';
+import { cloneSelectedBlocks, isSelectedBlockCoveredByBlocks, mergeSelectedBlocks, subtractSelectedBlocks } from './range-selection/block-selection';
 import {
     buildCancelledLifecycleEvent,
     buildDragStartedLifecycleEvent,
@@ -88,8 +88,6 @@ export interface DragEventHandlerDeps {
 export class DragEventHandler {
     private gesture: InteractionState = { phase: 'idle' };
     private committedRangeSelection: CommittedRangeSelection | null = null;
-    private suppressNextNativeActivation = false;
-    private nativeActivationSuppressTimeoutId: number | null = null;
     readonly rangeVisual: RangeSelectionVisualManager;
     readonly mobile: MobileGestureController;
     readonly pointer: PointerSessionController;
@@ -162,7 +160,6 @@ export class DragEventHandler {
 
     private readonly onLostPointerCapture = (e: PointerEvent) => this.handleLostPointerCapture(e);
     private readonly onDocumentFocusIn = (e: FocusEvent) => this.handleDocumentFocusIn(e);
-    private readonly onDocumentNativeActivation = (e: Event) => this.handleDocumentNativeActivation(e);
     private readonly onEnterMobileSelectionMode = (e: Event) => this.handleEnterMobileSelectionMode(e);
     constructor(
         private readonly view: EditorView,
@@ -191,8 +188,6 @@ export class DragEventHandler {
         editorDom.addEventListener('lostpointercapture', this.onLostPointerCapture, true);
         editorDom.addEventListener('focusin', this.onDocumentFocusIn, true);
         editorDom.addEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
-        document.addEventListener('click', this.onDocumentNativeActivation, true);
-        document.addEventListener('contextmenu', this.onDocumentNativeActivation, true);
     }
 
     startPointerDragFromHandle(handle: HTMLElement, e: PointerEvent, getBlockInfo?: () => BlockInfo | null): void {
@@ -254,9 +249,6 @@ export class DragEventHandler {
         editorDom.removeEventListener('lostpointercapture', this.onLostPointerCapture, true);
         editorDom.removeEventListener('focusin', this.onDocumentFocusIn, true);
         editorDom.removeEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
-        document.removeEventListener('click', this.onDocumentNativeActivation, true);
-        document.removeEventListener('contextmenu', this.onDocumentNativeActivation, true);
-        this.clearNativeActivationSuppression();
     }
 
     isGestureActive(): boolean {
@@ -731,27 +723,37 @@ export class DragEventHandler {
     }
 
     private handleMobileSelectionTextPointerDown(e: PointerEvent): boolean {
+        if (this.gesture.phase !== 'mobile_selecting') return false;
+        const state = this.gesture.mobileSelect;
         const blockInfo = this.deps.getBlockInfoAtPoint(e.clientX, e.clientY);
-        if (!blockInfo) return false;
-        if (this.deps.isBlockInsideRenderedTableCell(blockInfo)) return false;
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!blockInfo || this.deps.isBlockInsideRenderedTableCell(blockInfo)) {
+            this.exitMobileSelectionMode();
+            return true;
+        }
+
         const boundary = buildRangeSelectionBoundaryFromBlock(this.view.state.doc, blockInfo);
-        const state = this.gesture.phase === 'mobile_selecting' ? this.gesture.mobileSelect : null;
-        if (!state) return false;
         const blockRange = {
             startLineNumber: boundary.startLineNumber,
             endLineNumber: boundary.endLineNumber,
         };
-        state.selectedBlocks = mergeSelectedBlocks(this.view.state.doc.lines, [
-            ...state.selectedBlocks,
-            blockRange,
-        ]);
+        const nextBlocks = isSelectedBlockCoveredByBlocks(this.view.state.doc.lines, blockRange, state.selectedBlocks)
+            ? subtractSelectedBlocks(this.view.state.doc.lines, state.selectedBlocks, [blockRange])
+            : mergeSelectedBlocks(this.view.state.doc.lines, [...state.selectedBlocks, blockRange]);
+
+        if (nextBlocks.length === 0) {
+            this.exitMobileSelectionMode();
+            return true;
+        }
+
+        state.selectedBlocks = nextBlocks;
         state.activeFixedBoundary = boundary;
         state.activeMovingBoundary = boundary;
         state.activeRangeBlocks = [blockRange];
         this.committedRangeSelection = this.buildCommittedSelectionFromBlocks(state.selectedBlocks, blockInfo);
         this.renderMobileSelection(state.selectedBlocks);
-        e.preventDefault();
-        e.stopPropagation();
         return true;
     }
 
@@ -825,7 +827,6 @@ export class DragEventHandler {
         if (mode === 'up') {
             e.preventDefault();
             e.stopPropagation();
-            this.suppressUpcomingNativeActivation();
         }
         state.activeHandle = null;
         state.pointerId = null;
@@ -833,25 +834,6 @@ export class DragEventHandler {
         this.pointer.releasePointerCapture();
         this.mobile.unlockMobileInteraction();
         this.mobile.detachFocusGuard();
-    }
-
-    private suppressUpcomingNativeActivation(): void {
-        this.suppressNextNativeActivation = true;
-        if (this.nativeActivationSuppressTimeoutId !== null) {
-            window.clearTimeout(this.nativeActivationSuppressTimeoutId);
-        }
-        this.nativeActivationSuppressTimeoutId = window.setTimeout(() => {
-            this.suppressNextNativeActivation = false;
-            this.nativeActivationSuppressTimeoutId = null;
-        }, 350);
-    }
-
-    private clearNativeActivationSuppression(): void {
-        this.suppressNextNativeActivation = false;
-        if (this.nativeActivationSuppressTimeoutId !== null) {
-            window.clearTimeout(this.nativeActivationSuppressTimeoutId);
-            this.nativeActivationSuppressTimeoutId = null;
-        }
     }
 
     private resolveMobileSelectionBoundaryAtPoint(clientX: number, clientY: number): RangeSelectionBoundary | null {
@@ -930,6 +912,19 @@ export class DragEventHandler {
 
     private renderMobileSelection(blocks: { startLineNumber: number; endLineNumber: number }[]): void {
         this.rangeVisual.render(blocks, { highlightLines: true, showMobileResizeHandles: true });
+    }
+
+    private exitMobileSelectionMode(): void {
+        if (this.gesture.phase !== 'mobile_selecting') return;
+        this.gesture.mobileSelect.pointerId = null;
+        this.gesture.mobileSelect.activeHandle = null;
+        this.pointer.detachPointerListeners();
+        this.pointer.releasePointerCapture();
+        this.mobile.unlockMobileInteraction();
+        this.mobile.detachFocusGuard();
+        this.gesture = { phase: 'idle' };
+        this.clearCommittedRangeSelection();
+        this.emitIdleLifecycle();
     }
 
     private commitRangeSelection(state: MouseRangeSelectState): void {
@@ -1042,8 +1037,8 @@ export class DragEventHandler {
     private handleLostPointerCapture(e: PointerEvent): void {
         if (!this.hasActivePointerSession()) return;
         if (this.gesture.phase === 'mobile_selecting') {
-            const pointerId = this.gesture.mobileSelect.pointerId;
-            if (pointerId === null || e.pointerId !== pointerId) return;
+            this.finishMobileSelectionPointer(e, 'cancel');
+            return;
         }
         this.abortForSessionInterrupted(e.pointerType || null);
     }
@@ -1202,17 +1197,6 @@ export class DragEventHandler {
         this.mobile.suppressMobileKeyboard(e.target);
     }
 
-    private handleDocumentNativeActivation(e: Event): void {
-        if (!this.shouldSuppressNativeActivation()) return;
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-    }
-
-    private shouldSuppressNativeActivation(): boolean {
-        return this.shouldSuppressNativeInteractionForActiveGesture() || this.suppressNextNativeActivation;
-    }
-
     private handleTouchMove(e: TouchEvent): void {
         if (!this.shouldSuppressNativeInteractionForActiveGesture()) return;
         if (e.cancelable) {
@@ -1221,7 +1205,16 @@ export class DragEventHandler {
     }
 
     private hasActivePointerSession(): boolean {
-        return this.gesture.phase !== 'idle';
+        switch (this.gesture.phase) {
+            case 'dragging':
+            case 'range_selecting':
+            case 'press_pending':
+                return true;
+            case 'mobile_selecting':
+                return this.gesture.mobileSelect.pointerId !== null;
+            default:
+                return false;
+        }
     }
 
     private shouldSuppressNativeInteractionForActiveGesture(): boolean {
@@ -1252,7 +1245,6 @@ export class DragEventHandler {
         const pointerType = options?.pointerType ?? null;
 
         this.gesture = { phase: 'idle' };
-        this.clearNativeActivationSuppression();
         this.pointer.detachPointerListeners();
         this.pointer.releasePointerCapture();
         this.mobile.unlockMobileInteraction();
