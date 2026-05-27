@@ -1,10 +1,14 @@
 import { EditorView } from '@codemirror/view';
-import { BlockInfo } from '../../domain/block/block-types';
+import { detectBlock } from '../../domain/block/block-detector';
+import { BlockInfo, BlockType } from '../../domain/block/block-types';
 import { DragLifecycleEvent } from '../../shared/types/drag';
 import {
     DRAG_HANDLE_CLASS,
     EMBED_HANDLE_CLASS,
-    RANGE_SELECTION_DELETE_BUTTON_CLASS,
+    MOBILE_SELECTION_CONVERT_CLASS,
+    MOBILE_SELECTION_DELETE_CLASS,
+    MOBILE_SELECTION_DONE_CLASS,
+    RANGE_SELECTION_FLOATING_GRIP_CLASS,
 } from '../../shared/dom-selectors';
 import { RangeSelectionVisualManager } from './range-selection/selection-visual-manager';
 import { MobileGestureController } from './mobile-gesture-controller';
@@ -58,7 +62,6 @@ const TOUCH_RANGE_SELECT_LONG_PRESS_MS = 900;
 const MIN_TOUCH_RANGE_SELECT_LONG_PRESS_MS = 300;
 const MAX_TOUCH_RANGE_SELECT_LONG_PRESS_MS = 2000;
 const MOUSE_RANGE_SELECT_LONG_PRESS_MS = 260;
-const MOUSE_RANGE_SELECT_CANCEL_MOVE_THRESHOLD_PX = 12;
 const MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX = 4;
 
 export interface DragEventHandlerDeps {
@@ -67,7 +70,6 @@ export interface DragEventHandlerDeps {
     getVisibleHandleForBlockStart?: (blockStart: number) => HTMLElement | null;
     isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
     isMultiLineSelectionEnabled?: () => boolean;
-    isRangeSelectionDeleteEnabled?: () => boolean;
     getMultiLineSelectionLongPressMs?: () => number;
     isMobileTextLongPressDragEnabled?: () => boolean;
     beginPointerDragSession: (blockInfo: BlockInfo) => void;
@@ -76,6 +78,7 @@ export interface DragEventHandlerDeps {
     hideDropIndicator: () => void;
     performDropAtPoint: (sourceBlock: BlockInfo, clientX: number, clientY: number, pointerType: string | null) => void;
     onDragLifecycleEvent?: (event: DragLifecycleEvent) => void;
+    openBlockTypeMenu?: (blockInfo: BlockInfo, event: MouseEvent | PointerEvent | null) => void;
 }
 
 export class DragEventHandler {
@@ -88,7 +91,9 @@ export class DragEventHandler {
     private readonly onEditorPointerDown = (e: PointerEvent) => {
         const target = e.target instanceof HTMLElement ? e.target : null;
         if (!target) return;
-        if (target.closest(`.${RANGE_SELECTION_DELETE_BUTTON_CLASS}`)) return;
+        if (target.closest(`.${MOBILE_SELECTION_DELETE_CLASS}`)) return;
+        if (target.closest(`.${MOBILE_SELECTION_CONVERT_CLASS}`)) return;
+        if (target.closest(`.${MOBILE_SELECTION_DONE_CLASS}`)) return;
         const pointerType = e.pointerType || null;
         const multiLineSelectionEnabled = this.isMultiLineSelectionEnabled();
         if (!multiLineSelectionEnabled) {
@@ -106,11 +111,13 @@ export class DragEventHandler {
 
         const handle = target.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`);
         if (handle && !handle.classList.contains(EMBED_HANDLE_CLASS)) {
+            e.preventDefault();
+            e.stopPropagation();
             this.startPointerDragFromHandle(handle, e);
             return;
         }
 
-        if (canHandleCommittedSelection && this.isCommittedSelectionGripHit(target, e.clientX, e.clientY, pointerType)) {
+        if (canHandleCommittedSelection && this.isSelectionDragGripHit(target, e.clientX, e.clientY, pointerType)) {
             const committedBlock = this.getCommittedSelectionBlock();
             if (committedBlock) {
                 this.beginPressPendingDrag(committedBlock, e);
@@ -119,31 +126,22 @@ export class DragEventHandler {
         }
 
         if (!this.shouldStartMobilePressDrag(e)) return;
-        const inMobileHotzoneBand = this.mobile.isWithinMobileDragHotzoneBand(e.clientX);
         const inTextLineOrEmbedArea = this.isMobileTextLongPressDragEnabled()
             && this.mobile.isWithinMobileTextLineOrEmbedArea(target, e.clientX, e.clientY);
-        if (!inMobileHotzoneBand && !inTextLineOrEmbedArea) return;
+        if (!inTextLineOrEmbedArea) return;
 
         const blockInfo = this.deps.getBlockInfoAtPoint(e.clientX, e.clientY);
         if (!blockInfo) return;
         if (this.deps.isBlockInsideRenderedTableCell(blockInfo)) return;
 
-        const useHotzonePath = inMobileHotzoneBand
-            && this.mobile.isWithinMobileDragHotzone(blockInfo, e.clientX);
-        if (useHotzonePath) {
-            this.beginPressPendingDrag(blockInfo, e);
-            return;
-        }
-
-        if (inTextLineOrEmbedArea) {
-            if (this.shouldDisableMobileTextLongPressDragInInputState()) return;
-            // Keep native tap-to-focus behavior in text/embed areas.
-            this.beginPressPendingDrag(blockInfo, e, { deferInterception: true });
-        }
+        if (this.shouldDisableMobileTextLongPressDragInInputState()) return;
+        // Keep native tap-to-focus behavior in text/embed areas.
+        this.beginPressPendingDrag(blockInfo, e, { deferInterception: true });
     };
 
     private readonly onLostPointerCapture = (e: PointerEvent) => this.handleLostPointerCapture(e);
     private readonly onDocumentFocusIn = (e: FocusEvent) => this.handleDocumentFocusIn(e);
+    private readonly onEnterMobileSelectionMode = (e: Event) => this.handleEnterMobileSelectionMode(e);
     constructor(
         private readonly view: EditorView,
         private readonly deps: DragEventHandlerDeps
@@ -152,8 +150,7 @@ export class DragEventHandler {
             this.view,
             () => this.refreshRangeSelectionVisual(),
             (blockStart) => this.deps.getVisibleHandleForBlockStart?.(blockStart) ?? null,
-            () => this.deleteCommittedRangeSelection(),
-            () => this.deps.isRangeSelectionDeleteEnabled?.() === true
+            this.handleSelectionOverlayAction
         );
         this.mobile = new MobileGestureController(this.view, (e) => this.handleDocumentFocusIn(e));
         this.pointer = new PointerSessionController(this.view, {
@@ -171,6 +168,7 @@ export class DragEventHandler {
         editorDom.addEventListener('pointerdown', this.onEditorPointerDown, true);
         editorDom.addEventListener('lostpointercapture', this.onLostPointerCapture, true);
         editorDom.addEventListener('focusin', this.onDocumentFocusIn, true);
+        editorDom.addEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
     }
 
     startPointerDragFromHandle(handle: HTMLElement, e: PointerEvent, getBlockInfo?: () => BlockInfo | null): void {
@@ -192,9 +190,12 @@ export class DragEventHandler {
                 }
 
                 if (this.isShiftRangeSelectionPointerDown(e)) {
-                    this.beginRangeSelectionSession(blockInfo, e, handle);
+                    this.beginRangeSelectionSession(blockInfo, e, handle, { skipLongPress: true });
                     return;
                 }
+
+                this.beginRangeSelectionSession(blockInfo, e, handle);
+                return;
             }
 
             e.preventDefault();
@@ -224,6 +225,7 @@ export class DragEventHandler {
         editorDom.removeEventListener('pointerdown', this.onEditorPointerDown, true);
         editorDom.removeEventListener('lostpointercapture', this.onLostPointerCapture, true);
         editorDom.removeEventListener('focusin', this.onDocumentFocusIn, true);
+        editorDom.removeEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
     }
 
     isGestureActive(): boolean {
@@ -535,8 +537,14 @@ export class DragEventHandler {
 
         if (!state.longPressReady) {
             if (pointerType === 'mouse') {
-                if (distance > MOUSE_RANGE_SELECT_CANCEL_MOVE_THRESHOLD_PX) {
-                    this.abortForGestureCancel('press_cancelled', pointerType);
+                if (distance >= MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const sourceBlock = state.directDragSourceBlock;
+                    const pointerId = state.pointerId;
+                    this.clearCommittedRangeSelection();
+                    this.clearMouseRangeSelectState();
+                    this.enterDraggingState(sourceBlock, pointerId, e.clientX, e.clientY, pointerType);
                 }
             } else {
                 if (!state.dragReady) {
@@ -641,6 +649,21 @@ export class DragEventHandler {
         );
     }
 
+    private handleSelectionOverlayAction = (action: 'delete' | 'done' | 'convert'): void => {
+        if (action === 'delete') {
+            this.deleteCommittedRangeSelection();
+            return;
+        }
+        if (action === 'convert') {
+            const block = this.getCommittedSelectionBlock();
+            if (block) {
+                this.deps.openBlockTypeMenu?.(block, null);
+            }
+            return;
+        }
+        this.clearCommittedRangeSelection();
+    };
+
     private getCommittedSelectionBlock(): BlockInfo | null {
         return cloneCommittedSelectionBlockByFlow(this.committedRangeSelection);
     }
@@ -674,12 +697,13 @@ export class DragEventHandler {
         });
     }
 
-    private isCommittedSelectionGripHit(
+    private isSelectionDragGripHit(
         target: HTMLElement,
         clientX: number,
         clientY: number,
         pointerType: string | null
     ): boolean {
+        if (target.closest(`.${RANGE_SELECTION_FLOATING_GRIP_CLASS}`)) return true;
         return isCommittedSelectionGripHitByGrip({
             committedSelection: this.committedRangeSelection,
             target,
@@ -687,7 +711,7 @@ export class DragEventHandler {
             clientY,
             pointerType,
             resolveAnchorSpan: (range) => this.rangeVisual.resolveRangeAnchorSpan(range),
-            isWithinMobileDragHotzoneBand: (x) => this.mobile.isWithinMobileDragHotzoneBand(x),
+            isWithinMobileDragHotzoneBand: () => true,
         });
     }
 
@@ -761,6 +785,13 @@ export class DragEventHandler {
             return;
         }
         if (!rangeState.longPressReady) {
+            if (mode === 'up' && rangeState.pointerType === 'mouse') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.deps.openBlockTypeMenu?.(rangeState.activeSelectionBlock, e);
+                this.finishRangeSelectionSession();
+                return;
+            }
             this.abortForGestureCancel('press_cancelled', e.pointerType || null);
             return;
         }
@@ -804,6 +835,36 @@ export class DragEventHandler {
             cancelReason: 'session_interrupted',
             pointerType,
         });
+    }
+
+    private handleEnterMobileSelectionMode(e: Event): void {
+        if (!this.isMobileEnvironment()) return;
+        if (!this.isMultiLineSelectionEnabled()) return;
+        if (this.gesture.phase !== 'idle') return;
+
+        const line = this.view.state.doc.lineAt(this.view.state.selection.main.head);
+        const detectedBlock = detectBlock(this.view.state, line.number);
+        const blockInfo = detectedBlock ?? {
+            type: BlockType.Paragraph,
+            startLine: line.number - 1,
+            endLine: line.number - 1,
+            from: line.from,
+            to: line.to,
+            indentLevel: 0,
+            content: line.text,
+        };
+        if (this.deps.isBlockInsideRenderedTableCell(blockInfo)) return;
+
+        this.committedRangeSelection = {
+            selectedBlock: blockInfo,
+            blocks: [{ startLineNumber: blockInfo.startLine + 1, endLineNumber: blockInfo.endLine + 1 }],
+        };
+        this.rangeVisual.render(this.committedRangeSelection.blocks);
+        if (e instanceof CustomEvent && e.detail && typeof e.detail === 'object') {
+            (e.detail as { handled?: boolean }).handled = true;
+        }
+        this.mobile.suppressMobileKeyboard(document.activeElement);
+        this.emitPressPendingLifecycle(blockInfo, 'touch', true);
     }
 
     private handleDocumentFocusIn(e: FocusEvent): void {

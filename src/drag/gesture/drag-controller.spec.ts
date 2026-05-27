@@ -53,7 +53,7 @@ describe('DragEventHandler', () => {
         });
 
         expect(beginPointerDragSession).not.toHaveBeenCalled();
-        const link = view.dom.querySelector<HTMLElement>('.dnd-range-selection-link');
+        const link = view.dom.querySelector<HTMLElement>('.dnd-selection-rail');
         expect(link).toBeNull();
         handler.destroy();
     });
@@ -150,7 +150,7 @@ describe('DragEventHandler', () => {
         }), 'touch');
         expect(performDropAtPoint).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
-        expect(view.dom.querySelector('.dnd-range-selection-link')).toBeNull();
+        expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
         handler.destroy();
     });
 
@@ -209,7 +209,7 @@ describe('DragEventHandler', () => {
         expect(beginPointerDragSession).not.toHaveBeenCalled();
         expect(scheduleDropIndicatorUpdate).not.toHaveBeenCalled();
         expect(performDropAtPoint).not.toHaveBeenCalled();
-        expect(view.dom.querySelector('.dnd-range-selection-link')).toBeNull();
+        expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
         handler.destroy();
     });
 

@@ -13,7 +13,6 @@ export interface DragNDropSettings {
     indicatorColor: string;
     enableCrossFileDrag: boolean;
     enableMultiLineSelection: boolean;
-    enableMultiSelectionDeleteButton: boolean;
     multiLineSelectionLongPressMs: number;
     enableMobileTextLongPressDrag: boolean;
     enableDragSourceHighlight: boolean;

@@ -225,6 +225,7 @@ export function registerMouseHandlerTestHooks(): void {
 
     afterEach(() => {
         document.body.innerHTML = '';
+        document.body.className = '';
         vi.restoreAllMocks();
         vi.useRealTimers();
         Object.defineProperty(window, 'matchMedia', {

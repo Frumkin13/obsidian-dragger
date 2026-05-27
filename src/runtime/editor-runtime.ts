@@ -48,6 +48,7 @@ import {
     registerPointerDragTargetClient,
     schedulePointerDropIndicatorFromPoint,
 } from './pointer-drag-target-router';
+import { openBlockTypeMenu } from '../plugin/block-type-menu';
 
 export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
     return class {
@@ -169,7 +170,6 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 isBlockInsideRenderedTableCell: (blockInfo) =>
                     isPosInsideRenderedTableCell(this.view, blockInfo.from, { skipLayoutRead: true }),
                 isMultiLineSelectionEnabled: () => plugin.settings.enableMultiLineSelection,
-                isRangeSelectionDeleteEnabled: () => plugin.settings.enableMultiSelectionDeleteButton === true,
                 getMultiLineSelectionLongPressMs: () => plugin.settings.multiLineSelectionLongPressMs,
                 isMobileTextLongPressDragEnabled: () => plugin.settings.enableMobileTextLongPressDrag,
                 beginPointerDragSession: (blockInfo) => {
@@ -204,6 +204,11 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 onDragLifecycleEvent: (event) => {
                     this.handleSourceVisualByLifecycle(event);
                     this.orchestrator.emitDragLifecycle(event);
+                },
+                openBlockTypeMenu: (blockInfo, event) => {
+                    const anchor = Math.max(0, Math.min(this.view.state.doc.length, blockInfo.from));
+                    this.view.dispatch({ selection: { anchor }, scrollIntoView: false });
+                    openBlockTypeMenu(this.view, event);
                 },
             });
 

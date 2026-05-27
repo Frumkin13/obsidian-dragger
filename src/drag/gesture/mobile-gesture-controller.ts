@@ -1,12 +1,9 @@
 import { EditorView } from '@codemirror/view';
-import { BlockInfo } from '../../domain/block/block-types';
 import { EMBED_BLOCK_SELECTOR, MOBILE_GESTURE_LOCK_CLASS } from '../../shared/dom-selectors';
 import { DND_MOBILE_GESTURE_LOCK_COUNT_ATTR } from '../../shared/dom-attrs';
 import { safeCoordsAtPos, resolveLineNumberFromDomNodes } from '../../platform/dom/element-probe';
 import { findEmbedElementAtPoint } from '../../platform/dom/embed-probe';
 
-const MOBILE_DRAG_HOTZONE_LEFT_PX = 24;
-const MOBILE_DRAG_HOTZONE_RIGHT_PX = 8;
 const MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX = 16;
 const MOBILE_LINE_HIT_Y_TOLERANCE_PX = 8;
 const MOBILE_EMBED_HIT_PADDING_PX = 6;
@@ -45,33 +42,6 @@ export class MobileGestureController {
         const left = editorRect.left - MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX;
         const right = editorRect.right + MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX;
         return clientX >= left && clientX <= right;
-    }
-
-    isWithinMobileDragHotzoneBand(clientX: number): boolean {
-        const contentRect = this.view.contentDOM.getBoundingClientRect();
-        const left = contentRect.left - MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX;
-        const right = contentRect.left
-            + MOBILE_DRAG_HOTZONE_LEFT_PX
-            + MOBILE_DRAG_HOTZONE_RIGHT_PX
-            + MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX;
-        return clientX >= left && clientX <= right;
-    }
-
-    isWithinMobileDragHotzone(blockInfo: BlockInfo, clientX: number): boolean {
-        const lineNumber = blockInfo.startLine + 1;
-        if (lineNumber < 1 || lineNumber > this.view.state.doc.lines) return false;
-
-        const line = this.view.state.doc.line(lineNumber);
-        const lineStart = safeCoordsAtPos(this.view, line.from);
-        if (!lineStart) return false;
-
-        const contentRect = this.view.contentDOM.getBoundingClientRect();
-        const hotzoneLeft = Math.max(
-            contentRect.left - MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX,
-            lineStart.left - MOBILE_DRAG_HOTZONE_LEFT_PX - MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX
-        );
-        const hotzoneRight = lineStart.left + MOBILE_DRAG_HOTZONE_RIGHT_PX;
-        return clientX >= hotzoneLeft && clientX <= hotzoneRight;
     }
 
     isWithinMobileTextLineOrEmbedArea(target: HTMLElement | null, clientX: number, clientY: number): boolean {

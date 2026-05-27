@@ -1,6 +1,10 @@
 import { EditorView } from '@codemirror/view';
 import {
-    RANGE_SELECTION_DELETE_BUTTON_CLASS,
+    MOBILE_SELECTION_BAR_CLASS,
+    MOBILE_SELECTION_CONVERT_CLASS,
+    MOBILE_SELECTION_DELETE_CLASS,
+    MOBILE_SELECTION_DONE_CLASS,
+    RANGE_SELECTION_FLOATING_GRIP_CLASS,
     RANGE_SELECTION_LINK_CLASS,
 } from '../../../shared/dom-selectors';
 import { viewportXToEditorLocalX, viewportYToEditorLocalY } from './editor-local-coordinates';
@@ -10,34 +14,39 @@ import {
     type SelectedBlockRange,
 } from './block-selection';
 
+export type SelectionOverlayAction = 'delete' | 'done' | 'convert';
+
 export class RangeSelectionOverlayRenderer {
-    private readonly linkEls: HTMLElement[] = [];
-    private readonly deleteButtonEl: HTMLButtonElement;
+    private readonly railEls: HTMLElement[] = [];
+    private readonly floatingGripEl: HTMLElement;
+    private readonly mobileBarEl: HTMLElement;
+    private readonly countEl: HTMLElement;
     private currentRenderedBlocks: SelectedBlockRange[] = [];
-    private readonly onDeleteButtonClick = (event: MouseEvent): void => {
+    private readonly onActionClick = (action: SelectionOverlayAction) => (event: MouseEvent): void => {
         event.preventDefault();
         event.stopPropagation();
-        if (!this.isDeleteButtonEnabled()) return;
-        if (!this.onDeleteSelectionClick) return;
         if (this.currentRenderedBlocks.length === 0) return;
-        const blocks = this.currentRenderedBlocks.map((block) => ({
-            startLineNumber: block.startLineNumber,
-            endLineNumber: block.endLineNumber,
-        }));
-        this.onDeleteSelectionClick(blocks);
+        this.onAction?.(action, this.cloneCurrentBlocks());
     };
 
     constructor(
         private readonly view: EditorView,
-        private readonly onDeleteSelectionClick?: (blocks: SelectedBlockRange[]) => void,
-        private readonly isDeleteButtonEnabledRef?: () => boolean
+        private readonly onAction?: (action: SelectionOverlayAction, blocks: SelectedBlockRange[]) => void
     ) {
-        this.deleteButtonEl = document.createElement('button');
-        this.deleteButtonEl.type = 'button';
-        this.deleteButtonEl.className = RANGE_SELECTION_DELETE_BUTTON_CLASS;
-        this.deleteButtonEl.setAttribute('aria-label', 'Delete selected blocks');
-        this.deleteButtonEl.textContent = 'Delete';
-        this.deleteButtonEl.addEventListener('click', this.onDeleteButtonClick);
+        this.floatingGripEl = document.createElement('div');
+        this.floatingGripEl.className = RANGE_SELECTION_FLOATING_GRIP_CLASS;
+        this.floatingGripEl.setAttribute('aria-label', 'Drag selected blocks');
+        this.floatingGripEl.textContent = '⠿';
+
+        this.mobileBarEl = document.createElement('div');
+        this.mobileBarEl.className = MOBILE_SELECTION_BAR_CLASS;
+
+        this.countEl = document.createElement('span');
+        this.countEl.className = 'dnd-mobile-selection-count';
+        this.mobileBarEl.appendChild(this.countEl);
+        this.mobileBarEl.appendChild(this.createMobileButton(MOBILE_SELECTION_DELETE_CLASS, 'Delete', 'delete'));
+        this.mobileBarEl.appendChild(this.createMobileButton(MOBILE_SELECTION_CONVERT_CLASS, 'Convert', 'convert'));
+        this.mobileBarEl.appendChild(this.createMobileButton(MOBILE_SELECTION_DONE_CLASS, 'Done', 'done'));
     }
 
     render(
@@ -45,10 +54,7 @@ export class RangeSelectionOverlayRenderer {
         segments: BlockSelectionSegment[],
         resolveRangeAnchorSpan: (segment: BlockSelectionSegment) => RangeAnchorSpan | null
     ): void {
-        this.currentRenderedBlocks = blocks.map((block) => ({
-            startLineNumber: block.startLineNumber,
-            endLineNumber: block.endLineNumber,
-        }));
+        this.currentRenderedBlocks = this.cloneBlocks(blocks);
         const hostOriginCache = new WeakMap<HTMLElement, { x: number; y: number }>();
         const getHostOrigin = (host: HTMLElement): { x: number; y: number } => {
             const cached = hostOriginCache.get(host);
@@ -68,98 +74,133 @@ export class RangeSelectionOverlayRenderer {
             viewportYToEditorLocalY(this.view, viewportY) - getHostOrigin(host).y
         );
 
-        let buttonAnchor: { topY: number; x: number; host: HTMLElement } | null = null;
+        let gripAnchor: { topY: number; x: number; host: HTMLElement } | null = null;
         for (let i = 0; i < segments.length; i++) {
             const segment = segments[i];
             const anchorSpan = resolveRangeAnchorSpan(segment);
-            const link = this.ensureLinkEl(i);
+            const rail = this.ensureRailEl(i);
             if (!anchorSpan) {
-                link.classList.remove('is-active');
+                rail.classList.remove('is-active');
                 continue;
             }
-            if (link.parentElement !== anchorSpan.host) {
-                anchorSpan.host.appendChild(link);
+            if (rail.parentElement !== anchorSpan.host) {
+                anchorSpan.host.appendChild(rail);
             }
 
             const top = viewportYToHostLocalY(anchorSpan.host, anchorSpan.topY);
             const bottom = viewportYToHostLocalY(anchorSpan.host, anchorSpan.bottomY);
-            const linkTop = Math.min(top, bottom);
-            const linkHeight = Math.max(2, Math.abs(bottom - top));
+            const railTop = Math.min(top, bottom);
+            const railHeight = Math.max(2, Math.abs(bottom - top));
             const left = viewportXToHostLocalX(anchorSpan.host, anchorSpan.x);
 
-            if (!buttonAnchor || anchorSpan.topY < buttonAnchor.topY) {
-                buttonAnchor = { topY: anchorSpan.topY, x: anchorSpan.x, host: anchorSpan.host };
+            if (!gripAnchor || anchorSpan.topY < gripAnchor.topY) {
+                gripAnchor = { topY: anchorSpan.topY, x: anchorSpan.x, host: anchorSpan.host };
             }
 
-            link.classList.add('is-active');
-            link.setCssStyles({
+            rail.classList.add('is-active');
+            rail.setCssStyles({
                 left: `${left.toFixed(2)}px`,
-                top: `${linkTop.toFixed(2)}px`,
-                height: `${linkHeight.toFixed(2)}px`,
+                top: `${railTop.toFixed(2)}px`,
+                height: `${railHeight.toFixed(2)}px`,
             });
         }
-        for (let i = segments.length; i < this.linkEls.length; i++) {
-            this.linkEls[i].classList.remove('is-active');
+        for (let i = segments.length; i < this.railEls.length; i++) {
+            this.railEls[i].classList.remove('is-active');
         }
 
-        if (!this.isDeleteButtonEnabled() || blocks.length === 0 || !buttonAnchor) {
-            this.hideDeleteButton();
-            return;
-        }
-
-        if (this.deleteButtonEl.parentElement !== buttonAnchor.host) {
-            buttonAnchor.host.appendChild(this.deleteButtonEl);
-        }
-
-        const buttonTop = viewportYToHostLocalY(buttonAnchor.host, buttonAnchor.topY) - 10;
-        const buttonLeft = viewportXToHostLocalX(buttonAnchor.host, buttonAnchor.x);
-        this.deleteButtonEl.classList.add('is-active');
-        this.deleteButtonEl.setCssStyles({
-            left: `${buttonLeft.toFixed(2)}px`,
-            top: `${buttonTop.toFixed(2)}px`,
-        });
+        this.renderFloatingGrip(gripAnchor, viewportXToHostLocalX, viewportYToHostLocalY);
+        this.renderMobileBar(blocks.length);
     }
 
     clear(): void {
-        for (const link of this.linkEls) {
-            link.classList.remove('is-active');
+        for (const rail of this.railEls) {
+            rail.classList.remove('is-active');
         }
         this.currentRenderedBlocks = [];
-        this.hideDeleteButton();
+        this.floatingGripEl.classList.remove('is-active');
+        this.mobileBarEl.classList.remove('is-active');
     }
 
     destroy(): void {
         this.clear();
-        for (const link of this.linkEls) {
-            link.remove();
+        for (const rail of this.railEls) {
+            rail.remove();
         }
-        this.linkEls.length = 0;
-        this.deleteButtonEl.removeEventListener('click', this.onDeleteButtonClick);
-        this.deleteButtonEl.remove();
+        this.railEls.length = 0;
+        this.floatingGripEl.remove();
+        this.mobileBarEl.remove();
     }
 
-    private isDeleteButtonEnabled(): boolean {
-        if (!this.onDeleteSelectionClick) return false;
-        return this.isDeleteButtonEnabledRef?.() === true;
+    private renderFloatingGrip(
+        gripAnchor: { topY: number; x: number; host: HTMLElement } | null,
+        viewportXToHostLocalX: (host: HTMLElement, viewportX: number) => number,
+        viewportYToHostLocalY: (host: HTMLElement, viewportY: number) => number
+    ): void {
+        if (!gripAnchor || !this.isMobileEnvironment()) {
+            this.floatingGripEl.classList.remove('is-active');
+            return;
+        }
+        if (this.floatingGripEl.parentElement !== gripAnchor.host) {
+            gripAnchor.host.appendChild(this.floatingGripEl);
+        }
+        const left = viewportXToHostLocalX(gripAnchor.host, gripAnchor.x) + 28;
+        const top = viewportYToHostLocalY(gripAnchor.host, gripAnchor.topY) - 8;
+        this.floatingGripEl.classList.add('is-active');
+        this.floatingGripEl.setCssStyles({
+            left: `${left.toFixed(2)}px`,
+            top: `${top.toFixed(2)}px`,
+        });
     }
 
-    private hideDeleteButton(): void {
-        this.deleteButtonEl.classList.remove('is-active');
+    private renderMobileBar(selectedCount: number): void {
+        if (!this.isMobileEnvironment() || selectedCount === 0) {
+            this.mobileBarEl.classList.remove('is-active');
+            return;
+        }
+        if (this.mobileBarEl.parentElement !== this.view.dom) {
+            this.view.dom.appendChild(this.mobileBarEl);
+        }
+        this.countEl.textContent = `${selectedCount} selected`;
+        this.mobileBarEl.classList.add('is-active');
     }
 
-    private ensureLinkEl(index: number): HTMLElement {
-        const existing = this.linkEls[index];
+    private createMobileButton(className: string, label: string, action: SelectionOverlayAction): HTMLButtonElement {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = className;
+        button.textContent = label;
+        button.addEventListener('click', this.onActionClick(action));
+        return button;
+    }
+
+    private ensureRailEl(index: number): HTMLElement {
+        const existing = this.railEls[index];
         if (existing) {
             return existing;
         }
-        const link = document.createElement('div');
-        link.className = RANGE_SELECTION_LINK_CLASS;
-        this.linkEls[index] = link;
-        return link;
+        const rail = document.createElement('div');
+        rail.className = RANGE_SELECTION_LINK_CLASS;
+        this.railEls[index] = rail;
+        return rail;
     }
 
+    private cloneCurrentBlocks(): SelectedBlockRange[] {
+        return this.cloneBlocks(this.currentRenderedBlocks);
+    }
+
+    private cloneBlocks(blocks: SelectedBlockRange[]): SelectedBlockRange[] {
+        return blocks.map((block) => ({
+            startLineNumber: block.startLineNumber,
+            endLineNumber: block.endLineNumber,
+        }));
+    }
+
+    private isMobileEnvironment(): boolean {
+        const body = document.body;
+        if (body.classList.contains('is-mobile') || body.classList.contains('is-phone') || body.classList.contains('is-tablet')) {
+            return true;
+        }
+        if (typeof window.matchMedia !== 'function') return false;
+        return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    }
 }
-
-
-
-

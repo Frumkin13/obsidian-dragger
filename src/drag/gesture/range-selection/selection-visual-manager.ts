@@ -17,7 +17,7 @@ import {
     type RangeAnchorSpan,
     type AnchorSnapshot,
 } from './selection-anchor';
-import { RangeSelectionOverlayRenderer } from './selection-overlay-renderer';
+import { RangeSelectionOverlayRenderer, SelectionOverlayAction } from './selection-overlay-renderer';
 
 export class RangeSelectionVisualManager {
     private readonly handleElements = new Set<HTMLElement>();
@@ -31,13 +31,11 @@ export class RangeSelectionVisualManager {
         private readonly view: EditorView,
         private readonly onRefreshRequested: () => void,
         private readonly resolveVisibleHandleForBlockStart: (blockStart: number) => HTMLElement | null,
-        onDeleteSelectionClick?: (blocks: SelectedBlockRange[]) => void,
-        isDeleteButtonEnabledRef?: () => boolean
+        onSelectionAction?: (action: SelectionOverlayAction, blocks: SelectedBlockRange[]) => void
     ) {
         this.overlayRenderer = new RangeSelectionOverlayRenderer(
             this.view,
-            onDeleteSelectionClick,
-            isDeleteButtonEnabledRef
+            onSelectionAction
         );
 
         this.onScroll = () => this.scheduleRefresh();
