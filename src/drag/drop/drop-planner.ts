@@ -350,7 +350,7 @@ export class DropPlanner {
             return inPlaceValidation.rejectReason ?? 'self_range_blocked';
         }
         if (!inPlaceValidation.inSelfRange && inPlaceValidation.rejectReason) {
-            return inPlaceValidation.rejectReason as DropRejectReason;
+            return inPlaceValidation.rejectReason;
         }
         return null;
     }

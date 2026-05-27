@@ -31,7 +31,7 @@ export class FileBlockMover {
             return { moved: false, reason: 'target_not_markdown' };
         }
 
-        const payload = captureSourcePayload(sourceView.state.doc as unknown as DocLikeWithRange, sourceBlock);
+        const payload = captureSourcePayload(sourceView.state.doc, sourceBlock);
         if (!payload || payload.content.length === 0) {
             return { moved: false, reason: 'empty_source' };
         }

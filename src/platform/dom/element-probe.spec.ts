@@ -21,7 +21,7 @@ function createRect(left: number, top: number, width: number, height: number): D
         x: left,
         y: top,
         toJSON: () => ({}),
-    } as DOMRect;
+    };
 }
 
 describe('dom-probe', () => {

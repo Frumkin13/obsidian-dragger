@@ -1,7 +1,8 @@
 # Dependencies
 node_modules/
 
-# Build output (generated files go to .obsidian/plugins/)
+# Build output (generated files go to .obsidian/plugins/ or local dist/)
+dist/
 *.js
 *.js.map
 
