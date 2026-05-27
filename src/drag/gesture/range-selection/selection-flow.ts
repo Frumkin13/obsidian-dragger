@@ -115,11 +115,11 @@ export function refreshSelectionVisual(
         rangeVisual.render(gesture.rangeSelect.selectionBlocks);
         return;
     }
+    if (gesture.phase === 'mobile_selecting') {
+        rangeVisual.render(gesture.mobileSelect.selectedBlocks, { highlightLines: true, showMobileResizeHandles: true });
+        return;
+    }
     if (committed) {
         rangeVisual.render(committed.blocks);
     }
 }
-
-
-
-

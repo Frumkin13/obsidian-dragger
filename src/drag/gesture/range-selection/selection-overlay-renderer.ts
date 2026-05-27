@@ -1,56 +1,41 @@
 import { EditorView } from '@codemirror/view';
 import {
-    MOBILE_SELECTION_BAR_CLASS,
-    MOBILE_SELECTION_CONVERT_CLASS,
-    MOBILE_SELECTION_DELETE_CLASS,
-    MOBILE_SELECTION_DONE_CLASS,
+    MOBILE_SELECTION_RESIZE_HANDLE_BOTTOM_CLASS,
+    MOBILE_SELECTION_RESIZE_HANDLE_CLASS,
+    MOBILE_SELECTION_RESIZE_HANDLE_TOP_CLASS,
     RANGE_SELECTION_FLOATING_GRIP_CLASS,
 } from '../../../shared/dom-selectors';
 import { viewportXToEditorLocalX, viewportYToEditorLocalY } from './editor-local-coordinates';
+import { safeCoordsAtPos } from '../../../platform/dom/element-probe';
 import { RangeAnchorSpan } from './selection-anchor';
 import {
     type BlockSelectionSegment,
     type SelectedBlockRange,
 } from './block-selection';
 
-export type SelectionOverlayAction = 'delete' | 'done' | 'convert';
-
 export class RangeSelectionOverlayRenderer {
     private readonly floatingGripEl: HTMLElement;
-    private readonly mobileBarEl: HTMLElement;
-    private readonly countEl: HTMLElement;
+    private readonly topResizeHandleEl: HTMLElement;
+    private readonly bottomResizeHandleEl: HTMLElement;
     private currentRenderedBlocks: SelectedBlockRange[] = [];
-    private readonly onActionClick = (action: SelectionOverlayAction) => (event: MouseEvent): void => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (this.currentRenderedBlocks.length === 0) return;
-        this.onAction?.(action, this.cloneCurrentBlocks());
-    };
 
     constructor(
-        private readonly view: EditorView,
-        private readonly onAction?: (action: SelectionOverlayAction, blocks: SelectedBlockRange[]) => void
+        private readonly view: EditorView
     ) {
         this.floatingGripEl = document.createElement('div');
         this.floatingGripEl.className = RANGE_SELECTION_FLOATING_GRIP_CLASS;
         this.floatingGripEl.setAttribute('aria-label', 'Drag selected blocks');
         this.floatingGripEl.textContent = '⠿';
 
-        this.mobileBarEl = document.createElement('div');
-        this.mobileBarEl.className = MOBILE_SELECTION_BAR_CLASS;
-
-        this.countEl = document.createElement('span');
-        this.countEl.className = 'dnd-mobile-selection-count';
-        this.mobileBarEl.appendChild(this.countEl);
-        this.mobileBarEl.appendChild(this.createMobileButton(MOBILE_SELECTION_DELETE_CLASS, 'Delete', 'delete'));
-        this.mobileBarEl.appendChild(this.createMobileButton(MOBILE_SELECTION_CONVERT_CLASS, 'Convert', 'convert'));
-        this.mobileBarEl.appendChild(this.createMobileButton(MOBILE_SELECTION_DONE_CLASS, 'Done', 'done'));
+        this.topResizeHandleEl = this.createResizeHandle('top');
+        this.bottomResizeHandleEl = this.createResizeHandle('bottom');
     }
 
     render(
         blocks: SelectedBlockRange[],
         segments: BlockSelectionSegment[],
-        resolveRangeAnchorSpan: (segment: BlockSelectionSegment) => RangeAnchorSpan | null
+        resolveRangeAnchorSpan: (segment: BlockSelectionSegment) => RangeAnchorSpan | null,
+        options?: { showMobileResizeHandles?: boolean }
     ): void {
         this.currentRenderedBlocks = this.cloneBlocks(blocks);
         const hostOriginCache = new WeakMap<HTMLElement, { x: number; y: number }>();
@@ -82,28 +67,35 @@ export class RangeSelectionOverlayRenderer {
             }
         }
 
-        this.renderFloatingGrip(gripAnchor, viewportXToHostLocalX, viewportYToHostLocalY);
-        this.renderMobileBar(blocks.length);
+        const mobileResizeAnchors = options?.showMobileResizeHandles
+            ? this.resolveMobileResizeAnchors(blocks)
+            : null;
+        this.renderFloatingGrip(gripAnchor, viewportXToHostLocalX, viewportYToHostLocalY, !options?.showMobileResizeHandles);
+        this.renderResizeHandle(this.topResizeHandleEl, mobileResizeAnchors?.top ?? null, viewportXToHostLocalX, viewportYToHostLocalY, !!options?.showMobileResizeHandles);
+        this.renderResizeHandle(this.bottomResizeHandleEl, mobileResizeAnchors?.bottom ?? null, viewportXToHostLocalX, viewportYToHostLocalY, !!options?.showMobileResizeHandles);
     }
 
     clear(): void {
         this.currentRenderedBlocks = [];
         this.floatingGripEl.classList.remove('is-active');
-        this.mobileBarEl.classList.remove('is-active');
+        this.topResizeHandleEl.classList.remove('is-active');
+        this.bottomResizeHandleEl.classList.remove('is-active');
     }
 
     destroy(): void {
         this.clear();
         this.floatingGripEl.remove();
-        this.mobileBarEl.remove();
+        this.topResizeHandleEl.remove();
+        this.bottomResizeHandleEl.remove();
     }
 
     private renderFloatingGrip(
         gripAnchor: { topY: number; x: number; host: HTMLElement } | null,
         viewportXToHostLocalX: (host: HTMLElement, viewportX: number) => number,
-        viewportYToHostLocalY: (host: HTMLElement, viewportY: number) => number
+        viewportYToHostLocalY: (host: HTMLElement, viewportY: number) => number,
+        shouldRender: boolean
     ): void {
-        if (!gripAnchor || !this.isMobileEnvironment()) {
+        if (!gripAnchor || !shouldRender) {
             this.floatingGripEl.classList.remove('is-active');
             return;
         }
@@ -119,29 +111,72 @@ export class RangeSelectionOverlayRenderer {
         });
     }
 
-    private renderMobileBar(selectedCount: number): void {
-        if (!this.isMobileEnvironment() || selectedCount === 0) {
-            this.mobileBarEl.classList.remove('is-active');
+    private renderResizeHandle(
+        handleEl: HTMLElement,
+        anchor: { y: number; x: number; host: HTMLElement } | null,
+        viewportXToHostLocalX: (host: HTMLElement, viewportX: number) => number,
+        viewportYToHostLocalY: (host: HTMLElement, viewportY: number) => number,
+        shouldRender: boolean
+    ): void {
+        if (!anchor || !shouldRender || !this.isMobileEnvironment()) {
+            handleEl.classList.remove('is-active');
             return;
         }
-        if (this.mobileBarEl.parentElement !== this.view.dom) {
-            this.view.dom.appendChild(this.mobileBarEl);
+        if (handleEl.parentElement !== anchor.host) {
+            anchor.host.appendChild(handleEl);
         }
-        this.countEl.textContent = `${selectedCount} selected`;
-        this.mobileBarEl.classList.add('is-active');
+        const left = viewportXToHostLocalX(anchor.host, anchor.x) - 32;
+        const top = viewportYToHostLocalY(anchor.host, anchor.y) - 18;
+        handleEl.classList.add('is-active');
+        handleEl.setCssStyles({
+            left: `${left.toFixed(2)}px`,
+            top: `${top.toFixed(2)}px`,
+        });
     }
 
-    private createMobileButton(className: string, label: string, action: SelectionOverlayAction): HTMLButtonElement {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = className;
-        button.textContent = label;
-        button.addEventListener('click', this.onActionClick(action));
-        return button;
+    private resolveMobileResizeAnchors(blocks: SelectedBlockRange[]): {
+        top: { y: number; x: number; host: HTMLElement };
+        bottom: { y: number; x: number; host: HTMLElement };
+    } | null {
+        if (blocks.length === 0) return null;
+        const doc = this.view.state.doc;
+        const firstLineNumber = Math.min(...blocks.map((block) => block.startLineNumber));
+        const lastLineNumber = Math.max(...blocks.map((block) => block.endLineNumber));
+        if (firstLineNumber < 1 || lastLineNumber > doc.lines) return null;
+
+        const firstLine = doc.line(firstLineNumber);
+        const lastLine = doc.line(lastLineNumber);
+        const topCoords = safeCoordsAtPos(this.view, firstLine.from, 1);
+        const bottomCoords = safeCoordsAtPos(this.view, lastLine.to, -1)
+            ?? safeCoordsAtPos(this.view, lastLine.from, 1);
+        if (!topCoords || !bottomCoords) return null;
+
+        const x = this.resolveSelectionCenterX();
+        const host = this.view.dom;
+        return {
+            top: { y: topCoords.top, x, host },
+            bottom: { y: bottomCoords.bottom, x, host },
+        };
     }
 
-    private cloneCurrentBlocks(): SelectedBlockRange[] {
-        return this.cloneBlocks(this.currentRenderedBlocks);
+    private resolveSelectionCenterX(): number {
+        const contentRect = this.view.contentDOM.getBoundingClientRect();
+        if (Number.isFinite(contentRect.left) && Number.isFinite(contentRect.right) && contentRect.right > contentRect.left) {
+            return (contentRect.left + contentRect.right) / 2;
+        }
+        const editorRect = this.view.dom.getBoundingClientRect();
+        return (editorRect.left + editorRect.right) / 2;
+    }
+
+    private createResizeHandle(position: 'top' | 'bottom'): HTMLElement {
+        const handle = document.createElement('div');
+        handle.className = `${MOBILE_SELECTION_RESIZE_HANDLE_CLASS} ${position === 'top'
+            ? MOBILE_SELECTION_RESIZE_HANDLE_TOP_CLASS
+            : MOBILE_SELECTION_RESIZE_HANDLE_BOTTOM_CLASS}`;
+        handle.textContent = '⠿';
+        handle.setAttribute('data-dnd-mobile-selection-handle', position);
+        handle.setAttribute('aria-label', position === 'top' ? 'Adjust selection start' : 'Adjust selection end');
+        return handle;
     }
 
     private cloneBlocks(blocks: SelectedBlockRange[]): SelectedBlockRange[] {

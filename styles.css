@@ -293,43 +293,31 @@ body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-edi
     display: flex;
 }
 
-.dnd-mobile-selection-bar {
+.dnd-mobile-selection-resize-handle {
     position: absolute;
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
+    width: 64px;
+    height: 36px;
     display: none;
     align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 14px;
-    background: var(--background-primary);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+    justify-content: center;
+    color: var(--dnd-handle-color, var(--interactive-accent));
     z-index: 10005;
+    pointer-events: auto;
+    cursor: grab;
+    touch-action: none;
+    overscroll-behavior: contain;
+    -webkit-user-select: none;
+    user-select: none;
+    font-size: 24px;
+    line-height: 1;
 }
 
-.dnd-mobile-selection-bar.is-active {
+.dnd-mobile-selection-resize-handle.is-active {
     display: flex;
 }
 
-.dnd-mobile-selection-count {
-    flex: 1;
-    color: var(--text-muted);
-    font-size: 12px;
-}
-
-.dnd-mobile-selection-bar button {
-    border: 0;
-    border-radius: 999px;
-    padding: 6px 10px;
-    background: var(--background-modifier-hover);
-    color: var(--text-normal);
-    font-size: 12px;
-}
-
-.dnd-mobile-selection-bar .dnd-mobile-selection-delete {
-    color: var(--text-error);
+.dnd-mobile-selection-resize-handle:active {
+    cursor: grabbing;
 }
 
 /* 常态显示拖拽手柄 */

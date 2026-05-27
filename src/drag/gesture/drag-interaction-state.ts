@@ -1,5 +1,6 @@
 import { BlockInfo } from '../../domain/block/block-types';
-import { MouseRangeSelectState } from './range-selection/selection-model';
+import { MouseRangeSelectState, RangeSelectionBoundary } from './range-selection/selection-model';
+import { SelectedBlockRange } from './range-selection/block-selection';
 
 export type PointerDragData = {
     sourceBlock: BlockInfo;
@@ -24,9 +25,18 @@ export type PointerPressData = {
 export type PointerTerminalMode = 'up' | 'cancel';
 export type GestureCancelReason = 'press_cancelled' | 'pointer_cancelled';
 
+export type MobileSelectionData = {
+    selectedBlocks: SelectedBlockRange[];
+    activeAnchor: RangeSelectionBoundary;
+    activeFocus: RangeSelectionBoundary;
+    activeRangeBlocks: SelectedBlockRange[];
+    activeHandle: 'top' | 'bottom' | null;
+    pointerId: number | null;
+};
+
 export type InteractionState =
     | { phase: 'idle' }
     | { phase: 'press_pending'; press: PointerPressData }
     | { phase: 'range_selecting'; rangeSelect: MouseRangeSelectState }
+    | { phase: 'mobile_selecting'; mobileSelect: MobileSelectionData }
     | { phase: 'dragging'; drag: PointerDragData };
-
