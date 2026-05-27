@@ -27,6 +27,11 @@ Thumbs.db
 !docs/
 !docs/*.md
 
+# Local env
+.env
+
 # Logs
 *.log
 npm-debug.log*
+
+ob_vault/
