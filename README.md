@@ -1,3 +1,12 @@
+由于其他项目压力与学业压力，项目会搁置至今年六月中旬（暑假）时继续开发，届时将进行大幅优化以下内容
+## roadmap
+- 性能优化，删除死代码，解决性能瓶颈
+- 样式问题，抓手的稳定性与对齐
+- 通过点击抓手切换块文本类型
+- 多栏布局
+- 移动端ux设计与功能稳定性
+
+
 [![English](https://img.shields.io/badge/lang-English-blue)](README.md) [![中文](https://img.shields.io/badge/lang-中文-red)](README.zh-CN.md)
 
 # Dragger

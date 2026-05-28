@@ -6,6 +6,5 @@ export type {
 export type {
     DragLifecycleEvent,
     DragLifecycleListener,
-    DragLifecycleState,
-    DragListIntent,
+    DragSessionPhase,
 } from './events';

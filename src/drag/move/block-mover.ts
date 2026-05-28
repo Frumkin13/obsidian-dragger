@@ -1,0 +1,173 @@
+import { EditorView } from '@codemirror/view';
+import { BlockInfo } from '../../domain/block/block-types';
+import { validateInPlaceDrop } from '../../domain/rules/drop-validation';
+import { getLineMap } from '../../domain/markdown/line-map';
+import { DocLikeWithRange, DropPlan } from '../../shared/types/protocol-types';
+import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
+import { ListRenumberer } from './list-renumberer';
+import { moveBlockAcrossEditors } from './cross-editor-mover';
+import { DragDocumentRelation } from '../../shared/types/drag';
+import { BlockMoverDeps } from './block-mover-deps';
+import { CapturedBlockFoldState } from './block-fold-state';
+import { resolveInsertionChange } from './document-change';
+import { CapturedMoveSource, captureMoveSource } from './source-payload';
+
+export class BlockMover {
+    private readonly listRenumberer: ListRenumberer;
+
+    constructor(private readonly deps: BlockMoverDeps) {
+        this.listRenumberer = new ListRenumberer({
+            view: deps.view,
+            parseLineWithQuote: deps.parseLineWithQuote,
+        });
+    }
+
+    moveBlock(params: {
+        sourceBlock: BlockInfo;
+        dropPlan: DropPlan;
+        sourceView?: EditorView;
+        sourceDocumentRelation?: DragDocumentRelation;
+        capturedBlockFoldStateOverride?: CapturedBlockFoldState | null;
+    }): void {
+        const {
+            sourceBlock,
+            dropPlan,
+            sourceView,
+            sourceDocumentRelation,
+            capturedBlockFoldStateOverride,
+        } = params;
+        const sourceEditorView = sourceView ?? this.deps.view;
+        const sourceDoc = sourceEditorView.state.doc as unknown as DocLikeWithRange;
+        const source = captureMoveSource(sourceDoc, sourceBlock);
+        if (!source) return;
+
+        if (sourceView && sourceView !== this.deps.view && sourceDocumentRelation !== 'same_document') {
+            const capturedBlockFoldState = capturedBlockFoldStateOverride
+                ?? this.captureBlockFoldState(sourceView, source.block);
+            moveBlockAcrossEditors({
+                sourceView,
+                targetView: this.deps.view,
+                sourceBlock: source.block,
+                sourcePayload: source.payload,
+                dropPlan,
+                capturedBlockFoldState,
+                deps: {
+                    resolveDropRuleAtInsertion: this.deps.resolveDropRuleAtInsertion,
+                    parseLineWithQuote: this.deps.parseLineWithQuote,
+                    getListContext: this.deps.getListContext,
+                    getIndentUnitWidth: this.deps.getIndentUnitWidth,
+                    buildInsertText: this.deps.buildInsertText,
+                    blockFoldState: this.deps.blockFoldState,
+                },
+            });
+            return;
+        }
+
+        const capturedBlockFoldState = capturedBlockFoldStateOverride
+            ?? this.captureBlockFoldState(sourceEditorView, source.block);
+        this.moveCapturedSource({
+            source,
+            dropPlan,
+            capturedBlockFoldState,
+        });
+    }
+
+    private moveCapturedSource(params: {
+        source: CapturedMoveSource;
+        dropPlan: DropPlan;
+        capturedBlockFoldState?: CapturedBlockFoldState | null;
+    }): void {
+        const { source, dropPlan, capturedBlockFoldState } = params;
+        const view = this.deps.view;
+        const doc = view.state.doc as unknown as DocLikeWithRange;
+        const { block: sourceBlock, payload } = source;
+        const targetLineNumber = clampTargetLineNumber(doc.lines, dropPlan.targetLineNumber);
+        const lineMap = getLineMap(view.state);
+        const containerRule = this.deps.resolveDropRuleAtInsertion(
+            sourceBlock,
+            targetLineNumber,
+            { lineMap }
+        );
+        if (!containerRule.decision.allowDrop) {
+            return;
+        }
+
+        const inPlaceValidation = validateInPlaceDrop({
+            doc,
+            sourceBlock,
+            targetLineNumber,
+            parseLineWithQuote: this.deps.parseLineWithQuote,
+            getListContext: this.deps.getListContext,
+            getIndentUnitWidth: this.deps.getIndentUnitWidth,
+            slotContext: containerRule.slotContext,
+            lineMap,
+            listIntent: dropPlan.listIntent,
+        });
+        const allowInPlaceIndentChange = inPlaceValidation.allowInPlaceIndentChange;
+        if (inPlaceValidation.inSelfRange && !allowInPlaceIndentChange) {
+            return;
+        }
+
+        const insertText = this.deps.buildInsertText(
+            doc,
+            sourceBlock,
+            targetLineNumber,
+            payload.content,
+            dropPlan.listIntent
+        );
+        if (!insertText.length) return;
+
+        const totalDeletedLength = payload.segments.reduce(
+            (sum, segment) => sum + (segment.deleteTo - segment.deleteFrom),
+            0
+        );
+        const insertion = resolveInsertionChange(doc, targetLineNumber, insertText, {
+            remainingLengthAfterDelete: doc.length - totalDeletedLength,
+        });
+        if (payload.segments.some((segment) => insertion.pos > segment.deleteFrom && insertion.pos < segment.deleteTo)) {
+            return;
+        }
+
+        const firstSegment = payload.segments[0];
+        if (allowInPlaceIndentChange && insertion.pos === firstSegment.deleteFrom) {
+            view.dispatch({
+                changes: { from: firstSegment.deleteFrom, to: firstSegment.deleteTo, insert: insertion.text },
+                scrollIntoView: false,
+            });
+        } else {
+            view.dispatch({
+                changes: [
+                    { from: insertion.pos, to: insertion.pos, insert: insertion.text },
+                    ...payload.segments.map((segment) => ({ from: segment.deleteFrom, to: segment.deleteTo })),
+                ].sort((a, b) => b.from - a.from),
+                scrollIntoView: false,
+            });
+        }
+
+        const targetStartLineNumber = allowInPlaceIndentChange && insertion.pos === firstSegment.deleteFrom
+            ? sourceBlock.startLine + 1
+            : this.resolveFinalInsertedStartLineNumber(targetLineNumber, payload);
+        const renumberTargets = new Set<number>([targetLineNumber]);
+        for (const segment of payload.segments) {
+            renumberTargets.add(segment.startLineNumber);
+        }
+        for (const lineNumber of renumberTargets) {
+            this.listRenumberer.renumberOrderedListAround(lineNumber);
+        }
+        this.deps.blockFoldState?.restore(view, targetStartLineNumber, capturedBlockFoldState ?? null);
+    }
+
+    private captureBlockFoldState(sourceView: EditorView, sourceBlock: BlockInfo): CapturedBlockFoldState | null {
+        return this.deps.blockFoldState?.capture(sourceView, sourceBlock) ?? null;
+    }
+
+    private resolveFinalInsertedStartLineNumber(targetLineNumber: number, payload: CapturedMoveSource['payload']): number {
+        let removedLineCountBeforeTarget = 0;
+        for (const segment of payload.segments) {
+            if (segment.endLineNumber < targetLineNumber) {
+                removedLineCountBeforeTarget += segment.endLineNumber - segment.startLineNumber + 1;
+            }
+        }
+        return Math.max(1, targetLineNumber - removedLineCountBeforeTarget);
+    }
+}

@@ -1,0 +1,633 @@
+// @vitest-environment jsdom
+
+import { describe, expect, it, vi } from 'vitest';
+import { DragEventHandler } from './drag-controller';
+import {
+    registerMouseHandlerTestHooks,
+    createBlock,
+    createViewStub,
+    dispatchPointer,
+    dispatchTouchMove,
+    createRect,
+} from './drag-controller.test-helpers';
+
+registerMouseHandlerTestHooks();
+
+describe('DragEventHandler', () => {
+    it('does not commit range selection from mobile hotzone long-press without movement', () => {
+        const view = createViewStub();
+        const sourceBlock = createBlock();
+        const beginPointerDragSession = vi.fn();
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => null,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        dispatchPointer(view.dom, 'pointerdown', {
+            pointerId: 1,
+            pointerType: 'touch',
+            clientX: 32,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(940);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 1,
+            pointerType: 'touch',
+            clientX: 32,
+            clientY: 10,
+        });
+
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 1,
+            pointerType: 'touch',
+            clientX: 32,
+            clientY: 10,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        const link = view.dom.querySelector<HTMLElement>('.dnd-range-selection-link');
+        expect(link).toBeNull();
+        handler.destroy();
+    });
+
+    it('does not start drag when pointerdown is outside hotzone', () => {
+        const view = createViewStub();
+        const beginPointerDragSession = vi.fn();
+        const performDropAtPoint = vi.fn();
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => null,
+            getBlockInfoAtPoint: () => createBlock(),
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint,
+        });
+
+        handler.attach();
+        dispatchPointer(view.dom, 'pointerdown', {
+            pointerId: 1,
+            pointerType: 'touch',
+            clientX: 120,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(260);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 1,
+            pointerType: 'touch',
+            clientX: 140,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 1,
+            pointerType: 'touch',
+            clientX: 140,
+            clientY: 10,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(performDropAtPoint).not.toHaveBeenCalled();
+        handler.destroy();
+    });
+
+    it('starts single-block touch drag from full line area when mobile text long-press drag is enabled', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        const scheduleDropIndicatorUpdate = vi.fn();
+        const performDropAtPoint = vi.fn();
+        const finishDragSession = vi.fn();
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession,
+            scheduleDropIndicatorUpdate,
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint,
+        });
+
+        handler.attach();
+        dispatchPointer(line!, 'pointerdown', {
+            pointerId: 91,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(220);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 91,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 91,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 10, expect.objectContaining({
+            startLine: 0,
+            endLine: 0,
+        }), 'touch');
+        expect(performDropAtPoint).toHaveBeenCalledTimes(1);
+        expect(finishDragSession).toHaveBeenCalledTimes(1);
+        expect(view.dom.querySelector('.dnd-range-selection-link')).toBeNull();
+        handler.destroy();
+    });
+
+    it('does not start text long-press drag while editor is focused with a caret', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        const scheduleDropIndicatorUpdate = vi.fn();
+        const performDropAtPoint = vi.fn();
+
+        Object.defineProperty(view, 'hasFocus', {
+            configurable: true,
+            value: true,
+        });
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate,
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint,
+        });
+
+        handler.attach();
+        const downEvent = dispatchPointer(line!, 'pointerdown', {
+            pointerId: 913,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+        expect(downEvent.defaultPrevented).toBe(false);
+
+        vi.advanceTimersByTime(260);
+        const touchMove = dispatchTouchMove(window);
+        expect(touchMove.defaultPrevented).toBe(false);
+
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 913,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 913,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(scheduleDropIndicatorUpdate).not.toHaveBeenCalled();
+        expect(performDropAtPoint).not.toHaveBeenCalled();
+        expect(view.dom.querySelector('.dnd-range-selection-link')).toBeNull();
+        handler.destroy();
+    });
+
+    it('preserves touch tap-to-focus before text long-press drag starts', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        const input = document.createElement('textarea');
+        view.dom.appendChild(input);
+        const blurSpy = vi.spyOn(input, 'blur');
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        const downEvent = dispatchPointer(line!, 'pointerdown', {
+            pointerId: 911,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+        expect(downEvent.defaultPrevented).toBe(false);
+
+        input.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: true }));
+        expect(blurSpy).not.toHaveBeenCalled();
+
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 911,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        handler.destroy();
+    });
+
+    it('blocks touch scrolling after text long-press is ready', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        dispatchPointer(line!, 'pointerdown', {
+            pointerId: 912,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+
+        const beforeReadyMove = dispatchTouchMove(window);
+        expect(beforeReadyMove.defaultPrevented).toBe(false);
+
+        vi.advanceTimersByTime(220);
+
+        const readyMove = dispatchTouchMove(window);
+        expect(readyMove.defaultPrevented).toBe(true);
+
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 912,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+
+        handler.destroy();
+    });
+
+    it('does not start touch drag from line area when mobile text long-press drag is disabled', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        const scheduleDropIndicatorUpdate = vi.fn();
+        const performDropAtPoint = vi.fn();
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => false,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate,
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint,
+        });
+
+        handler.attach();
+        dispatchPointer(line!, 'pointerdown', {
+            pointerId: 92,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(300);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 92,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 92,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(scheduleDropIndicatorUpdate).not.toHaveBeenCalled();
+        expect(performDropAtPoint).not.toHaveBeenCalled();
+        handler.destroy();
+    });
+
+    it('starts touch drag when pressing trailing whitespace on the same line', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        const performDropAtPoint = vi.fn();
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint,
+        });
+
+        handler.attach();
+        dispatchPointer(line!, 'pointerdown', {
+            pointerId: 93,
+            pointerType: 'touch',
+            clientX: 200,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(300);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 93,
+            pointerType: 'touch',
+            clientX: 240,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 93,
+            pointerType: 'touch',
+            clientX: 240,
+            clientY: 10,
+        });
+
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(performDropAtPoint).toHaveBeenCalledTimes(1);
+        handler.destroy();
+    });
+
+    it('starts touch drag from rendered callout area when mobile text long-press drag is enabled', () => {
+        const view = createViewStub(6);
+        const sourceBlock = createBlock('> [!note] title', 2, 3);
+        const beginPointerDragSession = vi.fn();
+        const scheduleDropIndicatorUpdate = vi.fn();
+
+        const callout = document.createElement('div');
+        callout.className = 'cm-callout';
+        const calloutContent = document.createElement('div');
+        callout.appendChild(calloutContent);
+        view.dom.appendChild(callout);
+
+        Object.defineProperty(callout, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(40, 40, 200, 60),
+        });
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate,
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        dispatchPointer(calloutContent, 'pointerdown', {
+            pointerId: 931,
+            pointerType: 'touch',
+            clientX: 80,
+            clientY: 70,
+        });
+        vi.advanceTimersByTime(220);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 931,
+            pointerType: 'touch',
+            clientX: 110,
+            clientY: 70,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 931,
+            pointerType: 'touch',
+            clientX: 110,
+            clientY: 70,
+        });
+
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(110, 70, expect.objectContaining({
+            startLine: 2,
+            endLine: 3,
+        }), 'touch');
+        handler.destroy();
+    });
+
+    it('starts touch drag from rendered latex area when mobile text long-press drag is enabled', () => {
+        const view = createViewStub(6);
+        const sourceBlock = createBlock('$$ x^2 $$', 4, 4);
+        const beginPointerDragSession = vi.fn();
+        const scheduleDropIndicatorUpdate = vi.fn();
+
+        const mathDisplay = document.createElement('div');
+        mathDisplay.className = 'MathJax';
+        const mathContainer = document.createElement('div');
+        mathContainer.className = 'mjx-container';
+        mathDisplay.appendChild(mathContainer);
+        view.dom.appendChild(mathDisplay);
+
+        Object.defineProperty(mathDisplay, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(36, 88, 220, 52),
+        });
+        Object.defineProperty(mathContainer, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(36, 88, 220, 52),
+        });
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate,
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        dispatchPointer(mathContainer, 'pointerdown', {
+            pointerId: 932,
+            pointerType: 'touch',
+            clientX: 84,
+            clientY: 110,
+        });
+        vi.advanceTimersByTime(220);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 932,
+            pointerType: 'touch',
+            clientX: 118,
+            clientY: 110,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 932,
+            pointerType: 'touch',
+            clientX: 118,
+            clientY: 110,
+        });
+
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(118, 110, expect.objectContaining({
+            startLine: 4,
+            endLine: 4,
+        }), 'touch');
+        handler.destroy();
+    });
+
+    it('emits press/drag/idle lifecycle states on mobile text long-press drag path', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const lifecycleEvents: Array<{ type: string; phase: string; pressReady?: boolean }> = [];
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+            onDragLifecycleEvent: (event) => lifecycleEvents.push({
+                type: event.type,
+                phase: event.phase,
+                pressReady: event.type === 'drag_press_pending' ? event.pressReady : undefined,
+            }),
+        });
+
+        handler.attach();
+        dispatchPointer(line!, 'pointerdown', {
+            pointerId: 94,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(220);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 94,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 94,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+
+        const pressPendingWaiting = lifecycleEvents.find((event) => event.type === 'drag_press_pending' && event.pressReady === false);
+        const pressPendingReady = lifecycleEvents.find((event) => event.type === 'drag_press_pending' && event.pressReady === true);
+        expect(pressPendingWaiting).toBeDefined();
+        expect(pressPendingReady).toBeDefined();
+        expect(lifecycleEvents.some((event) => event.type === 'drag_started')).toBe(true);
+        expect(lifecycleEvents.some((event) => event.type === 'drag_idle')).toBe(true);
+        handler.destroy();
+    });
+
+    it('emits press/drag/idle lifecycle states on handle touch drag path', () => {
+        const view = createViewStub(6);
+        const handle = document.createElement('div');
+        handle.className = 'dnd-drag-handle';
+        view.dom.appendChild(handle);
+
+        const sourceBlock = createBlock('- item', 1, 1);
+        const lifecycleEvents: Array<{ type: string; phase: string; pressReady?: boolean }> = [];
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMultiLineSelectionEnabled: () => false,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+            onDragLifecycleEvent: (event) => lifecycleEvents.push({
+                type: event.type,
+                phase: event.phase,
+                pressReady: event.type === 'drag_press_pending' ? event.pressReady : undefined,
+            }),
+        });
+
+        handler.attach();
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 95,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(220);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 95,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 80,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 95,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 80,
+        });
+
+        const pressPendingWaiting = lifecycleEvents.find((event) => event.type === 'drag_press_pending' && event.pressReady === false);
+        const pressPendingReady = lifecycleEvents.find((event) => event.type === 'drag_press_pending' && event.pressReady === true);
+        expect(pressPendingWaiting).toBeDefined();
+        expect(pressPendingReady).toBeDefined();
+        expect(lifecycleEvents.some((event) => event.type === 'drag_started')).toBe(true);
+        expect(lifecycleEvents.some((event) => event.type === 'drag_idle')).toBe(true);
+        handler.destroy();
+    });
+
+});
+
+
+

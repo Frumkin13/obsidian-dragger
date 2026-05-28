@@ -4,14 +4,11 @@
     display: none !important;
 }
 
-/* 拖拽手柄 - 完全悬浮定位，不影响文档布局 */
+/* 拖拽手柄 */
 .dnd-drag-handle {
-    position: absolute;
-    left: -16px;
-    top: 0;
-    transform: none;
-    width: var(--dnd-handle-size, 16px);
-    height: var(--dnd-handle-size, 16px);
+    position: relative;
+    width: var(--dnd-handle-size, 20px);
+    height: var(--dnd-handle-size, 20px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -27,69 +24,33 @@
     overflow: visible;
 }
 
-/* 仅在 before/after 里只有 handle gutter 时，清除 file-folding 偏移带来的占位 */
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutters.cm-gutters-before:has(> .cm-gutter.cm-dnd-handle-gutter:only-child),
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutters.cm-gutters-after:has(> .cm-gutter.cm-dnd-handle-gutter:only-child) {
-    width: 0 !important;
-    min-width: 0 !important;
-    max-width: 0 !important;
-    flex-basis: 0 !important;
-    flex-grow: 0 !important;
-    flex-shrink: 0 !important;
-    border-right-width: 0 !important;
-    border-left-width: 0 !important;
-    margin-inline-start: 0 !important;
-    margin-inline-end: 0 !important;
-}
-
-/* 仅 handle gutter 归零，不影响 before 中其它 gutter（例如行号） */
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutters.cm-gutters-before > .cm-gutter.cm-dnd-handle-gutter,
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutters.cm-gutters-after > .cm-gutter.cm-dnd-handle-gutter {
-    position: relative;
-    width: 0 !important;
-    min-width: 0 !important;
-    max-width: 0 !important;
-    flex-basis: 0 !important;
-    flex-grow: 0 !important;
-    flex-shrink: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: 0 !important;
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter {
+    flex: 0 0 0;
+    width: 0;
+    min-width: 0;
+    max-width: 0;
     overflow: visible;
     pointer-events: none;
     z-index: 4;
 }
 
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter .cm-gutterElement {
-    position: relative;
-    width: 0 !important;
-    min-width: 0 !important;
-    max-width: 0 !important;
-    margin: 0;
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter .cm-gutterElement.dnd-handle-gutter-marker {
+    display: block;
+    box-sizing: border-box;
+    width: 0;
+    min-width: 0;
+    max-width: 0;
     padding: 0;
     overflow: visible;
     pointer-events: none;
-}
-
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter .cm-gutterElement.dnd-handle-gutter-marker {
-    line-height: inherit;
     white-space: nowrap;
-}
-
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter .dnd-handle-gutter-probe {
-    display: none;
+    text-align: center;
 }
 
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter .cm-gutterElement.dnd-handle-gutter-marker > .dnd-drag-handle.dnd-handle-gutter-bound {
-    position: absolute;
-    top: 0;
-    height: 100%;
-    transform: none;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    box-sizing: border-box;
-    padding-top: var(--dnd-handle-core-top-padding, calc((var(--dnd-handle-size, 16px) - var(--dnd-handle-core-size, 8px)) / 2));
+    display: inline-flex;
+    vertical-align: middle;
+    transform: translateX(var(--dnd-handle-horizontal-offset-px, 0px));
     pointer-events: auto;
 }
 
@@ -104,8 +65,8 @@
 }
 
 .dnd-handle-core {
-    width: var(--dnd-handle-core-size, 8px);
-    height: var(--dnd-handle-core-size, 8px);
+    width: var(--dnd-handle-core-size, 10px);
+    height: var(--dnd-handle-core-size, 10px);
     border-radius: 999px;
     background: currentColor;
     box-shadow:
@@ -120,7 +81,7 @@
     border-radius: 0;
     background: none;
     box-shadow: none;
-    font-size: var(--dnd-handle-core-size, 8px);
+    font-size: var(--dnd-grip-dots-core-size, 16px);
     line-height: 1;
 }
 [data-dnd-handle-icon="grip-dots"] .dnd-handle-core::before {
@@ -134,7 +95,7 @@
     border-radius: 0;
     background: none;
     box-shadow: none;
-    font-size: var(--dnd-handle-core-size, 8px);
+    font-size: var(--dnd-handle-core-size, 10px);
     line-height: 1;
 }
 [data-dnd-handle-icon="grip-lines"] .dnd-handle-core::before {
@@ -428,6 +389,13 @@ body.dnd-mobile-gesture-lock {
     z-index: 1000;
 }
 
+.dnd-file-drop-target {
+    outline: 2px solid var(--dnd-drop-indicator-color, var(--interactive-accent));
+    outline-offset: 2px;
+    background: var(--dnd-drop-highlight-bg, color-mix(in srgb, var(--interactive-accent) 10%, transparent));
+    border-radius: 4px;
+}
+
 /* 放置位置指示器 */
 .dnd-drop-indicator {
     position: fixed;
@@ -452,4 +420,3 @@ body.dnd-mobile-gesture-lock {
 body[data-dnd-list-drop-highlight="off"] .dnd-drop-highlight {
     display: none !important;
 }
-
