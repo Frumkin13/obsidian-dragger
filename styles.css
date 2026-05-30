@@ -277,28 +277,6 @@ body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-edi
     box-shadow: none !important;
 }
 
-.dnd-selection-floating-grip {
-    position: absolute;
-    min-width: 28px;
-    height: 28px;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--background-primary) 78%, transparent);
-    color: var(--dnd-handle-color, var(--interactive-accent));
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--interactive-accent) 22%, transparent);
-    z-index: 10004;
-    pointer-events: auto;
-    cursor: grab;
-    -webkit-user-select: none;
-    user-select: none;
-}
-
-.dnd-selection-floating-grip.is-active {
-    display: flex;
-}
-
 .dnd-mobile-selection-resize-handle {
     position: absolute;
     width: 64px;

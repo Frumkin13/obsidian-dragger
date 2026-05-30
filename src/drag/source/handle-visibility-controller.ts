@@ -262,6 +262,15 @@ export class HandleVisibilityController {
         if (lineNumber < this.activeHoverBlock.startLineNumber || lineNumber > this.activeHoverBlock.endLineNumber) {
             return null;
         }
+        if (lineNumber === this.activeHoverBlock.startLineNumber) {
+            return this.activeHoverBlock.handle;
+        }
+
+        const lineHandle = this.deps.getVisibleHandleForBlockStart?.(lineNumber - 1) ?? null;
+        if (lineHandle && lineHandle !== this.activeHoverBlock.handle) {
+            return null;
+        }
+
         return this.activeHoverBlock.handle;
     }
 }

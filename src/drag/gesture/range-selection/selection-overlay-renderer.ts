@@ -15,7 +15,6 @@ import {
 export class RangeSelectionOverlayRenderer {
     private readonly topResizeHandleEl: HTMLElement;
     private readonly bottomResizeHandleEl: HTMLElement;
-    private currentRenderedBlocks: SelectedBlockRange[] = [];
 
     constructor(
         private readonly view: EditorView
@@ -30,7 +29,6 @@ export class RangeSelectionOverlayRenderer {
         resolveRangeAnchorSpan: (segment: BlockSelectionSegment) => RangeAnchorSpan | null,
         options?: { showMobileResizeHandles?: boolean }
     ): void {
-        this.currentRenderedBlocks = this.cloneBlocks(blocks);
         const hostOriginCache = new WeakMap<HTMLElement, { x: number; y: number }>();
         const getHostOrigin = (host: HTMLElement): { x: number; y: number } => {
             const cached = hostOriginCache.get(host);
@@ -62,7 +60,6 @@ export class RangeSelectionOverlayRenderer {
     }
 
     clear(): void {
-        this.currentRenderedBlocks = [];
         this.topResizeHandleEl.classList.remove('is-active');
         this.bottomResizeHandleEl.classList.remove('is-active');
     }
@@ -139,13 +136,6 @@ export class RangeSelectionOverlayRenderer {
         handle.setAttribute('data-dnd-mobile-selection-handle', position);
         handle.setAttribute('aria-label', position === 'top' ? 'Adjust selection start' : 'Adjust selection end');
         return handle;
-    }
-
-    private cloneBlocks(blocks: SelectedBlockRange[]): SelectedBlockRange[] {
-        return blocks.map((block) => ({
-            startLineNumber: block.startLineNumber,
-            endLineNumber: block.endLineNumber,
-        }));
     }
 
     private isMobileEnvironment(): boolean {

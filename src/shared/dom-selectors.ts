@@ -41,7 +41,6 @@ export const DRAG_SOURCE_LINE_LAST_CLASS = 'dnd-drag-source-line-last';
 export const DRAG_SOURCE_EMBED_CLASS = 'dnd-drag-source-embed';
 export const RANGE_SELECTED_LINE_CLASS = 'dnd-range-selected-line';
 export const RANGE_SELECTED_HANDLE_CLASS = 'dnd-range-selected-handle';
-export const RANGE_SELECTION_FLOATING_GRIP_CLASS = 'dnd-selection-floating-grip';
 export const MOBILE_SELECTION_RESIZE_HANDLE_CLASS = 'dnd-mobile-selection-resize-handle';
 export const MOBILE_SELECTION_RESIZE_HANDLE_TOP_CLASS = 'dnd-mobile-selection-resize-handle-top';
 export const MOBILE_SELECTION_RESIZE_HANDLE_BOTTOM_CLASS = 'dnd-mobile-selection-resize-handle-bottom';

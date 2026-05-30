@@ -5,7 +5,6 @@ import {
     DRAG_HANDLE_CLASS,
     EMBED_HANDLE_CLASS,
     MOBILE_SELECTION_RESIZE_HANDLE_CLASS,
-    RANGE_SELECTION_FLOATING_GRIP_CLASS,
 } from '../../shared/dom-selectors';
 import { RangeSelectionVisualManager } from './range-selection/selection-visual-manager';
 import { MobileGestureController } from './mobile-gesture-controller';
@@ -546,8 +545,9 @@ export class DragEventHandler {
         e.preventDefault();
         e.stopPropagation();
         this.deps.scheduleDropIndicatorUpdate(e.clientX, e.clientY, dragState.sourceBlock, e.pointerType || null);
-        this.autoScrollDrag(dragState);
-        this.scheduleDragAutoScroll(dragState);
+        if (this.autoScrollDrag(dragState)) {
+            this.scheduleDragAutoScroll(dragState);
+        }
     }
 
     private autoScrollDrag(dragState: { latestX: number; latestY: number; sourceBlock: BlockInfo; pointerType: string | null }): boolean {
@@ -1109,7 +1109,6 @@ export class DragEventHandler {
         clientY: number,
         pointerType: string | null
     ): boolean {
-        if (target.closest(`.${RANGE_SELECTION_FLOATING_GRIP_CLASS}`)) return true;
         return isCommittedSelectionGripHitByGrip({
             committedSelection: this.committedRangeSelection,
             target,
