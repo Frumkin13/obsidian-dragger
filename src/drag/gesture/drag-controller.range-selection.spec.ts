@@ -72,9 +72,11 @@ describe('DragEventHandler Range Selection', () => {
         });
         expect(beginPointerDragSession).not.toHaveBeenCalled();
 
-        const grip = view.dom.querySelector<HTMLElement>('.dnd-selection-floating-grip');
-        expect(grip).not.toBeNull();
-        dispatchPointer(grip!, 'pointerdown', {
+        const selectedHandle = view.dom.querySelector<HTMLElement>('.dnd-range-selected-handle');
+        expect(selectedHandle).not.toBeNull();
+        expect(selectedHandle?.querySelector<HTMLInputElement>(':scope > .dnd-selection-checkbox')?.checked).toBe(true);
+        expect(view.dom.querySelector('.dnd-selection-floating-grip')).toBeNull();
+        dispatchPointer(selectedHandle!, 'pointerdown', {
             pointerId: 8,
             pointerType: 'mouse',
             shiftKey: true,
@@ -357,10 +359,11 @@ describe('DragEventHandler Range Selection', () => {
             clientY: 105,
         });
 
-        const grip = view.dom.querySelector<HTMLElement>('.dnd-selection-floating-grip');
-        expect(grip).not.toBeNull();
+        const selectedHandle = view.dom.querySelector<HTMLElement>('.dnd-range-selected-handle');
+        expect(selectedHandle).not.toBeNull();
+        expect(view.dom.querySelector('.dnd-selection-floating-grip')).toBeNull();
 
-        dispatchPointer(grip!, 'pointerdown', {
+        dispatchPointer(selectedHandle!, 'pointerdown', {
             pointerId: 71,
             pointerType: 'mouse',
             shiftKey: true,
@@ -1182,15 +1185,15 @@ describe('DragEventHandler Range Selection', () => {
             clientY: 105,
         });
 
-        const grip = view.dom.querySelector<HTMLElement>('.dnd-selection-floating-grip');
-        expect(grip).not.toBeNull();
-        const topBefore = Number(grip?.style.top.replace('px', '') || '0');
+        const selectedHandle = view.dom.querySelector<HTMLElement>('.dnd-range-selected-handle');
+        expect(selectedHandle).not.toBeNull();
+        const topBefore = selectedHandle!.getBoundingClientRect().top;
 
         scrollOffset = 40;
         view.dom.dispatchEvent(new Event('scroll'));
         vi.advanceTimersByTime(20);
 
-        const topAfter = Number(grip?.style.top.replace('px', '') || '0');
+        const topAfter = selectedHandle!.getBoundingClientRect().top;
         expect(topAfter).toBeLessThan(topBefore);
         handler.destroy();
     });
@@ -1330,9 +1333,9 @@ describe('DragEventHandler Range Selection', () => {
         });
         expect(beginPointerDragSession).not.toHaveBeenCalled();
 
-        const grip = view.dom.querySelector<HTMLElement>('.dnd-selection-floating-grip');
-        expect(grip).not.toBeNull();
-        dispatchPointer(grip!, 'pointerdown', {
+        const selectedHandle = view.dom.querySelector<HTMLElement>('.dnd-range-selected-handle');
+        expect(selectedHandle).not.toBeNull();
+        dispatchPointer(selectedHandle!, 'pointerdown', {
             pointerId: 10,
             pointerType: 'mouse',
             shiftKey: true,
@@ -1456,9 +1459,9 @@ describe('DragEventHandler Range Selection', () => {
         });
         expect(beginPointerDragSession).not.toHaveBeenCalled();
 
-        const grip = view.dom.querySelector<HTMLElement>('.dnd-selection-floating-grip');
-        expect(grip).not.toBeNull();
-        dispatchPointer(grip!, 'pointerdown', {
+        const selectedHandle = view.dom.querySelector<HTMLElement>('.dnd-range-selected-handle');
+        expect(selectedHandle).not.toBeNull();
+        dispatchPointer(selectedHandle!, 'pointerdown', {
             pointerId: 12,
             pointerType: 'mouse',
             shiftKey: true,
@@ -1559,10 +1562,10 @@ describe('DragEventHandler Range Selection', () => {
             clientY: 150,
         });
 
-        const grip = view.dom.querySelector<HTMLElement>('.dnd-selection-floating-grip');
-        expect(grip).not.toBeNull();
+        const selectedHandle = view.dom.querySelector<HTMLElement>('.dnd-range-selected-handle');
+        expect(selectedHandle).not.toBeNull();
 
-        dispatchPointer(grip!, 'pointerdown', {
+        dispatchPointer(selectedHandle!, 'pointerdown', {
             pointerId: 32,
             pointerType: 'mouse',
             shiftKey: true,

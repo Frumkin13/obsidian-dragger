@@ -21,6 +21,7 @@ import {
 import { RangeSelectionOverlayRenderer } from './selection-overlay-renderer';
 
 export class RangeSelectionVisualManager {
+    private static readonly selectedCheckboxClass = 'dnd-selection-checkbox';
     private readonly handleElements = new Set<HTMLElement>();
     private readonly selectedLineElements = new Set<HTMLElement>();
     private readonly overlayRenderer: RangeSelectionOverlayRenderer;
@@ -79,6 +80,7 @@ export class RangeSelectionVisualManager {
     clear(): void {
         for (const handleEl of this.handleElements) {
             handleEl.classList.remove(RANGE_SELECTED_HANDLE_CLASS);
+            this.removeSelectionCheckbox(handleEl);
         }
         for (const lineEl of this.selectedLineElements) {
             lineEl.classList.remove(RANGE_SELECTED_LINE_CLASS);
@@ -134,15 +136,41 @@ export class RangeSelectionVisualManager {
         for (const el of current) {
             if (next.has(el)) continue;
             el.classList.remove(className);
+            if (className === RANGE_SELECTED_HANDLE_CLASS) {
+                this.removeSelectionCheckbox(el);
+            }
         }
         for (const el of next) {
             if (current.has(el)) continue;
             el.classList.add(className);
+            if (className === RANGE_SELECTED_HANDLE_CLASS) {
+                this.ensureSelectionCheckbox(el);
+            }
         }
         current.clear();
         for (const el of next) {
             current.add(el);
         }
+    }
+
+    private ensureSelectionCheckbox(handleEl: HTMLElement): void {
+        const existing = handleEl.querySelector<HTMLInputElement>(`:scope > .${RangeSelectionVisualManager.selectedCheckboxClass}`);
+        if (existing) {
+            existing.checked = true;
+            return;
+        }
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = true;
+        checkbox.tabIndex = -1;
+        checkbox.className = RangeSelectionVisualManager.selectedCheckboxClass;
+        checkbox.setAttribute('aria-hidden', 'true');
+        handleEl.appendChild(checkbox);
+    }
+
+    private removeSelectionCheckbox(handleEl: HTMLElement): void {
+        const checkbox = handleEl.querySelector<HTMLInputElement>(`:scope > .${RangeSelectionVisualManager.selectedCheckboxClass}`);
+        checkbox?.remove();
     }
 
     private resolveHandleElementForBlockStart(blockStart: number): HTMLElement | null {

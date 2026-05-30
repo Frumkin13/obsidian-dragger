@@ -3,7 +3,6 @@ import {
     MOBILE_SELECTION_RESIZE_HANDLE_BOTTOM_CLASS,
     MOBILE_SELECTION_RESIZE_HANDLE_CLASS,
     MOBILE_SELECTION_RESIZE_HANDLE_TOP_CLASS,
-    RANGE_SELECTION_FLOATING_GRIP_CLASS,
 } from '../../../shared/dom-selectors';
 import { viewportXToEditorLocalX, viewportYToEditorLocalY } from './editor-local-coordinates';
 import { safeCoordsAtPos } from '../../../platform/dom/element-probe';
@@ -14,7 +13,6 @@ import {
 } from './block-selection';
 
 export class RangeSelectionOverlayRenderer {
-    private readonly floatingGripEl: HTMLElement;
     private readonly topResizeHandleEl: HTMLElement;
     private readonly bottomResizeHandleEl: HTMLElement;
     private currentRenderedBlocks: SelectedBlockRange[] = [];
@@ -22,11 +20,6 @@ export class RangeSelectionOverlayRenderer {
     constructor(
         private readonly view: EditorView
     ) {
-        this.floatingGripEl = document.createElement('div');
-        this.floatingGripEl.className = RANGE_SELECTION_FLOATING_GRIP_CLASS;
-        this.floatingGripEl.setAttribute('aria-label', 'Drag selected blocks');
-        this.floatingGripEl.textContent = '⠿';
-
         this.topResizeHandleEl = this.createResizeHandle('top');
         this.bottomResizeHandleEl = this.createResizeHandle('bottom');
     }
@@ -57,58 +50,27 @@ export class RangeSelectionOverlayRenderer {
             viewportYToEditorLocalY(this.view, viewportY) - getHostOrigin(host).y
         );
 
-        let gripAnchor: { topY: number; x: number; host: HTMLElement } | null = null;
         for (const segment of segments) {
-            const anchorSpan = resolveRangeAnchorSpan(segment);
-            if (!anchorSpan) continue;
-
-            if (!gripAnchor || anchorSpan.topY < gripAnchor.topY) {
-                gripAnchor = { topY: anchorSpan.topY, x: anchorSpan.x, host: anchorSpan.host };
-            }
+            resolveRangeAnchorSpan(segment);
         }
 
         const mobileResizeAnchors = options?.showMobileResizeHandles
             ? this.resolveMobileResizeAnchors(blocks)
             : null;
-        this.renderFloatingGrip(gripAnchor, viewportXToHostLocalX, viewportYToHostLocalY, !options?.showMobileResizeHandles);
         this.renderResizeHandle(this.topResizeHandleEl, mobileResizeAnchors?.top ?? null, viewportXToHostLocalX, viewportYToHostLocalY, !!options?.showMobileResizeHandles);
         this.renderResizeHandle(this.bottomResizeHandleEl, mobileResizeAnchors?.bottom ?? null, viewportXToHostLocalX, viewportYToHostLocalY, !!options?.showMobileResizeHandles);
     }
 
     clear(): void {
         this.currentRenderedBlocks = [];
-        this.floatingGripEl.classList.remove('is-active');
         this.topResizeHandleEl.classList.remove('is-active');
         this.bottomResizeHandleEl.classList.remove('is-active');
     }
 
     destroy(): void {
         this.clear();
-        this.floatingGripEl.remove();
         this.topResizeHandleEl.remove();
         this.bottomResizeHandleEl.remove();
-    }
-
-    private renderFloatingGrip(
-        gripAnchor: { topY: number; x: number; host: HTMLElement } | null,
-        viewportXToHostLocalX: (host: HTMLElement, viewportX: number) => number,
-        viewportYToHostLocalY: (host: HTMLElement, viewportY: number) => number,
-        shouldRender: boolean
-    ): void {
-        if (!gripAnchor || !shouldRender) {
-            this.floatingGripEl.classList.remove('is-active');
-            return;
-        }
-        if (this.floatingGripEl.parentElement !== gripAnchor.host) {
-            gripAnchor.host.appendChild(this.floatingGripEl);
-        }
-        const left = viewportXToHostLocalX(gripAnchor.host, gripAnchor.x) + 28;
-        const top = viewportYToHostLocalY(gripAnchor.host, gripAnchor.topY) - 8;
-        this.floatingGripEl.classList.add('is-active');
-        this.floatingGripEl.setCssStyles({
-            left: `${left.toFixed(2)}px`,
-            top: `${top.toFixed(2)}px`,
-        });
     }
 
     private renderResizeHandle(
