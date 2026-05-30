@@ -3,6 +3,7 @@ import { EditorView } from '@codemirror/view';
 import {
     BLOCK_TYPE_CONVERSION_OPTIONS,
     convertCurrentBlockType,
+    deleteCurrentBlock,
 } from './block-type-conversion';
 
 export function openBlockTypeMenu(view: EditorView, event: MouseEvent | PointerEvent | null): void {
@@ -18,6 +19,18 @@ export function openBlockTypeMenu(view: EditorView, event: MouseEvent | PointerE
             })
         );
     }
+
+    menu.addSeparator();
+    menu.addItem((item) => item
+        .setTitle('Delete block')
+        .setIcon('trash-2')
+        .setWarning(true)
+        .onClick(() => {
+            if (!deleteCurrentBlock(view)) {
+                new Notice('Unable to delete block.');
+            }
+        })
+    );
 
     if (event) {
         menu.showAtMouseEvent(event);

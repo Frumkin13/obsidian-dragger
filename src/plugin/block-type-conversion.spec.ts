@@ -1,7 +1,7 @@
 import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
-import { convertCurrentBlockType } from './block-type-conversion';
+import { convertCurrentBlockType, deleteCurrentBlock } from './block-type-conversion';
 
 describe('block type conversion', () => {
     it('converts the current block to a heading', () => {
@@ -29,6 +29,24 @@ describe('block type conversion', () => {
 
         expect(changed).toBe(true);
         expect(view.state.doc.toString()).toBe('```\nalpha\n```\nbeta');
+    });
+
+    it('deletes the current block and its trailing newline', () => {
+        const view = createMutableView('alpha\nbeta\ngamma', 6);
+
+        const changed = deleteCurrentBlock(view);
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('alpha\ngamma');
+    });
+
+    it('deletes the last block and its leading newline', () => {
+        const view = createMutableView('alpha\nbeta', 6);
+
+        const changed = deleteCurrentBlock(view);
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('alpha');
     });
 });
 

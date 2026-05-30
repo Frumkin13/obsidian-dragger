@@ -1,6 +1,8 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { detectBlock } from '../domain/block/block-detector';
+import { resolveDeleteRange } from '../drag/move/document-change';
+import { anchorSelectionBeforeUndoableChange } from '../drag/move/undo-selection-anchor';
 
 export type BlockTypeConversion =
     | 'paragraph'
@@ -40,6 +42,23 @@ export function convertCurrentBlockType(view: EditorView, conversion: BlockTypeC
 
     view.dispatch({
         changes,
+        scrollIntoView: false,
+    });
+    return true;
+}
+
+export function deleteCurrentBlock(view: EditorView): boolean {
+    const block = getCurrentBlock(view);
+    if (!block) return false;
+
+    const startLine = view.state.doc.line(block.startLine + 1);
+    const endLine = view.state.doc.line(block.endLine + 1);
+    const change = resolveDeleteRange(view.state.doc, startLine.from, endLine.to);
+    if (change.from === change.to) return false;
+
+    anchorSelectionBeforeUndoableChange(view, change.from);
+    view.dispatch({
+        changes: { from: change.from, to: change.to },
         scrollIntoView: false,
     });
     return true;
