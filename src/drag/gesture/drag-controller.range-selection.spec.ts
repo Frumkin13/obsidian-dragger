@@ -2333,6 +2333,104 @@ describe('DragEventHandler Range Selection', () => {
         document.body.classList.remove('is-mobile');
         handler.destroy();
     });
+
+    it('clears committed desktop multi-select when pressing escape', () => {
+        const view = createViewStub(8);
+        const handle = appendHandleForBlockStart(view, 1);
+
+        const sourceBlock = createBlock('- item', 1, 1);
+        const endBlock = createBlock('line 6', 5, 5);
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 401,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(280);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 401,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 105,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 401,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 105,
+        });
+
+        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).not.toHaveLength(0);
+
+        const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+        window.dispatchEvent(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).toHaveLength(0);
+        expect(view.dom.querySelectorAll('.dnd-selection-checkbox')).toHaveLength(0);
+        handler.destroy();
+    });
+
+    it('cancels in-progress desktop range selection when pressing escape', () => {
+        const view = createViewStub(8);
+        const handle = appendHandleForBlockStart(view, 1);
+
+        const sourceBlock = createBlock('- item', 1, 1);
+        const endBlock = createBlock('line 6', 5, 5);
+        const hideDropIndicator = vi.fn();
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator,
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 402,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(280);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 402,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 105,
+        });
+
+        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).not.toHaveLength(0);
+
+        const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+        window.dispatchEvent(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).toHaveLength(0);
+        expect(hideDropIndicator).not.toHaveBeenCalled();
+        handler.destroy();
+    });
 });
 
 

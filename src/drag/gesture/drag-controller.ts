@@ -163,6 +163,7 @@ export class DragEventHandler {
     };
 
     private readonly onLostPointerCapture = (e: PointerEvent) => this.handleLostPointerCapture(e);
+    private readonly onWindowKeyDown = (e: KeyboardEvent) => this.handleWindowKeyDown(e);
     private readonly onDocumentFocusIn = (e: FocusEvent) => this.handleDocumentFocusIn(e);
     private readonly onEnterMobileSelectionMode = (e: Event) => this.handleEnterMobileSelectionMode(e);
     constructor(
@@ -190,6 +191,7 @@ export class DragEventHandler {
         const editorDom = this.view.dom;
         editorDom.addEventListener('pointerdown', this.onEditorPointerDown, true);
         editorDom.addEventListener('lostpointercapture', this.onLostPointerCapture, true);
+        window.addEventListener('keydown', this.onWindowKeyDown, true);
         editorDom.addEventListener('focusin', this.onDocumentFocusIn, true);
         editorDom.addEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
     }
@@ -251,6 +253,7 @@ export class DragEventHandler {
         const editorDom = this.view.dom;
         editorDom.removeEventListener('pointerdown', this.onEditorPointerDown, true);
         editorDom.removeEventListener('lostpointercapture', this.onLostPointerCapture, true);
+        window.removeEventListener('keydown', this.onWindowKeyDown, true);
         editorDom.removeEventListener('focusin', this.onDocumentFocusIn, true);
         editorDom.removeEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
     }
@@ -1163,6 +1166,31 @@ export class DragEventHandler {
         if (document.visibilityState !== 'hidden') return;
         if (!this.hasActivePointerSession()) return;
         this.abortForSessionInterrupted(null);
+    }
+
+    private handleWindowKeyDown(e: KeyboardEvent): void {
+        if (e.key !== 'Escape') return;
+        if (!this.clearRangeSelectionForEscape()) return;
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    private clearRangeSelectionForEscape(): boolean {
+        if (this.gesture.phase === 'range_selecting') {
+            this.clearMouseRangeSelectState();
+            this.pointer.detachPointerListeners();
+            this.pointer.releasePointerCapture();
+            this.mobile.unlockMobileInteraction();
+            this.mobile.detachFocusGuard();
+            this.clearCommittedRangeSelection();
+            this.emitIdleLifecycle();
+            return true;
+        }
+        if (this.gesture.phase === 'idle' && this.committedRangeSelection) {
+            this.clearCommittedRangeSelection();
+            return true;
+        }
+        return false;
     }
 
     private handlePointerTerminalEvent(e: PointerEvent, mode: PointerTerminalMode): void {
