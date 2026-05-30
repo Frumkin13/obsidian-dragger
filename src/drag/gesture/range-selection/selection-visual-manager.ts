@@ -134,7 +134,13 @@ export class RangeSelectionVisualManager {
         className: string
     ): void {
         for (const el of current) {
-            if (next.has(el)) continue;
+            if (next.has(el)) {
+                el.classList.add(className);
+                if (className === RANGE_SELECTED_HANDLE_CLASS) {
+                    this.ensureSelectionCheckbox(el);
+                }
+                continue;
+            }
             el.classList.remove(className);
             if (className === RANGE_SELECTED_HANDLE_CLASS) {
                 this.removeSelectionCheckbox(el);

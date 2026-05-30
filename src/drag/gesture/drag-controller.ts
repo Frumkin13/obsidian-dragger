@@ -116,6 +116,9 @@ export class DragEventHandler {
 
         const handle = target.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`);
         if (handle && !handle.classList.contains(EMBED_HANDLE_CLASS)) {
+            if (this.beginMobileSelectionDrag(handle, e)) {
+                return;
+            }
             if (this.retargetActiveMobileRangeSelectionFromHandle(handle, e)) {
                 return;
             }
@@ -484,7 +487,17 @@ export class DragEventHandler {
         }
         this.pointer.tryCapturePointerById(pointerId);
         this.pointer.attachPointerListeners();
-        this.gesture = { phase: 'dragging', drag: { sourceBlock, pointerId } };
+        this.gesture = {
+            phase: 'dragging',
+            drag: {
+                sourceBlock,
+                pointerId,
+                latestX: clientX,
+                latestY: clientY,
+                pointerType,
+                autoScrollFrameId: null,
+            },
+        };
         this.deps.beginPointerDragSession(sourceBlock);
         this.deps.scheduleDropIndicatorUpdate(clientX, clientY, sourceBlock, pointerType);
         this.emitDragStartedLifecycle(sourceBlock, pointerType);
@@ -514,9 +527,39 @@ export class DragEventHandler {
         if (this.gesture.phase !== 'dragging') return;
         const dragState = this.gesture.drag;
         if (e.pointerId !== dragState.pointerId) return;
+        dragState.latestX = e.clientX;
+        dragState.latestY = e.clientY;
+        dragState.pointerType = e.pointerType || dragState.pointerType;
         e.preventDefault();
         e.stopPropagation();
         this.deps.scheduleDropIndicatorUpdate(e.clientX, e.clientY, dragState.sourceBlock, e.pointerType || null);
+        this.autoScrollDrag(dragState);
+        this.scheduleDragAutoScroll(dragState);
+    }
+
+    private autoScrollDrag(dragState: { latestX: number; latestY: number; sourceBlock: BlockInfo; pointerType: string | null }): boolean {
+        const didScroll = autoScrollSelectionRangeByFlow(this.view, dragState.latestY);
+        if (didScroll) {
+            this.deps.scheduleDropIndicatorUpdate(dragState.latestX, dragState.latestY, dragState.sourceBlock, dragState.pointerType);
+        }
+        return didScroll;
+    }
+
+    private scheduleDragAutoScroll(dragState: { autoScrollFrameId: number | null }): void {
+        if (dragState.autoScrollFrameId !== null) return;
+        dragState.autoScrollFrameId = window.requestAnimationFrame(() => {
+            if (this.gesture.phase !== 'dragging') return;
+            const state = this.gesture.drag;
+            state.autoScrollFrameId = null;
+            if (!this.autoScrollDrag(state)) return;
+            this.scheduleDragAutoScroll(state);
+        });
+    }
+
+    private cancelDragAutoScroll(dragState: { autoScrollFrameId: number | null }): void {
+        if (dragState.autoScrollFrameId === null) return;
+        window.cancelAnimationFrame(dragState.autoScrollFrameId);
+        dragState.autoScrollFrameId = null;
     }
 
     private handleRangeSelectingPointerMove(e: PointerEvent): void {
@@ -709,9 +752,35 @@ export class DragEventHandler {
         const rawHandle = handleEl.getAttribute('data-dnd-mobile-selection-handle');
         if (rawHandle !== 'top' && rawHandle !== 'bottom') return false;
         const state = this.gesture.mobileSelect;
-        state.activeHandle = rawHandle;
-        state.pointerId = e.pointerId;
+        state.activeInteraction = {
+            type: 'resize',
+            pointerId: e.pointerId,
+        };
         this.startMobileSelectionResize(state, rawHandle);
+        e.preventDefault();
+        e.stopPropagation();
+        this.pointer.tryCapturePointer(e);
+        this.pointer.attachPointerListeners();
+        this.mobile.lockMobileInteraction();
+        this.mobile.attachFocusGuard();
+        this.mobile.suppressMobileKeyboard(e.target);
+        return true;
+    }
+
+    private beginMobileSelectionDrag(handleEl: HTMLElement, e: PointerEvent): boolean {
+        if (this.gesture.phase !== 'mobile_selecting') return false;
+        if (e.pointerType === 'mouse') return false;
+        if (!handleEl.classList.contains('dnd-range-selected-handle')) return false;
+        const sourceBlock = this.getCommittedSelectionBlock();
+        if (!sourceBlock) return false;
+        const state = this.gesture.mobileSelect;
+        state.activeInteraction = {
+            type: 'drag',
+            pointerId: e.pointerId,
+            startX: e.clientX,
+            startY: e.clientY,
+            sourceBlock,
+        };
         e.preventDefault();
         e.stopPropagation();
         this.pointer.tryCapturePointer(e);
@@ -760,10 +829,36 @@ export class DragEventHandler {
     private handleMobileSelectingPointerMove(e: PointerEvent): void {
         if (this.gesture.phase !== 'mobile_selecting') return;
         const state = this.gesture.mobileSelect;
-        if (state.pointerId === null || e.pointerId !== state.pointerId) return;
-        if (!state.activeHandle) return;
+        const interaction = state.activeInteraction;
+        if (!interaction || e.pointerId !== interaction.pointerId) return;
         e.preventDefault();
         e.stopPropagation();
+        if (interaction.type === 'drag') {
+            const distance = Math.hypot(e.clientX - interaction.startX, e.clientY - interaction.startY);
+            if (distance < MOBILE_DRAG_START_MOVE_THRESHOLD_PX) return;
+            const sourceBlock = interaction.sourceBlock;
+            state.activeInteraction = null;
+            this.committedRangeSelection = this.buildCommittedSelectionFromBlocks(
+                state.selectedBlocks,
+                sourceBlock
+            );
+            this.gesture = {
+                phase: 'dragging',
+                drag: {
+                    sourceBlock,
+                    pointerId: interaction.pointerId,
+                    latestX: e.clientX,
+                    latestY: e.clientY,
+                    pointerType: e.pointerType || null,
+                    autoScrollFrameId: null,
+                },
+            };
+            this.mobile.triggerMobileHapticFeedback();
+            this.deps.beginPointerDragSession(sourceBlock);
+            this.deps.scheduleDropIndicatorUpdate(e.clientX, e.clientY, sourceBlock, e.pointerType || null);
+            this.emitDragStartedLifecycle(sourceBlock, e.pointerType || null);
+            return;
+        }
         const targetBoundary = this.resolveMobileSelectionBoundaryAtPoint(e.clientX, e.clientY);
         if (!targetBoundary) return;
         this.updateMobileSelectionResize(state, targetBoundary);
@@ -823,17 +918,22 @@ export class DragEventHandler {
     private finishMobileSelectionPointer(e: PointerEvent, mode: PointerTerminalMode): void {
         if (this.gesture.phase !== 'mobile_selecting') return;
         const state = this.gesture.mobileSelect;
-        if (state.pointerId === null || e.pointerId !== state.pointerId) return;
+        const interaction = state.activeInteraction;
+        if (!interaction || e.pointerId !== interaction.pointerId) return;
         if (mode === 'up') {
             e.preventDefault();
             e.stopPropagation();
         }
-        state.activeHandle = null;
-        state.pointerId = null;
-        this.pointer.detachPointerListeners();
+        state.activeInteraction = null;
         this.pointer.releasePointerCapture();
-        this.mobile.unlockMobileInteraction();
-        this.mobile.detachFocusGuard();
+        if (!this.hasMobileSelection()) {
+            this.exitMobileSelectionMode();
+        }
+    }
+
+    private hasMobileSelection(): boolean {
+        return this.gesture.phase === 'mobile_selecting'
+            && this.gesture.mobileSelect.selectedBlocks.length > 0;
     }
 
     private resolveMobileSelectionBoundaryAtPoint(clientX: number, clientY: number): RangeSelectionBoundary | null {
@@ -916,8 +1016,7 @@ export class DragEventHandler {
 
     private exitMobileSelectionMode(): void {
         if (this.gesture.phase !== 'mobile_selecting') return;
-        this.gesture.mobileSelect.pointerId = null;
-        this.gesture.mobileSelect.activeHandle = null;
+        this.gesture.mobileSelect.activeInteraction = null;
         this.pointer.detachPointerListeners();
         this.pointer.releasePointerCapture();
         this.mobile.unlockMobileInteraction();
@@ -1174,11 +1273,12 @@ export class DragEventHandler {
                 activeFixedBoundary: boundary,
                 activeMovingBoundary: boundary,
                 activeRangeBlocks: [selectedBlock],
-                activeHandle: null,
-                pointerId: null,
+                activeInteraction: null,
             },
         };
         this.renderMobileSelection([selectedBlock]);
+        this.mobile.lockMobileInteraction();
+        this.mobile.attachFocusGuard();
         this.mobile.suppressMobileKeyboard(document.activeElement);
         this.emitPressPendingLifecycle(blockInfo, 'touch', true);
     }
@@ -1211,7 +1311,7 @@ export class DragEventHandler {
             case 'press_pending':
                 return true;
             case 'mobile_selecting':
-                return this.gesture.mobileSelect.pointerId !== null;
+                return this.gesture.mobileSelect.activeInteraction !== null;
             default:
                 return false;
         }
@@ -1224,7 +1324,7 @@ export class DragEventHandler {
             case 'range_selecting':
                 return this.gesture.rangeSelect.isIntercepting;
             case 'mobile_selecting':
-                return this.gesture.mobileSelect.pointerId !== null;
+                return this.gesture.mobileSelect.activeInteraction !== null;
             case 'press_pending':
                 return this.gesture.press.suppressNativeInteraction;
             default:
@@ -1266,6 +1366,7 @@ export class DragEventHandler {
         const gesture = this.gesture;
         switch (gesture.phase) {
             case 'dragging':
+                this.cancelDragAutoScroll(gesture.drag);
                 return {
                     sourceBlock: gesture.drag.sourceBlock,
                     hadDrag: true,

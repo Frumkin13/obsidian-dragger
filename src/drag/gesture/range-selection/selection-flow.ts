@@ -17,12 +17,12 @@ import { autoScrollRangeSelection } from './selection-session-flow';
 import { RangeSelectionVisualManager } from './selection-visual-manager';
 import { InteractionState } from '../drag-interaction-state';
 
-export function autoScrollSelectionRange(view: EditorView, clientY: number): void {
+export function autoScrollSelectionRange(view: EditorView, clientY: number): boolean {
     const scroller = view.scrollDOM
         ?? view.dom.querySelector<HTMLElement>('.cm-scroller')
         ?? null;
-    if (!scroller) return;
-    autoScrollRangeSelection(scroller, clientY);
+    if (!scroller) return false;
+    return autoScrollRangeSelection(scroller, clientY);
 }
 
 export function updateSelectionFromBoundary(

@@ -6,6 +6,7 @@ import {
     registerMouseHandlerTestHooks,
     createBlock,
     createViewStub,
+    appendHandleForBlockStart,
     dispatchPointer,
     dispatchTouchMove,
     createRect,
@@ -299,6 +300,73 @@ describe('DragEventHandler', () => {
             clientY: 10,
         });
 
+        handler.destroy();
+    });
+
+    it('auto-scrolls the editor at the viewport edge while dragging instead of using native scroll', () => {
+        document.body.classList.add('is-mobile');
+        const view = createViewStub(20);
+        const scroller = document.createElement('div');
+        scroller.className = 'cm-scroller';
+        view.dom.appendChild(scroller);
+        (view as unknown as { scrollDOM?: HTMLElement }).scrollDOM = scroller;
+        Object.defineProperty(scroller, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => createRect(0, 0, 360, 200),
+        });
+        scroller.scrollTop = 40;
+
+        const handle = appendHandleForBlockStart(view, 0);
+        const sourceBlock = createBlock('- item', 0, 0);
+        const scheduleDropIndicatorUpdate = vi.fn();
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate,
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 916,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(220);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 916,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 195,
+        });
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 916,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 196,
+        });
+        const touchMove = dispatchTouchMove(window);
+
+        expect(touchMove.defaultPrevented).toBe(true);
+        expect(scroller.scrollTop).toBeGreaterThan(40);
+        expect(scheduleDropIndicatorUpdate).toHaveBeenLastCalledWith(12, 196, expect.objectContaining({
+            startLine: 0,
+            endLine: 0,
+        }), 'touch');
+
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 916,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 195,
+        });
+        document.body.classList.remove('is-mobile');
         handler.destroy();
     });
 

@@ -13,6 +13,7 @@ export class MobileGestureController {
     private mobileInteractionLocked = false;
     private focusGuardAttached = false;
     private readonly onDocumentFocusIn: (e: FocusEvent) => void;
+    private savedContentEditable: string | null = null;
 
     constructor(
         private readonly view: EditorView,
@@ -82,6 +83,8 @@ export class MobileGestureController {
         body.setAttribute(DND_MOBILE_GESTURE_LOCK_COUNT_ATTR, String(next));
         body.classList.add(MOBILE_GESTURE_LOCK_CLASS);
 
+        this.savedContentEditable = this.view.contentDOM.getAttribute('contenteditable');
+        this.view.contentDOM.setAttribute('contenteditable', 'false');
         this.view.dom.classList.add(MOBILE_GESTURE_LOCK_CLASS);
         this.mobileInteractionLocked = true;
     }
@@ -99,6 +102,12 @@ export class MobileGestureController {
             body.setAttribute(DND_MOBILE_GESTURE_LOCK_COUNT_ATTR, String(next));
         }
 
+        if (this.savedContentEditable === null) {
+            this.view.contentDOM.removeAttribute('contenteditable');
+        } else {
+            this.view.contentDOM.setAttribute('contenteditable', this.savedContentEditable);
+        }
+        this.savedContentEditable = null;
         this.view.dom.classList.remove(MOBILE_GESTURE_LOCK_CLASS);
         this.mobileInteractionLocked = false;
     }

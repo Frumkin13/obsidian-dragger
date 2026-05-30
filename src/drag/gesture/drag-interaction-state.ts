@@ -5,6 +5,10 @@ import { SelectedBlockRange } from './range-selection/block-selection';
 export type PointerDragData = {
     sourceBlock: BlockInfo;
     pointerId: number;
+    latestX: number;
+    latestY: number;
+    pointerType: string | null;
+    autoScrollFrameId: number | null;
 };
 
 export type PointerPressData = {
@@ -27,13 +31,25 @@ export type GestureCancelReason = 'press_cancelled' | 'pointer_cancelled';
 
 export type MobileSelectionResizeHandle = 'top' | 'bottom';
 
+export type MobileSelectionInteraction =
+    | {
+        type: 'resize';
+        pointerId: number;
+    }
+    | {
+        type: 'drag';
+        pointerId: number;
+        startX: number;
+        startY: number;
+        sourceBlock: BlockInfo;
+    };
+
 export type MobileSelectionData = {
     selectedBlocks: SelectedBlockRange[];
     activeFixedBoundary: RangeSelectionBoundary;
     activeMovingBoundary: RangeSelectionBoundary;
     activeRangeBlocks: SelectedBlockRange[];
-    activeHandle: MobileSelectionResizeHandle | null;
-    pointerId: number | null;
+    activeInteraction: MobileSelectionInteraction | null;
 };
 
 export type InteractionState =

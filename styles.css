@@ -358,8 +358,6 @@ body.dnd-mobile-gesture-lock {
     overflow: hidden;
     overscroll-behavior: none;
     touch-action: none;
-    -webkit-user-select: none;
-    user-select: none;
 }
 
 .markdown-source-view.mod-cm6 .cm-editor.dnd-mobile-gesture-lock,
