@@ -155,7 +155,7 @@ describe('DragEventHandler', () => {
         handler.destroy();
     });
 
-    it('does not start text long-press drag while editor is focused with a caret', () => {
+    it('does not start text long-press drag from a short focused editor tap', () => {
         const view = createViewStub(6);
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
         expect(line).not.toBeNull();
@@ -163,6 +163,7 @@ describe('DragEventHandler', () => {
         const beginPointerDragSession = vi.fn();
         const scheduleDropIndicatorUpdate = vi.fn();
         const performDropAtPoint = vi.fn();
+        const blurSpy = vi.spyOn(view.contentDOM, 'blur');
 
         Object.defineProperty(view, 'hasFocus', {
             configurable: true,
@@ -189,21 +190,12 @@ describe('DragEventHandler', () => {
             clientY: 10,
         });
         expect(downEvent.defaultPrevented).toBe(false);
+        expect(blurSpy).toHaveBeenCalledTimes(1);
 
-        vi.advanceTimersByTime(260);
-        const touchMove = dispatchTouchMove(window);
-        expect(touchMove.defaultPrevented).toBe(false);
-
-        dispatchPointer(window, 'pointermove', {
-            pointerId: 913,
-            pointerType: 'touch',
-            clientX: 90,
-            clientY: 10,
-        });
         dispatchPointer(window, 'pointerup', {
             pointerId: 913,
             pointerType: 'touch',
-            clientX: 90,
+            clientX: 60,
             clientY: 10,
         });
 
@@ -367,6 +359,52 @@ describe('DragEventHandler', () => {
             clientY: 195,
         });
         document.body.classList.remove('is-mobile');
+        handler.destroy();
+    });
+
+    it('blurs focused mobile editor and continues the same long-press drag intent', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        const blurSpy = vi.spyOn(view.contentDOM, 'blur');
+
+        Object.defineProperty(view, 'hasFocus', {
+            configurable: true,
+            value: true,
+        });
+
+        const handler = new DragEventHandler(view, {
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => sourceBlock,
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate: vi.fn(),
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        const downEvent = dispatchPointer(line!, 'pointerdown', {
+            pointerId: 914,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+
+        expect(downEvent.defaultPrevented).toBe(false);
+        expect(blurSpy).toHaveBeenCalledTimes(1);
+        vi.advanceTimersByTime(220);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 914,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+        expect(beginPointerDragSession).toHaveBeenCalledWith(sourceBlock);
         handler.destroy();
     });
 

@@ -148,6 +148,9 @@ export class DragEventHandler {
         }
 
         if (!this.shouldStartMobilePressDrag(e)) return;
+        if (this.shouldDismissMobileEditorInputStateForPointerDown(target)) {
+            this.dismissMobileEditorInputState();
+        }
         const inTextLineOrEmbedArea = this.isMobileTextLongPressDragEnabled()
             && this.mobile.isWithinMobileTextLineOrEmbedArea(target, e.clientX, e.clientY);
         if (!inTextLineOrEmbedArea) return;
@@ -156,7 +159,6 @@ export class DragEventHandler {
         if (!blockInfo) return;
         if (this.deps.isBlockInsideRenderedTableCell(blockInfo)) return;
 
-        if (this.shouldDisableMobileTextLongPressDragInInputState()) return;
         // Keep native tap-to-focus behavior in text/embed areas.
         this.beginPressPendingDrag(blockInfo, e, { deferInterception: true });
     };
@@ -279,6 +281,17 @@ export class DragEventHandler {
     private shouldDisableMobileTextLongPressDragInInputState(): boolean {
         if (!this.view.hasFocus) return false;
         return this.view.state.selection.main.empty;
+    }
+
+    private shouldDismissMobileEditorInputStateForPointerDown(target: HTMLElement | null): boolean {
+        if (!this.shouldDisableMobileTextLongPressDragInInputState()) return false;
+        if (!target) return true;
+        return this.view.dom.contains(target);
+    }
+
+    private dismissMobileEditorInputState(): void {
+        if (!this.view.hasFocus) return;
+        this.view.contentDOM.blur();
     }
 
     private isShiftRangeSelectionPointerDown(e: PointerEvent): boolean {
