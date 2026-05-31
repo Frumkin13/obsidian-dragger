@@ -1,19 +1,10 @@
-由于其他项目压力与学业压力，项目会搁置至今年六月中旬（暑假）时继续开发，届时将进行大幅优化以下内容
-## roadmap
-- 性能优化，删除死代码，解决性能瓶颈
-- 样式问题，抓手的稳定性与对齐
-- 通过点击抓手切换块文本类型
-- 多栏布局
-- 移动端ux设计与功能稳定性
-
-
 [![English](https://img.shields.io/badge/lang-English-blue)](README.md) [![中文](https://img.shields.io/badge/lang-中文-red)](README.zh-CN.md)
 
 # Dragger
 
 **Drag and drop any block to rearrange content in Obsidian — just like Notion.**
 
-![Obsidian](https://img.shields.io/badge/Obsidian-%3E%3D1.0.0-7c3aed?logo=obsidian&logoColor=white) ![License](https://img.shields.io/github/license/Ariestar/obsidian-dragger) ![Release](https://img.shields.io/github/v/release/Ariestar/obsidian-dragger) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Ariestar/obsidian-dragger)
+![Obsidian](https://img.shields.io/badge/Obsidian-%3E%3D1.0.0-7c3aed?logo=obsidian&logoColor=white) ![License](https://img.shields.io/github/license/Ariestar/obsidian-dragger) ![Release](https://img.shields.io/github/v/release/Ariestar/obsidian-dragger) ![Downloads](https://img.shields.io/github/downloads/Ariestar/obsidian-dragger/total?color=blue) ![Stars](https://img.shields.io/github/stars/Ariestar/obsidian-dragger?style=social) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Ariestar/obsidian-dragger)
 
 ![gif](https://github.com/user-attachments/assets/bfb3ac7d-7dfe-4c24-a428-5d08b49d0654)
 
@@ -21,25 +12,18 @@
 
 - 🧱 **Block-level drag & drop** — paragraphs, headings, lists, tasks, blockquotes, callouts, tables, code blocks, math blocks
 - 📐 **Nested drag** — horizontal position controls indent level; vertical position controls insertion row
-- 🔗 **Multi-line selection drag** — long-press or click to select a range, then drag as a group
+- 🔗 **Multi-line selection drag** — click or long-press to select a range, then drag as a group; native checkboxes mark selected blocks on desktop
 - 🎨 **Customizable handles** — 4 icon styles (dot / grip-dots / grip-lines / square), adjustable size, color, and horizontal offset
 - 📍 **Visual drop indicator** — glowing line shows exactly where the block will land
-- 📱 **Mobile support** — works on Android (tested)
+- 📱 **Mobile support** — long-press drag mode, bottom toolbar block type conversion, edge auto-scroll during drag
+- ⌨️ **Keyboard shortcuts** — press Escape to exit multi-select mode on desktop
+- 🗑️ **Block type menu with delete** — convert block types or delete the current block from the context menu
 
 ## Installation
 
 ### Community Plugins
 
 Open **Settings → Community plugins → Browse**, search **Dragger**, and install.
-
-### BRAT (Beta)
-
-1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin
-2. In BRAT settings, click **Add Beta Plugin** and enter:
-   ```
-   Ariestar/obsidian-dragger
-   ```
-3. Enable the plugin in **Settings → Community plugins**
 
 ### Manual
 
@@ -59,9 +43,11 @@ Restart Obsidian and enable the plugin.
 
 **Nested lists & blockquotes:** move the cursor horizontally while dragging to control indent level.
 
-**Multi-line selection:** long-press (touch) or click multiple handles to select a range, then drag the entire selection.
+**Multi-line selection:** long-press (touch) or click multiple handles to select a range, then drag the entire selection. Press **Escape** to exit multi-select.
 
 **Mobile text long-press drag:** when enabled, long-press a text line or rendered block content to drag a single block directly without reaching for the left handle.
+
+**Block type conversion:** right-click a handle (desktop) or use the bottom toolbar (mobile) to convert block types or delete the current block.
 
 > 💡 **Tip:** Enable line numbers in Obsidian settings for a better experience — the handle appears right at the line-number gutter.
 
@@ -71,8 +57,8 @@ Restart Obsidian and enable the plugin.
 |---------|-------------|---------|
 | **Handle color** | Follow theme accent or pick a custom color | Theme |
 | **Handle visibility** | Hover / Always visible / Hidden | Hover |
-| **Handle icon** | ● Dot / ⠿ Grip-dots / ☰ Grip-lines / ■ Square | Dot |
-| **Handle size** | 12 – 28 px | 16 px |
+| **Handle icon** | ● Dot / ⠿ Grip-dots / ☰ Grip-lines / ■ Square | Grip-dots |
+| **Handle size** | 12 – 28 px | 20 px |
 | **Handle horizontal offset** | Shift handle left (−80) or right (+80) px | 0 px |
 | **Indicator color** | Follow theme accent or pick a custom color | Theme |
 | **Multi-line selection** | Enable range-select-then-drag workflow | On |
@@ -87,29 +73,24 @@ Restart Obsidian and enable the plugin.
 - Obsidian **≥ 1.0.0**
 - Desktop (Windows, macOS, Linux) + Mobile (Android tested)
 
+## Roadmap
+
+- Multi-column layout — drag blocks into side-by-side columns
+- More style customization — handle icons, colors, themes
+- Interaction refinements — better visual feedback, smoother gestures
+- Cross-document drag — move blocks between different notes
+
 ## Development
 
 ```bash
 npm install
 npm run dev       # watch mode with hot reload
 npm run build     # production build
-npm run test      # run Vitest suite (116 tests)
+npm run test      # run Vitest suite (229 tests)
 npm run typecheck # TypeScript type checking
+npm run lint -- --max-warnings=0
 ```
 
-
-## Pre-review checks
-
-Run these checks before pushing to ensure local results match AutoReview:
-
-```bash
-npm install
-npm run lint:review
-npm run typecheck
-npm run test
-```
-
-`lint:review` is configured with `--max-warnings=0`, so CI/AutoReview blocker rules are enforced locally.
 ## License
 
 [MIT](LICENSE)
@@ -120,3 +101,8 @@ PRs and issues are welcome!
 
 If this plugin helps you, a ⭐ on GitHub would mean a lot.
 
+## Community
+
+| QQ Group | WeChat Donate |
+|:--------:|:-------------:|
+| ![QQ Group](assets/qq-group.jpg) | ![WeChat](assets/wechat_donate.png) |
