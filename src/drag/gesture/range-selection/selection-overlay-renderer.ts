@@ -1,9 +1,11 @@
 import { EditorView } from '@codemirror/view';
 import {
-    RANGE_SELECTION_DELETE_BUTTON_CLASS,
-    RANGE_SELECTION_LINK_CLASS,
+    MOBILE_SELECTION_RESIZE_HANDLE_BOTTOM_CLASS,
+    MOBILE_SELECTION_RESIZE_HANDLE_CLASS,
+    MOBILE_SELECTION_RESIZE_HANDLE_TOP_CLASS,
 } from '../../../shared/dom-selectors';
 import { viewportXToEditorLocalX, viewportYToEditorLocalY } from './editor-local-coordinates';
+import { safeCoordsAtPos } from '../../../platform/dom/element-probe';
 import { RangeAnchorSpan } from './selection-anchor';
 import {
     type BlockSelectionSegment,
@@ -11,44 +13,22 @@ import {
 } from './block-selection';
 
 export class RangeSelectionOverlayRenderer {
-    private readonly linkEls: HTMLElement[] = [];
-    private readonly deleteButtonEl: HTMLButtonElement;
-    private currentRenderedBlocks: SelectedBlockRange[] = [];
-    private readonly onDeleteButtonClick = (event: MouseEvent): void => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!this.isDeleteButtonEnabled()) return;
-        if (!this.onDeleteSelectionClick) return;
-        if (this.currentRenderedBlocks.length === 0) return;
-        const blocks = this.currentRenderedBlocks.map((block) => ({
-            startLineNumber: block.startLineNumber,
-            endLineNumber: block.endLineNumber,
-        }));
-        this.onDeleteSelectionClick(blocks);
-    };
+    private readonly topResizeHandleEl: HTMLElement;
+    private readonly bottomResizeHandleEl: HTMLElement;
 
     constructor(
-        private readonly view: EditorView,
-        private readonly onDeleteSelectionClick?: (blocks: SelectedBlockRange[]) => void,
-        private readonly isDeleteButtonEnabledRef?: () => boolean
+        private readonly view: EditorView
     ) {
-        this.deleteButtonEl = document.createElement('button');
-        this.deleteButtonEl.type = 'button';
-        this.deleteButtonEl.className = RANGE_SELECTION_DELETE_BUTTON_CLASS;
-        this.deleteButtonEl.setAttribute('aria-label', 'Delete selected blocks');
-        this.deleteButtonEl.textContent = 'Delete';
-        this.deleteButtonEl.addEventListener('click', this.onDeleteButtonClick);
+        this.topResizeHandleEl = this.createResizeHandle('top');
+        this.bottomResizeHandleEl = this.createResizeHandle('bottom');
     }
 
     render(
         blocks: SelectedBlockRange[],
         segments: BlockSelectionSegment[],
-        resolveRangeAnchorSpan: (segment: BlockSelectionSegment) => RangeAnchorSpan | null
+        resolveRangeAnchorSpan: (segment: BlockSelectionSegment) => RangeAnchorSpan | null,
+        options?: { showMobileResizeHandles?: boolean }
     ): void {
-        this.currentRenderedBlocks = blocks.map((block) => ({
-            startLineNumber: block.startLineNumber,
-            endLineNumber: block.endLineNumber,
-        }));
         const hostOriginCache = new WeakMap<HTMLElement, { x: number; y: number }>();
         const getHostOrigin = (host: HTMLElement): { x: number; y: number } => {
             const cached = hostOriginCache.get(host);
@@ -68,98 +48,102 @@ export class RangeSelectionOverlayRenderer {
             viewportYToEditorLocalY(this.view, viewportY) - getHostOrigin(host).y
         );
 
-        let buttonAnchor: { topY: number; x: number; host: HTMLElement } | null = null;
-        for (let i = 0; i < segments.length; i++) {
-            const segment = segments[i];
-            const anchorSpan = resolveRangeAnchorSpan(segment);
-            const link = this.ensureLinkEl(i);
-            if (!anchorSpan) {
-                link.classList.remove('is-active');
-                continue;
-            }
-            if (link.parentElement !== anchorSpan.host) {
-                anchorSpan.host.appendChild(link);
-            }
-
-            const top = viewportYToHostLocalY(anchorSpan.host, anchorSpan.topY);
-            const bottom = viewportYToHostLocalY(anchorSpan.host, anchorSpan.bottomY);
-            const linkTop = Math.min(top, bottom);
-            const linkHeight = Math.max(2, Math.abs(bottom - top));
-            const left = viewportXToHostLocalX(anchorSpan.host, anchorSpan.x);
-
-            if (!buttonAnchor || anchorSpan.topY < buttonAnchor.topY) {
-                buttonAnchor = { topY: anchorSpan.topY, x: anchorSpan.x, host: anchorSpan.host };
-            }
-
-            link.classList.add('is-active');
-            link.setCssStyles({
-                left: `${left.toFixed(2)}px`,
-                top: `${linkTop.toFixed(2)}px`,
-                height: `${linkHeight.toFixed(2)}px`,
-            });
-        }
-        for (let i = segments.length; i < this.linkEls.length; i++) {
-            this.linkEls[i].classList.remove('is-active');
+        for (const segment of segments) {
+            resolveRangeAnchorSpan(segment);
         }
 
-        if (!this.isDeleteButtonEnabled() || blocks.length === 0 || !buttonAnchor) {
-            this.hideDeleteButton();
-            return;
-        }
-
-        if (this.deleteButtonEl.parentElement !== buttonAnchor.host) {
-            buttonAnchor.host.appendChild(this.deleteButtonEl);
-        }
-
-        const buttonTop = viewportYToHostLocalY(buttonAnchor.host, buttonAnchor.topY) - 10;
-        const buttonLeft = viewportXToHostLocalX(buttonAnchor.host, buttonAnchor.x);
-        this.deleteButtonEl.classList.add('is-active');
-        this.deleteButtonEl.setCssStyles({
-            left: `${buttonLeft.toFixed(2)}px`,
-            top: `${buttonTop.toFixed(2)}px`,
-        });
+        const mobileResizeAnchors = options?.showMobileResizeHandles
+            ? this.resolveMobileResizeAnchors(blocks)
+            : null;
+        this.renderResizeHandle(this.topResizeHandleEl, mobileResizeAnchors?.top ?? null, viewportXToHostLocalX, viewportYToHostLocalY, !!options?.showMobileResizeHandles);
+        this.renderResizeHandle(this.bottomResizeHandleEl, mobileResizeAnchors?.bottom ?? null, viewportXToHostLocalX, viewportYToHostLocalY, !!options?.showMobileResizeHandles);
     }
 
     clear(): void {
-        for (const link of this.linkEls) {
-            link.classList.remove('is-active');
-        }
-        this.currentRenderedBlocks = [];
-        this.hideDeleteButton();
+        this.topResizeHandleEl.classList.remove('is-active');
+        this.bottomResizeHandleEl.classList.remove('is-active');
     }
 
     destroy(): void {
         this.clear();
-        for (const link of this.linkEls) {
-            link.remove();
+        this.topResizeHandleEl.remove();
+        this.bottomResizeHandleEl.remove();
+    }
+
+    private renderResizeHandle(
+        handleEl: HTMLElement,
+        anchor: { y: number; x: number; host: HTMLElement } | null,
+        viewportXToHostLocalX: (host: HTMLElement, viewportX: number) => number,
+        viewportYToHostLocalY: (host: HTMLElement, viewportY: number) => number,
+        shouldRender: boolean
+    ): void {
+        if (!anchor || !shouldRender || !this.isMobileEnvironment()) {
+            handleEl.classList.remove('is-active');
+            return;
         }
-        this.linkEls.length = 0;
-        this.deleteButtonEl.removeEventListener('click', this.onDeleteButtonClick);
-        this.deleteButtonEl.remove();
-    }
-
-    private isDeleteButtonEnabled(): boolean {
-        if (!this.onDeleteSelectionClick) return false;
-        return this.isDeleteButtonEnabledRef?.() === true;
-    }
-
-    private hideDeleteButton(): void {
-        this.deleteButtonEl.classList.remove('is-active');
-    }
-
-    private ensureLinkEl(index: number): HTMLElement {
-        const existing = this.linkEls[index];
-        if (existing) {
-            return existing;
+        if (handleEl.parentElement !== anchor.host) {
+            anchor.host.appendChild(handleEl);
         }
-        const link = document.createElement('div');
-        link.className = RANGE_SELECTION_LINK_CLASS;
-        this.linkEls[index] = link;
-        return link;
+        const left = viewportXToHostLocalX(anchor.host, anchor.x) - 32;
+        const top = viewportYToHostLocalY(anchor.host, anchor.y) - 18;
+        handleEl.classList.add('is-active');
+        handleEl.setCssStyles({
+            left: `${left.toFixed(2)}px`,
+            top: `${top.toFixed(2)}px`,
+        });
     }
 
+    private resolveMobileResizeAnchors(blocks: SelectedBlockRange[]): {
+        top: { y: number; x: number; host: HTMLElement };
+        bottom: { y: number; x: number; host: HTMLElement };
+    } | null {
+        if (blocks.length === 0) return null;
+        const doc = this.view.state.doc;
+        const firstLineNumber = Math.min(...blocks.map((block) => block.startLineNumber));
+        const lastLineNumber = Math.max(...blocks.map((block) => block.endLineNumber));
+        if (firstLineNumber < 1 || lastLineNumber > doc.lines) return null;
+
+        const firstLine = doc.line(firstLineNumber);
+        const lastLine = doc.line(lastLineNumber);
+        const topCoords = safeCoordsAtPos(this.view, firstLine.from, 1);
+        const bottomCoords = safeCoordsAtPos(this.view, lastLine.to, -1)
+            ?? safeCoordsAtPos(this.view, lastLine.from, 1);
+        if (!topCoords || !bottomCoords) return null;
+
+        const x = this.resolveSelectionCenterX();
+        const host = this.view.dom;
+        return {
+            top: { y: topCoords.top, x, host },
+            bottom: { y: bottomCoords.bottom, x, host },
+        };
+    }
+
+    private resolveSelectionCenterX(): number {
+        const contentRect = this.view.contentDOM.getBoundingClientRect();
+        if (Number.isFinite(contentRect.left) && Number.isFinite(contentRect.right) && contentRect.right > contentRect.left) {
+            return (contentRect.left + contentRect.right) / 2;
+        }
+        const editorRect = this.view.dom.getBoundingClientRect();
+        return (editorRect.left + editorRect.right) / 2;
+    }
+
+    private createResizeHandle(position: 'top' | 'bottom'): HTMLElement {
+        const handle = document.createElement('div');
+        handle.className = `${MOBILE_SELECTION_RESIZE_HANDLE_CLASS} ${position === 'top'
+            ? MOBILE_SELECTION_RESIZE_HANDLE_TOP_CLASS
+            : MOBILE_SELECTION_RESIZE_HANDLE_BOTTOM_CLASS}`;
+        handle.textContent = '⠿';
+        handle.setAttribute('data-dnd-mobile-selection-handle', position);
+        handle.setAttribute('aria-label', position === 'top' ? 'Adjust selection start' : 'Adjust selection end');
+        return handle;
+    }
+
+    private isMobileEnvironment(): boolean {
+        const body = document.body;
+        if (body.classList.contains('is-mobile') || body.classList.contains('is-phone') || body.classList.contains('is-tablet')) {
+            return true;
+        }
+        if (typeof window.matchMedia !== 'function') return false;
+        return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    }
 }
-
-
-
-

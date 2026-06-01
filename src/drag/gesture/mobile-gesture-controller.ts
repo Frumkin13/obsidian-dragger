@@ -1,21 +1,19 @@
 import { EditorView } from '@codemirror/view';
-import { BlockInfo } from '../../domain/block/block-types';
 import { EMBED_BLOCK_SELECTOR, MOBILE_GESTURE_LOCK_CLASS } from '../../shared/dom-selectors';
 import { DND_MOBILE_GESTURE_LOCK_COUNT_ATTR } from '../../shared/dom-attrs';
 import { safeCoordsAtPos, resolveLineNumberFromDomNodes } from '../../platform/dom/element-probe';
 import { findEmbedElementAtPoint } from '../../platform/dom/embed-probe';
 
-const MOBILE_DRAG_HOTZONE_LEFT_PX = 24;
-const MOBILE_DRAG_HOTZONE_RIGHT_PX = 8;
 const MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX = 16;
 const MOBILE_LINE_HIT_Y_TOLERANCE_PX = 8;
 const MOBILE_EMBED_HIT_PADDING_PX = 6;
-const MOBILE_LONG_PRESS_EMBED_SELECTOR = EMBED_BLOCK_SELECTOR;
+const MOBILE_RANGE_SELECT_SCROLL_CANCEL_THRESHOLD_PX = 14;
 
 export class MobileGestureController {
     private mobileInteractionLocked = false;
     private focusGuardAttached = false;
     private readonly onDocumentFocusIn: (e: FocusEvent) => void;
+    private savedContentEditable: string | null = null;
 
     constructor(
         private readonly view: EditorView,
@@ -47,33 +45,6 @@ export class MobileGestureController {
         return clientX >= left && clientX <= right;
     }
 
-    isWithinMobileDragHotzoneBand(clientX: number): boolean {
-        const contentRect = this.view.contentDOM.getBoundingClientRect();
-        const left = contentRect.left - MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX;
-        const right = contentRect.left
-            + MOBILE_DRAG_HOTZONE_LEFT_PX
-            + MOBILE_DRAG_HOTZONE_RIGHT_PX
-            + MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX;
-        return clientX >= left && clientX <= right;
-    }
-
-    isWithinMobileDragHotzone(blockInfo: BlockInfo, clientX: number): boolean {
-        const lineNumber = blockInfo.startLine + 1;
-        if (lineNumber < 1 || lineNumber > this.view.state.doc.lines) return false;
-
-        const line = this.view.state.doc.line(lineNumber);
-        const lineStart = safeCoordsAtPos(this.view, line.from);
-        if (!lineStart) return false;
-
-        const contentRect = this.view.contentDOM.getBoundingClientRect();
-        const hotzoneLeft = Math.max(
-            contentRect.left - MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX,
-            lineStart.left - MOBILE_DRAG_HOTZONE_LEFT_PX - MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX
-        );
-        const hotzoneRight = lineStart.left + MOBILE_DRAG_HOTZONE_RIGHT_PX;
-        return clientX >= hotzoneLeft && clientX <= hotzoneRight;
-    }
-
     isWithinMobileTextLineOrEmbedArea(target: HTMLElement | null, clientX: number, clientY: number): boolean {
         const embedEl = this.resolveEmbedElement(target, clientX, clientY);
         if (embedEl) {
@@ -98,6 +69,11 @@ export class MobileGestureController {
         return false;
     }
 
+    isMostlyVerticalScrollGesture(dx: number, dy: number): boolean {
+        return Math.abs(dy) > MOBILE_RANGE_SELECT_SCROLL_CANCEL_THRESHOLD_PX
+            && Math.abs(dy) > Math.abs(dx) * 1.4;
+    }
+
     lockMobileInteraction(): void {
         if (this.mobileInteractionLocked) return;
 
@@ -107,6 +83,8 @@ export class MobileGestureController {
         body.setAttribute(DND_MOBILE_GESTURE_LOCK_COUNT_ATTR, String(next));
         body.classList.add(MOBILE_GESTURE_LOCK_CLASS);
 
+        this.savedContentEditable = this.view.contentDOM.getAttribute('contenteditable');
+        this.view.contentDOM.setAttribute('contenteditable', 'false');
         this.view.dom.classList.add(MOBILE_GESTURE_LOCK_CLASS);
         this.mobileInteractionLocked = true;
     }
@@ -124,6 +102,12 @@ export class MobileGestureController {
             body.setAttribute(DND_MOBILE_GESTURE_LOCK_COUNT_ATTR, String(next));
         }
 
+        if (this.savedContentEditable === null) {
+            this.view.contentDOM.removeAttribute('contenteditable');
+        } else {
+            this.view.contentDOM.setAttribute('contenteditable', this.savedContentEditable);
+        }
+        this.savedContentEditable = null;
         this.view.dom.classList.remove(MOBILE_GESTURE_LOCK_CLASS);
         this.mobileInteractionLocked = false;
     }
@@ -204,7 +188,7 @@ export class MobileGestureController {
 
     private resolveEmbedElement(target: HTMLElement | null, clientX: number, clientY: number): HTMLElement | null {
         if (target) {
-            const fromTarget = target.closest<HTMLElement>(MOBILE_LONG_PRESS_EMBED_SELECTOR);
+            const fromTarget = target.closest<HTMLElement>(EMBED_BLOCK_SELECTOR);
             if (fromTarget && this.view.dom.contains(fromTarget)) {
                 return fromTarget;
             }

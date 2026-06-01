@@ -3,6 +3,7 @@ import {
     DRAG_HANDLE_CLASS,
     EMBED_HANDLE_CLASS,
     RANGE_SELECTED_HANDLE_CLASS,
+    RANGE_SELECTED_LINE_CLASS,
 } from '../../../shared/dom-selectors';
 import {
     groupSegments,
@@ -20,7 +21,9 @@ import {
 import { RangeSelectionOverlayRenderer } from './selection-overlay-renderer';
 
 export class RangeSelectionVisualManager {
+    private static readonly selectedCheckboxClass = 'dnd-selection-checkbox';
     private readonly handleElements = new Set<HTMLElement>();
+    private readonly selectedLineElements = new Set<HTMLElement>();
     private readonly overlayRenderer: RangeSelectionOverlayRenderer;
     private handleAnchorSnapshot: AnchorSnapshot = emptyAnchorSnapshot();
     private refreshRafHandle: number | null = null;
@@ -31,27 +34,31 @@ export class RangeSelectionVisualManager {
         private readonly view: EditorView,
         private readonly onRefreshRequested: () => void,
         private readonly resolveVisibleHandleForBlockStart: (blockStart: number) => HTMLElement | null,
-        onDeleteSelectionClick?: (blocks: SelectedBlockRange[]) => void,
-        isDeleteButtonEnabledRef?: () => boolean
+        _onSelectionAction?: unknown
     ) {
         this.overlayRenderer = new RangeSelectionOverlayRenderer(
-            this.view,
-            onDeleteSelectionClick,
-            isDeleteButtonEnabledRef
+            this.view
         );
 
         this.onScroll = () => this.scheduleRefresh();
         this.bindScrollListener();
     }
 
-    render(blocks: SelectedBlockRange[]): void {
+    render(blocks: SelectedBlockRange[], options?: { highlightLines?: boolean; showMobileResizeHandles?: boolean }): void {
         const normalizedBlocks = mergeSelectedBlocks(this.view.state.doc.lines, blocks);
         const segments = groupSegments(normalizedBlocks);
         const nextHandleElements = new Set<HTMLElement>();
+        const nextLineElements = new Set<HTMLElement>();
         for (const block of normalizedBlocks) {
             const handleEl = this.resolveHandleElementForBlockStart(block.startLineNumber - 1);
             if (handleEl) {
                 nextHandleElements.add(handleEl);
+            }
+            if (options?.highlightLines) {
+                for (let lineNumber = block.startLineNumber; lineNumber <= block.endLineNumber; lineNumber++) {
+                    const lineEl = this.resolveLineElement(lineNumber);
+                    if (lineEl) nextLineElements.add(lineEl);
+                }
             }
         }
         this.handleAnchorSnapshot = buildAnchorSnapshot(nextHandleElements);
@@ -60,14 +67,26 @@ export class RangeSelectionVisualManager {
             nextHandleElements,
             RANGE_SELECTED_HANDLE_CLASS
         );
-        this.overlayRenderer.render(normalizedBlocks, segments, (segment) => this.resolveRangeAnchorSpan(segment));
+        this.syncSelectionElements(
+            this.selectedLineElements,
+            nextLineElements,
+            RANGE_SELECTED_LINE_CLASS
+        );
+        this.overlayRenderer.render(normalizedBlocks, segments, (segment) => this.resolveRangeAnchorSpan(segment), {
+            showMobileResizeHandles: options?.showMobileResizeHandles,
+        });
     }
 
     clear(): void {
         for (const handleEl of this.handleElements) {
             handleEl.classList.remove(RANGE_SELECTED_HANDLE_CLASS);
+            this.removeSelectionCheckbox(handleEl);
+        }
+        for (const lineEl of this.selectedLineElements) {
+            lineEl.classList.remove(RANGE_SELECTED_LINE_CLASS);
         }
         this.handleElements.clear();
+        this.selectedLineElements.clear();
         this.handleAnchorSnapshot = emptyAnchorSnapshot();
         this.overlayRenderer.clear();
     }
@@ -115,17 +134,49 @@ export class RangeSelectionVisualManager {
         className: string
     ): void {
         for (const el of current) {
-            if (next.has(el)) continue;
+            if (next.has(el)) {
+                el.classList.add(className);
+                if (className === RANGE_SELECTED_HANDLE_CLASS) {
+                    this.ensureSelectionCheckbox(el);
+                }
+                continue;
+            }
             el.classList.remove(className);
+            if (className === RANGE_SELECTED_HANDLE_CLASS) {
+                this.removeSelectionCheckbox(el);
+            }
         }
         for (const el of next) {
             if (current.has(el)) continue;
             el.classList.add(className);
+            if (className === RANGE_SELECTED_HANDLE_CLASS) {
+                this.ensureSelectionCheckbox(el);
+            }
         }
         current.clear();
         for (const el of next) {
             current.add(el);
         }
+    }
+
+    private ensureSelectionCheckbox(handleEl: HTMLElement): void {
+        const existing = handleEl.querySelector<HTMLInputElement>(`:scope > .${RangeSelectionVisualManager.selectedCheckboxClass}`);
+        if (existing) {
+            existing.checked = true;
+            return;
+        }
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = true;
+        checkbox.tabIndex = -1;
+        checkbox.className = RangeSelectionVisualManager.selectedCheckboxClass;
+        checkbox.setAttribute('aria-hidden', 'true');
+        handleEl.appendChild(checkbox);
+    }
+
+    private removeSelectionCheckbox(handleEl: HTMLElement): void {
+        const checkbox = handleEl.querySelector<HTMLInputElement>(`:scope > .${RangeSelectionVisualManager.selectedCheckboxClass}`);
+        checkbox?.remove();
     }
 
     private resolveHandleElementForBlockStart(blockStart: number): HTMLElement | null {
@@ -136,6 +187,14 @@ export class RangeSelectionVisualManager {
         const handles = Array.from(this.view.dom.querySelectorAll<HTMLElement>(selector));
         if (handles.length === 0) return null;
         return handles.find((handle) => !handle.classList.contains(EMBED_HANDLE_CLASS)) ?? handles[0] ?? null;
+    }
+
+    private resolveLineElement(lineNumber: number): HTMLElement | null {
+        if (lineNumber < 1 || lineNumber > this.view.state.doc.lines) return null;
+        const line = this.view.state.doc.line(lineNumber);
+        const domAtPos = this.view.domAtPos(line.from);
+        const node = domAtPos.node instanceof HTMLElement ? domAtPos.node : domAtPos.node.parentElement;
+        return node?.closest<HTMLElement>('.cm-line') ?? null;
     }
 
     resolveRangeAnchorSpan(segment: BlockSelectionSegment): RangeAnchorSpan | null {

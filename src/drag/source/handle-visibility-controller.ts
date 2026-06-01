@@ -1,6 +1,5 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../domain/block/block-types';
-import type { LineRange } from '../../shared/types/line-range';
 import type { HoverContentRect, HoverPointerSnapshot } from '../../runtime/hover-pointer-snapshot';
 import {
     DRAG_HANDLE_CLASS,
@@ -234,12 +233,12 @@ export class HandleVisibilityController {
     }
 
     private isLineNumberInGrabRanges(lineNumber: number): boolean {
-        return isLineNumberInRanges(lineNumber, this.grabbedLineRanges as LineRange[]);
+        return isLineNumberInRanges(lineNumber, this.grabbedLineRanges);
     }
 
     private normalizeGrabLineRanges(ranges: GrabLineRange[]): GrabLineRange[] {
         const docLines = this.view.state.doc.lines;
-        const merged = mergeLineRanges(docLines, ranges as LineRange[]);
+        const merged = mergeLineRanges(docLines, ranges);
         return merged.map((range) => ({
             startLineNumber: range.startLineNumber,
             endLineNumber: range.endLineNumber,
@@ -263,6 +262,15 @@ export class HandleVisibilityController {
         if (lineNumber < this.activeHoverBlock.startLineNumber || lineNumber > this.activeHoverBlock.endLineNumber) {
             return null;
         }
+        if (lineNumber === this.activeHoverBlock.startLineNumber) {
+            return this.activeHoverBlock.handle;
+        }
+
+        const lineHandle = this.deps.getVisibleHandleForBlockStart?.(lineNumber - 1) ?? null;
+        if (lineHandle && lineHandle !== this.activeHoverBlock.handle) {
+            return null;
+        }
+
         return this.activeHoverBlock.handle;
     }
 }

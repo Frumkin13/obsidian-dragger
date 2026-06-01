@@ -47,7 +47,7 @@ export function getIndentUnitWidthForDoc(
     fallbackTabSize?: number
 ): number {
     if (doc && typeof doc === 'object') {
-        const cached = indentUnitWidthCache.get(doc as object);
+        const cached = indentUnitWidthCache.get(doc);
         if (typeof cached === 'number') {
             return cached;
         }
@@ -55,7 +55,7 @@ export function getIndentUnitWidthForDoc(
     const fromDoc = getIndentUnitWidthFromDoc(doc, parseLine, fallbackTabSize);
     const resolved = typeof fromDoc === 'number' ? fromDoc : normalizeTabSize(fallbackTabSize);
     if (doc && typeof doc === 'object') {
-        indentUnitWidthCache.set(doc as object, resolved);
+        indentUnitWidthCache.set(doc, resolved);
     }
     return resolved;
 }

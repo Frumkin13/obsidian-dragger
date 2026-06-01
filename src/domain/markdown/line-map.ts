@@ -210,16 +210,16 @@ export function buildLineMap(
 
 function getCachedLineMapForDoc(doc: DocLike | null | undefined, tabSize: number): LineMap | null {
     if (!doc || typeof doc !== 'object') return null;
-    return lineMapCache.get(doc as object)?.get(tabSize) ?? null;
+    return lineMapCache.get(doc)?.get(tabSize) ?? null;
 }
 
 function setCachedLineMapForDoc(doc: DocLike, tabSize: number, lineMap: LineMap): void {
-    const byTabSize = lineMapCache.get(doc as object);
+    const byTabSize = lineMapCache.get(doc);
     if (byTabSize) {
         byTabSize.set(tabSize, lineMap);
         return;
     }
-    lineMapCache.set(doc as object, new Map<number, LineMap>([[tabSize, lineMap]]));
+    lineMapCache.set(doc, new Map<number, LineMap>([[tabSize, lineMap]]));
 }
 
 function clampDocPos(doc: DocLikeWithOffsets, pos: number): number {

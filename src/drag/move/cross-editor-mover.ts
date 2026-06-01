@@ -8,6 +8,7 @@ import { SourcePayload } from './source-payload';
 import { resolveInsertionChange } from './document-change';
 import { ListRenumberer } from './list-renumberer';
 import { BlockFoldStateManager, CapturedBlockFoldState } from './block-fold-state';
+import { anchorSelectionBeforeUndoableChange } from './undo-selection-anchor';
 
 export interface CrossEditorMoveDeps {
     resolveDropRuleAtInsertion: (
@@ -76,11 +77,13 @@ export function moveBlockAcrossEditors(params: CrossEditorMoveParams): void {
         remainingLengthAfterDelete: targetDoc.length,
     });
 
+    anchorSelectionBeforeUndoableChange(targetView, insertion.pos);
     targetView.dispatch({
         changes: { from: insertion.pos, to: insertion.pos, insert: insertion.text },
         scrollIntoView: false,
     });
 
+    anchorSelectionBeforeUndoableChange(sourceView, sourceBlock.from);
     sourceView.dispatch({
         changes: sourcePayload.segments
             .map((segment) => ({ from: segment.deleteFrom, to: segment.deleteTo }))

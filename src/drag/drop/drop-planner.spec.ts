@@ -22,7 +22,7 @@ function createRect(left: number, top: number, width: number, height: number): D
         x: left,
         y: top,
         toJSON: () => ({}),
-    } as DOMRect;
+    };
 }
 
 function createViewStub(docText: string): EditorView {
@@ -30,7 +30,7 @@ function createViewStub(docText: string): EditorView {
     const root = document.createElement('div');
     root.className = 'cm-editor';
     root.getBoundingClientRect = () =>
-        ({ left: 0, top: 0, right: 400, bottom: 200, width: 400, height: 200, x: 0, y: 0, toJSON: () => ({}) } as DOMRect);
+        ({ left: 0, top: 0, right: 400, bottom: 200, width: 400, height: 200, x: 0, y: 0, toJSON: () => ({}) });
     document.body.appendChild(root);
 
     const viewStub = {

@@ -26,6 +26,7 @@ import {
     normalizeDragSourceVisualStyle,
 } from './settings';
 import { DragLifecycleEvent, DragLifecycleListener } from '../shared/types/drag';
+import { registerMobileToolbarCommands } from './mobile-toolbar-commands';
 
 export default class DragNDropPlugin extends Plugin {
     settings: DragNDropSettings;
@@ -37,6 +38,7 @@ export default class DragNDropPlugin extends Plugin {
 
         // 注册编辑器扩展
         this.registerEditorExtension(dragHandleExtension(this));
+        registerMobileToolbarCommands(this);
         const externalFileDropController = new ExternalFileDropController(this);
         externalFileDropController.register();
 
@@ -68,7 +70,6 @@ export default class DragNDropPlugin extends Plugin {
         this.settings.enableDragSourceHighlight = this.settings.enableDragSourceHighlight !== false;
         this.settings.enableListDropHighlight = this.settings.enableListDropHighlight !== false;
         this.settings.enableCrossFileDrag = this.settings.enableCrossFileDrag === true;
-        this.settings.enableMultiSelectionDeleteButton = this.settings.enableMultiSelectionDeleteButton === true;
         this.settings.multiLineSelectionLongPressMs = normalizeMultiLineSelectionLongPressMs(
             this.settings.multiLineSelectionLongPressMs
         );

@@ -46,8 +46,6 @@ export const en: ZhCnStrings = {
 
     multiLineSelection: 'Multi-line selection',
     multiLineSelectionDesc: 'Disable to keep single-block drag only',
-    enableMultiSelectionDeleteButton: 'Show delete button for multi-select',
-    enableMultiSelectionDeleteButtonDesc: 'When enabled, committed multi-block selections show a delete button near the left selection link',
     multiLineSelectionLongPressMs: 'Multi-line selection long-press duration',
     multiLineSelectionLongPressMsDesc: 'Enter milliseconds (300-2000). On mobile, hold for this duration before entering multi-block selection mode',
     mobileTextLongPressDrag: 'Mobile text long-press drag',

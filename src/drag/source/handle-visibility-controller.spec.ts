@@ -327,8 +327,28 @@ describe('HandleVisibilityController', () => {
         expect(getDraggableBlockAtVerticalPosition).toHaveBeenCalledTimes(1);
         expect(getLineNumberAtVerticalPosition).toHaveBeenCalledTimes(1);
     });
+
+    it('switches from parent list handle to child list handle when moving downward into the child row', () => {
+        const { view } = createViewStub(6);
+        const parentHandle = appendHandleForLine(view, 1);
+        const childHandle = appendHandleForLine(view, 2);
+        const getLineNumberAtVerticalPosition = vi.fn((clientY: number) => clientY < 30 ? 1 : 2);
+        const getDraggableBlockAtVerticalPosition = vi.fn((clientY: number) => clientY < 30
+            ? createBlock(0, 2)
+            : createBlock(1, 1));
+        const controller = new HandleVisibilityController(view, {
+            getBlockInfoForHandle: () => createBlock(0, 2),
+            getLineNumberAtVerticalPosition,
+            getDraggableBlockAtVerticalPosition,
+            getVisibleHandleForBlockStart: (blockStart) => blockStart === 0 ? parentHandle : childHandle,
+        });
+
+        const parentSnapshot = createHoverPointerSnapshot(view, 240, 10, 'left');
+        expect(controller.resolveVisibleHandleFromPointer(parentSnapshot)).toBe(parentHandle);
+        controller.setActiveVisibleHandle(parentHandle);
+
+        const childSnapshot = createHoverPointerSnapshot(view, 240, 42, 'left');
+        expect(controller.resolveVisibleHandleFromPointer(childSnapshot)).toBe(childHandle);
+        expect(getDraggableBlockAtVerticalPosition).toHaveBeenCalledTimes(2);
+    });
 });
-
-
-
-

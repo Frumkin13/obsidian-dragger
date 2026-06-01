@@ -52,8 +52,6 @@ export const zhCn = {
     // Multi-line selection
     multiLineSelection: '多行选取',
     multiLineSelectionDesc: '关闭后仅保留单块拖拽，不进入多行选取流程',
-    enableMultiSelectionDeleteButton: '多选显示删除按钮',
-    enableMultiSelectionDeleteButtonDesc: '开启后，多文本块选中状态会在左侧连线顶部显示删除按钮',
     multiLineSelectionLongPressMs: '多选模式长按时长',
     multiLineSelectionLongPressMsDesc: '输入毫秒数（300-2000），移动端长按达到该时长后进入多文本块选择模式',
     mobileTextLongPressDrag: '移动端文本长按拖拽',

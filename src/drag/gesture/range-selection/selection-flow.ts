@@ -1,4 +1,5 @@
 import { EditorView } from '@codemirror/view';
+import { anchorSelectionBeforeUndoableChange } from '../../move/undo-selection-anchor';
 import { BlockInfo } from '../../../domain/block/block-types';
 import {
     type CommittedRangeSelection,
@@ -16,12 +17,12 @@ import { autoScrollRangeSelection } from './selection-session-flow';
 import { RangeSelectionVisualManager } from './selection-visual-manager';
 import { InteractionState } from '../drag-interaction-state';
 
-export function autoScrollSelectionRange(view: EditorView, clientY: number): void {
+export function autoScrollSelectionRange(view: EditorView, clientY: number): boolean {
     const scroller = view.scrollDOM
         ?? view.dom.querySelector<HTMLElement>('.cm-scroller')
         ?? null;
-    if (!scroller) return;
-    autoScrollRangeSelection(scroller, clientY);
+    if (!scroller) return false;
+    return autoScrollRangeSelection(scroller, clientY);
 }
 
 export function updateSelectionFromBoundary(
@@ -93,6 +94,7 @@ export function deleteCommittedSelectionRange(
     const doc = view.state.doc;
     const changes = buildCommittedRangeDeletionChanges(doc, committed.blocks);
     if (changes.length > 0) {
+        anchorSelectionBeforeUndoableChange(view, committed.selectedBlock.from);
         view.dispatch({ changes });
     }
     rangeVisual.clear();
@@ -113,11 +115,11 @@ export function refreshSelectionVisual(
         rangeVisual.render(gesture.rangeSelect.selectionBlocks);
         return;
     }
+    if (gesture.phase === 'mobile_selecting') {
+        rangeVisual.render(gesture.mobileSelect.selectedBlocks, { highlightLines: true, showMobileResizeHandles: true });
+        return;
+    }
     if (committed) {
         rangeVisual.render(committed.blocks);
     }
 }
-
-
-
-
