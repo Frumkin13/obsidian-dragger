@@ -46,8 +46,6 @@ export const ru: ZhCnStrings = {
 
     multiLineSelection: 'Выбор нескольких блоков',
     multiLineSelectionDesc: 'Отключите, чтобы перетаскивать только один блок за раз',
-    enableMultiSelectionDeleteButton: 'Кнопка удаления при выборе нескольких блоков',
-    enableMultiSelectionDeleteButtonDesc: 'Если включено, при выборе нескольких блоков рядом со ссылкой выделения появляется кнопка удаления',
     multiLineSelectionLongPressMs: 'Длительность долгого нажатия для выбора нескольких блоков',
     multiLineSelectionLongPressMsDesc: 'Укажите в миллисекундах (300-2000). На мобильном удерживайте это время перед входом в режим выбора нескольких блоков',
     mobileTextLongPressDrag: 'Перетаскивание долгим нажатием на мобильном',
