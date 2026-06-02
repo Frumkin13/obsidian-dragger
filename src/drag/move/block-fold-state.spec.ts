@@ -1,6 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import type { App } from 'obsidian';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BlockType } from '../../domain/block/block-types';
 import { createBlockFoldStateManager } from './block-fold-state';
 
@@ -135,5 +135,73 @@ describe('createBlockFoldStateManager', () => {
         expect(state).toEqual({
             collapsedRelativeLineOffsets: [0, 4],
         });
+    });
+
+    it('defers fold restoration until the moved block DOM has updated', () => {
+        vi.useFakeTimers();
+
+        try {
+            let lineElement = createLineElement({ classes: ['is-collapsed'] });
+            const setCursor = vi.fn();
+            const exec = vi.fn();
+            const editor = {
+                listSelections: () => [],
+                getScrollInfo: () => ({ left: 0, top: 0 }),
+                hasFocus: () => false,
+                lineCount: () => 3,
+                setCursor,
+                exec,
+                setSelections: vi.fn(),
+                scrollTo: vi.fn(),
+                blur: vi.fn(),
+            };
+            const view = {
+                state: {
+                    doc: {
+                        line: (lineNumber: number) => ({
+                            from: lineNumber * 10,
+                            text: '- moved',
+                        }),
+                    },
+                },
+                lineBlockAt: (pos: number) => ({ from: pos }),
+                domAtPos: () => ({ node: lineElement }),
+            } as unknown as EditorView;
+            const manager = createBlockFoldStateManager({
+                app: {
+                    workspace: {
+                        getLeavesOfType: () => [{
+                            view: {
+                                getViewType: () => 'markdown',
+                                editor: { cm: view, ...editor },
+                            },
+                        }],
+                    },
+                } as unknown as App,
+                parseLineWithQuote: (line) => ({
+                    text: line,
+                    quotePrefix: '',
+                    quoteDepth: 0,
+                    rest: line,
+                    isListItem: /^\s*[-*+]\s/.test(line),
+                    indentRaw: '',
+                    indentWidth: 0,
+                    marker: '- ',
+                    markerType: 'unordered',
+                    content: line,
+                }),
+            });
+
+            manager.restore(view, 1, { collapsedRelativeLineOffsets: [0] });
+
+            expect(exec).not.toHaveBeenCalled();
+            lineElement = createLineElement();
+            vi.runOnlyPendingTimers();
+
+            expect(setCursor).toHaveBeenCalledWith({ line: 0, ch: 0 });
+            expect(exec).toHaveBeenCalledWith('toggleFold');
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

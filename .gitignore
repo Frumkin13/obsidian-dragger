@@ -30,6 +30,9 @@ Thumbs.db
 # Local env
 .env
 
+# Local CodeGraph index
+.codegraph/
+
 # Logs
 *.log
 npm-debug.log*
