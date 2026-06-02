@@ -10,6 +10,7 @@ import {
 } from '../../drag/drop/rect-calculator';
 import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
 import { LineParsingService } from '../../domain/markdown/line-parsing-service';
+import { isEditorLineCollapsed } from '../../platform/obsidian/editor-fold';
 
 export class GeometryCalculator {
     constructor(
@@ -27,7 +28,15 @@ export class GeometryCalculator {
         }
 
         const block = detectBlock(this.view.state, lineNumber);
-        if (!block || (block.type !== BlockType.CodeBlock && block.type !== BlockType.Table && block.type !== BlockType.MathBlock)) {
+        if (!block) return { lineNumber, blockAdjusted: false };
+
+        const isAtomicBlock = block.type === BlockType.CodeBlock
+            || block.type === BlockType.Table
+            || block.type === BlockType.MathBlock;
+        const isCollapsedBlock = (block.startLine !== block.endLine)
+            && isEditorLineCollapsed(this.view, block.startLine + 1);
+
+        if (!isAtomicBlock && !isCollapsedBlock) {
             return { lineNumber, blockAdjusted: false };
         }
 
