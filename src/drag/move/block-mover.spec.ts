@@ -256,6 +256,44 @@ describe('BlockMover', () => {
         );
     });
 
+    it('preserves a folded target list when a lower folded list moves above it', () => {
+        const initialState = EditorState.create({
+            doc: '- upper\n  - upper child\n- lower\n  - lower child',
+        });
+        const { view, getState } = createMutableView(initialState);
+        const upperFoldState = { collapsedRelativeLineOffsets: [0] };
+        const lowerFoldState = { collapsedRelativeLineOffsets: [0] };
+        const blockFoldState = {
+            capture: vi.fn((_view: EditorView, block: BlockInfo) => (
+                block.content.includes('lower') ? lowerFoldState
+                    : block.content.includes('upper') ? upperFoldState
+                        : null
+            )),
+            restore: vi.fn(),
+        };
+        const mover = new BlockMover({
+            view,
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
+            getListContext: () => null,
+            getIndentUnitWidth: () => 2,
+            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            blockFoldState,
+        });
+
+        mover.moveBlock({
+            sourceBlock: createListBlock(initialState.doc, 3, 4),
+            dropPlan: dropPlan(1),
+        });
+
+        expect(getState().doc.toString()).toBe('- lower\n  - lower child\n- upper\n  - upper child');
+        expect(blockFoldState.restore).toHaveBeenNthCalledWith(1, view, 1, lowerFoldState);
+        expect(blockFoldState.restore).toHaveBeenNthCalledWith(2, view, 3, upperFoldState);
+    });
+
     it('restores heading fold state at the shifted target line after a downward same-editor move', () => {
         const initialState = EditorState.create({ doc: '# parent\nbody\n## child\nchild body\nafter\nlast' });
         const { view } = createMutableView(initialState);

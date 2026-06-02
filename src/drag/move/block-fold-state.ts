@@ -43,28 +43,15 @@ export function createBlockFoldStateManager(params: {
             const collapsedRelativeLineOffsets = foldState?.collapsedRelativeLineOffsets ?? [];
             if (collapsedRelativeLineOffsets.length === 0) return;
 
-            const targetLineNumbers = collapsedRelativeLineOffsets.map(
-                (relativeOffset) => targetStartLineNumber + relativeOffset
-            );
-            scheduleFoldRestore(() => toggleLineFolds({
+            toggleLineFolds({
                 app,
                 view,
-                targetLineNumbers,
-            }));
+                targetLineNumbers: collapsedRelativeLineOffsets.map(
+                    (relativeOffset) => targetStartLineNumber + relativeOffset
+                ),
+            });
         },
     };
-}
-
-function scheduleFoldRestore(callback: () => void): void {
-    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-        window.requestAnimationFrame(() => callback());
-        return;
-    }
-    if (typeof window !== 'undefined' && typeof window.setTimeout === 'function') {
-        window.setTimeout(callback, 0);
-        return;
-    }
-    setTimeout(callback, 0);
 }
 
 function isBlockFoldStateSupported(sourceBlock: BlockInfo): boolean {

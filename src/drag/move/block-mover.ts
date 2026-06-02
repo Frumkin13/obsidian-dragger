@@ -1,5 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../domain/block/block-types';
+import { detectBlock } from '../../domain/block/block-detector';
 import { validateInPlaceDrop } from '../../domain/rules/drop-validation';
 import { getLineMap } from '../../domain/markdown/line-map';
 import { DocLikeWithRange, DropPlan } from '../../shared/types/protocol-types';
@@ -70,6 +71,7 @@ export class BlockMover {
             source,
             dropPlan,
             capturedBlockFoldState,
+            preserveDisplacedTargetFoldState: (sourceBlock.compositeSelection?.ranges?.length ?? 0) <= 1,
         });
     }
 
@@ -77,8 +79,9 @@ export class BlockMover {
         source: CapturedMoveSource;
         dropPlan: DropPlan;
         capturedBlockFoldState?: CapturedBlockFoldState | null;
+        preserveDisplacedTargetFoldState: boolean;
     }): void {
-        const { source, dropPlan, capturedBlockFoldState } = params;
+        const { source, dropPlan, capturedBlockFoldState, preserveDisplacedTargetFoldState } = params;
         const view = this.deps.view;
         const doc = view.state.doc as unknown as DocLikeWithRange;
         const { block: sourceBlock, payload } = source;
@@ -130,6 +133,13 @@ export class BlockMover {
         }
 
         const firstSegment = payload.segments[0];
+        const displacedTargetFoldState = preserveDisplacedTargetFoldState
+            ? this.captureDisplacedTargetFoldState({
+                sourceBlock,
+                targetLineNumber,
+                insertedLineCount: this.countInsertedLines(insertion.text),
+            })
+            : null;
         anchorSelectionBeforeUndoableChange(view, sourceBlock.from);
         if (allowInPlaceIndentChange && insertion.pos === firstSegment.deleteFrom) {
             view.dispatch({
@@ -157,10 +167,41 @@ export class BlockMover {
             this.listRenumberer.renumberOrderedListAround(lineNumber);
         }
         this.deps.blockFoldState?.restore(view, targetStartLineNumber, capturedBlockFoldState ?? null);
+        if (displacedTargetFoldState) {
+            this.deps.blockFoldState?.restore(
+                view,
+                displacedTargetFoldState.targetStartLineNumber,
+                displacedTargetFoldState.foldState
+            );
+        }
     }
 
     private captureBlockFoldState(sourceView: EditorView, sourceBlock: BlockInfo): CapturedBlockFoldState | null {
         return this.deps.blockFoldState?.capture(sourceView, sourceBlock) ?? null;
+    }
+
+    private captureDisplacedTargetFoldState(params: {
+        sourceBlock: BlockInfo;
+        targetLineNumber: number;
+        insertedLineCount: number;
+    }): { targetStartLineNumber: number; foldState: CapturedBlockFoldState } | null {
+        if (!this.deps.blockFoldState) return null;
+        const { sourceBlock, targetLineNumber, insertedLineCount } = params;
+        const targetBlock = detectBlock(this.deps.view.state, targetLineNumber);
+        if (!targetBlock) return null;
+        if (targetLineNumber !== targetBlock.startLine + 1) return null;
+        if (sourceBlock.startLine <= targetBlock.startLine) return null;
+
+        const foldState = this.deps.blockFoldState.capture(this.deps.view, targetBlock);
+        if (!foldState) return null;
+        return {
+            targetStartLineNumber: targetBlock.startLine + 1 + insertedLineCount,
+            foldState,
+        };
+    }
+
+    private countInsertedLines(insertText: string): number {
+        return insertText.split('\n').length - 1;
     }
 
     private resolveFinalInsertedStartLineNumber(targetLineNumber: number, payload: CapturedMoveSource['payload']): number {
