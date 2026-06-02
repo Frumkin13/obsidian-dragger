@@ -3,6 +3,7 @@ import { BlockInfo } from '../../domain/block/block-types';
 import { detectBlock } from '../../domain/block/block-detector';
 import { validateInPlaceDrop } from '../../domain/rules/drop-validation';
 import { getLineMap } from '../../domain/markdown/line-map';
+import { getNextNonEmptyLineNumber } from '../../domain/rules/container-policy';
 import { DocLikeWithRange, DropPlan } from '../../shared/types/protocol-types';
 import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
 import { ListRenumberer } from './list-renumberer';
@@ -187,9 +188,8 @@ export class BlockMover {
     }): { targetStartLineNumber: number; foldState: CapturedBlockFoldState } | null {
         if (!this.deps.blockFoldState) return null;
         const { sourceBlock, targetLineNumber, insertedLineCount } = params;
-        const targetBlock = detectBlock(this.deps.view.state, targetLineNumber);
+        const targetBlock = this.resolveDisplacedTargetBlock(targetLineNumber);
         if (!targetBlock) return null;
-        if (targetLineNumber !== targetBlock.startLine + 1) return null;
         if (sourceBlock.startLine <= targetBlock.startLine) return null;
 
         const foldState = this.deps.blockFoldState.capture(this.deps.view, targetBlock);
@@ -198,6 +198,26 @@ export class BlockMover {
             targetStartLineNumber: targetBlock.startLine + 1 + insertedLineCount,
             foldState,
         };
+    }
+
+    private resolveDisplacedTargetBlock(targetLineNumber: number): BlockInfo | null {
+        const state = this.deps.view.state;
+        const doc = state.doc;
+        if (targetLineNumber < 1 || targetLineNumber > doc.lines) return null;
+
+        const targetBlock = detectBlock(state, targetLineNumber);
+        if (targetBlock) {
+            return targetLineNumber === targetBlock.startLine + 1
+                ? targetBlock
+                : null;
+        }
+
+        const lineMap = getLineMap(state);
+        const nextNonEmptyLineNumber = getNextNonEmptyLineNumber(doc, targetLineNumber, lineMap);
+        if (nextNonEmptyLineNumber === null) return null;
+        const nextBlock = detectBlock(state, nextNonEmptyLineNumber);
+        if (!nextBlock || nextNonEmptyLineNumber !== nextBlock.startLine + 1) return null;
+        return nextBlock;
     }
 
     private countInsertedLines(insertText: string): number {
