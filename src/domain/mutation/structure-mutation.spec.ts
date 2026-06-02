@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BlockType } from '../block/block-types';
-import { buildInsertText, getBlockquoteDepthContext } from './structure-mutation';
+import { buildInsertText } from './list-mutation';
+import { getBlockquoteDepthContext } from './text-mutation';
 
 function createDoc(lines: string[]) {
     return {

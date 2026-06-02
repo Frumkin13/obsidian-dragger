@@ -2,10 +2,12 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
-import { TextMutationPolicy } from '../../domain/mutation/text-mutation-policy';
+import { buildInsertTextForDrop } from '../../domain/mutation/text-mutation-policy';
 import { BlockMover } from './block-mover';
-import { LineParsingService } from '../../domain/markdown/line-parsing-service';
+import { createLineParsingContext } from '../../domain/markdown/line-parsing-service';
 import { parseLineWithQuote } from '../../domain/markdown/line-parser';
+import { getListContext } from '../../domain/mutation/list-mutation';
+import { ListDropIntent } from '../../shared/types/protocol-types';
 
 function dropPlan(targetLineNumber: number, listIntent?: { contextLineNumber?: number; indentDelta?: number; targetIndentWidth?: number }) {
     return { targetLineNumber, listIntent, preview: { indicatorY: 0 } };
@@ -109,8 +111,28 @@ function createLinkedViews(state: EditorState): {
     };
 }
 
-function createTextMutationPolicy(view: EditorView): TextMutationPolicy {
-    return new TextMutationPolicy(new LineParsingService(view));
+function createTextMutationDeps(view: EditorView) {
+    const lineParsing = createLineParsingContext(view);
+    return {
+        parseLineWithQuote: lineParsing.parseLine,
+        getListContext: (doc: EditorState['doc'], lineNumber: number) =>
+            getListContext(doc, lineNumber, lineParsing.parseLine),
+        getIndentUnitWidth: lineParsing.getIndentUnitWidth,
+        buildInsertText: (
+            doc: EditorState['doc'],
+            sourceBlock: BlockInfo,
+            targetLineNumber: number,
+            sourceContent: string,
+            listIntent?: ListDropIntent
+        ) => buildInsertTextForDrop({
+            lineParsing,
+            doc,
+            sourceBlock,
+            targetLineNumber,
+            sourceContent,
+            listIntent,
+        }),
+    };
 }
 
 describe('BlockMover', () => {
@@ -356,17 +378,14 @@ describe('BlockMover', () => {
     it('applies list indent intent when moving a disjoint multi-selection as one group', () => {
         const initialState = EditorState.create({ doc: '- parent\ntail\n- a\nmid\n- b\nend' });
         const { view, getState } = createMutableView(initialState);
-        const textMutationPolicy = createTextMutationPolicy(view);
+        const textMutation = createTextMutationDeps(view);
         const mover = new BlockMover({
             view,
             resolveDropRuleAtInsertion: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => textMutationPolicy.parseLineWithQuote(line),
-            getListContext: (doc, lineNumber) => textMutationPolicy.getListContext(doc, lineNumber),
-            getIndentUnitWidth: (sample) => textMutationPolicy.getIndentUnitWidth(sample),
-            buildInsertText: (...args) => textMutationPolicy.buildInsertText(...args),
+            ...textMutation,
         });
 
         const line3 = initialState.doc.line(3);

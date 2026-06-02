@@ -9,31 +9,22 @@ import {
     parseLineWithQuote,
 } from './indent-calculator';
 
-export class LineParsingService {
-    constructor(private readonly view: EditorView) { }
+export interface LineParsingContext {
+    getTabSize: () => number;
+    parseLine: (line: string) => ParsedLine;
+    getIndentUnitWidth: (sample: string) => number;
+    getIndentUnitWidthForDoc: (doc: DocLike) => number;
+    buildIndentStringFromSample: (sample: string, width: number) => string;
+}
 
-    getTabSize(state?: EditorState): number {
-        return normalizeTabSize((state ?? this.view.state).facet(EditorState.tabSize));
-    }
-
-    parseLine(line: string, state?: EditorState): ParsedLine {
-        return parseLineWithQuote(line, this.getTabSize(state));
-    }
-
-    getIndentUnitWidth(sample: string, state?: EditorState): number {
-        return getIndentUnitWidth(sample, this.getTabSize(state));
-    }
-
-    getIndentUnitWidthForDoc(doc: DocLike, state?: EditorState): number {
-        const activeState = state ?? this.view.state;
-        return getIndentUnitWidthForDoc(
-            doc,
-            (line) => this.parseLine(line, activeState),
-            this.getTabSize(activeState)
-        );
-    }
-
-    buildIndentStringFromSample(sample: string, width: number, state?: EditorState): string {
-        return buildIndentStringFromSample(sample, width, this.getTabSize(state));
-    }
+export function createLineParsingContext(view: EditorView): LineParsingContext {
+    const getTabSize = () => normalizeTabSize(view.state.facet(EditorState.tabSize));
+    const parseLine = (line: string) => parseLineWithQuote(line, getTabSize());
+    return {
+        getTabSize,
+        parseLine,
+        getIndentUnitWidth: (sample: string) => getIndentUnitWidth(sample, getTabSize()),
+        getIndentUnitWidthForDoc: (doc: DocLike) => getIndentUnitWidthForDoc(doc, parseLine, getTabSize()),
+        buildIndentStringFromSample: (sample: string, width: number) => buildIndentStringFromSample(sample, width, getTabSize()),
+    };
 }

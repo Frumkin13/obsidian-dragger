@@ -1,7 +1,7 @@
 import type { EditorView } from '@codemirror/view';
 import type { App, MarkdownView, TFile } from 'obsidian';
 import { BlockInfo } from '../../domain/block/block-types';
-import { LineParsingService } from '../../domain/markdown/line-parsing-service';
+import { createLineParsingContext } from '../../domain/markdown/line-parsing-service';
 import { DocLikeWithRange } from '../../shared/types/protocol-types';
 import { getCodeMirrorView } from '../../platform/obsidian/editor-view';
 import { ListRenumberer } from './list-renumberer';
@@ -130,7 +130,7 @@ export class FileBlockMover {
     }
 
     private renumberSourceLists(sourceView: EditorView, payload: SourcePayload): void {
-        const lineParsing = new LineParsingService(sourceView);
+        const lineParsing = createLineParsingContext(sourceView);
         const renumberer = new ListRenumberer({
             view: sourceView,
             parseLineWithQuote: (line) => lineParsing.parseLine(line),

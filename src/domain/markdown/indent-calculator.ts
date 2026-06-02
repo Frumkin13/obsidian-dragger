@@ -1,9 +1,5 @@
 import { DocLike, ParsedLine } from '../../shared/types/protocol-types';
 import { parseLineWithQuote as parseLineWithQuoteByTabSize } from './line-parser';
-import {
-    buildIndentStringFromSample as buildIndentStringFromSampleText,
-    getIndentUnitWidth as getIndentUnitWidthFromSample,
-} from './indent-helpers';
 
 const indentUnitWidthCache = new WeakMap<object, number>();
 
@@ -14,6 +10,25 @@ export function normalizeTabSize(tabSize?: number): number {
 
 export function parseLineWithQuote(line: string, tabSize: number): ParsedLine {
     return parseLineWithQuoteByTabSize(line, normalizeTabSize(tabSize));
+}
+
+export function buildIndentStringFromSample(sample: string, width: number, tabSize: number): string {
+    const safeTabSize = normalizeTabSize(tabSize);
+    const safeWidth = Math.max(0, width);
+    if (safeWidth === 0) return '';
+    if (sample.includes('\t')) {
+        const tabs = Math.max(0, Math.floor(safeWidth / safeTabSize));
+        const spaces = Math.max(0, safeWidth - tabs * safeTabSize);
+        return '\t'.repeat(tabs) + ' '.repeat(spaces);
+    }
+    return ' '.repeat(safeWidth);
+}
+
+export function getIndentUnitWidth(sample: string, tabSize: number): number {
+    const safeTabSize = normalizeTabSize(tabSize);
+    if (sample.includes('\t')) return safeTabSize;
+    if (sample.length >= safeTabSize) return safeTabSize;
+    return sample.length > 0 ? sample.length : safeTabSize;
 }
 
 export function getIndentUnitWidthFromDoc(
@@ -58,12 +73,4 @@ export function getIndentUnitWidthForDoc(
         indentUnitWidthCache.set(doc, resolved);
     }
     return resolved;
-}
-
-export function buildIndentStringFromSample(sample: string, width: number, tabSize: number): string {
-    return buildIndentStringFromSampleText(sample, width, normalizeTabSize(tabSize));
-}
-
-export function getIndentUnitWidth(sample: string, tabSize: number): number {
-    return getIndentUnitWidthFromSample(sample, normalizeTabSize(tabSize));
 }

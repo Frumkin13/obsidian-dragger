@@ -2,16 +2,22 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import { BlockInfo, BlockType } from '../block/block-types';
-import { LineParsingService } from '../markdown/line-parsing-service';
-import { TextMutationPolicy } from './text-mutation-policy';
+import { createLineParsingContext } from '../markdown/line-parsing-service';
+import { buildInsertTextForDrop } from './text-mutation-policy';
 
-function createPolicy(docText: string): { policy: TextMutationPolicy; doc: EditorState['doc'] } {
+function createPolicy(docText: string) {
     const state = EditorState.create({ doc: docText });
     const view = { state } as unknown as EditorView;
-    const lineParsingService = new LineParsingService(view);
+    const lineParsing = createLineParsingContext(view);
     return {
-        policy: new TextMutationPolicy(lineParsingService),
-        doc: state.doc,
+        buildInsertText: (sourceBlock: BlockInfo, targetLineNumber: number, sourceContent: string) =>
+            buildInsertTextForDrop({
+                lineParsing,
+                doc: state.doc,
+                sourceBlock,
+                targetLineNumber,
+                sourceContent,
+            }),
     };
 }
 
@@ -27,30 +33,30 @@ function createBlock(type: BlockType, content: string): BlockInfo {
     };
 }
 
-describe('TextMutationPolicy', () => {
+describe('buildInsertTextForDrop', () => {
     it('keeps callout quote markers when building insert text', () => {
-        const { policy, doc } = createPolicy('paragraph');
+        const { buildInsertText } = createPolicy('paragraph');
         const sourceBlock = createBlock(BlockType.Callout, '> [!TIP]\n> keep marker');
 
-        const insertText = policy.buildInsertText(doc, sourceBlock, 2, sourceBlock.content);
+        const insertText = buildInsertText(sourceBlock, 2, sourceBlock.content);
 
         expect(insertText).toBe('> [!TIP]\n> keep marker\n');
     });
 
     it('keeps source list marker type when inserting into task context', () => {
-        const { policy, doc } = createPolicy('- [ ] existing task');
+        const { buildInsertText } = createPolicy('- [ ] existing task');
         const sourceBlock = createBlock(BlockType.ListItem, '- moved item');
 
-        const insertText = policy.buildInsertText(doc, sourceBlock, 2, sourceBlock.content);
+        const insertText = buildInsertText(sourceBlock, 2, sourceBlock.content);
 
         expect(insertText).toBe('- moved item\n');
     });
 
     it('keeps task marker when inserting near unordered list context', () => {
-        const { policy, doc } = createPolicy('- existing bullet');
+        const { buildInsertText } = createPolicy('- existing bullet');
         const sourceBlock = createBlock(BlockType.ListItem, '- [ ] keep task');
 
-        const insertText = policy.buildInsertText(doc, sourceBlock, 2, sourceBlock.content);
+        const insertText = buildInsertText(sourceBlock, 2, sourceBlock.content);
 
         expect(insertText).toBe('- [ ] keep task\n');
     });

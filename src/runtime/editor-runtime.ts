@@ -19,7 +19,7 @@ import { getVisibleHandleForBlockStart } from '../drag/source/handle-renderer';
 import { HandleVisibilityController } from '../drag/source/handle-visibility-controller';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
-import { DragDropServiceContainer } from './drag-service-container';
+import { createEditorContext, EditorContext } from './drag-service-container';
 import { DragLifecycleEmitter } from './drag-lifecycle-emitter';
 import { buildListIntent } from '../shared/utils/drop-protocol';
 import { buildDragTargetChangedLifecycleEvent, buildIdleLifecycleEvent } from '../drag/gesture/drag-lifecycle-flow';
@@ -53,7 +53,7 @@ import { openBlockTypeMenu } from '../plugin/block-type-menu';
 export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
     return class {
         private readonly view: EditorView;
-        private readonly services: DragDropServiceContainer;
+        private readonly context: EditorContext;
         private readonly dropIndicator: DropIndicatorManager;
         private readonly blockMover: BlockMover;
         private readonly dropPlanner: DropPlanner;
@@ -76,17 +76,17 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
             this.view = view;
             this.cachedHandleGutterSide = this.resolveConfiguredHandleGutterSide();
             this.syncViewDomState();
-            this.services = new DragDropServiceContainer(this.view);
+            this.context = createEditorContext(this.view);
             this.handleVisibility = new HandleVisibilityController(this.view, {
-                getBlockInfoForHandle: (handle) => this.services.dragSource.getBlockInfoForHandle(handle),
-                getLineNumberAtVerticalPosition: (clientY, contentRect) => this.services.dragSource.getLineNumberAtVerticalPosition(clientY, contentRect),
-                getDraggableBlockAtVerticalPosition: (clientY, contentRect) => this.services.dragSource.getDraggableBlockAtVerticalPosition(clientY, contentRect),
+                getBlockInfoForHandle: (handle) => this.context.dragSource.getBlockInfoForHandle(handle),
+                getLineNumberAtVerticalPosition: (clientY, contentRect) => this.context.dragSource.getLineNumberAtVerticalPosition(clientY, contentRect),
+                getDraggableBlockAtVerticalPosition: (clientY, contentRect) => this.context.dragSource.getDraggableBlockAtVerticalPosition(clientY, contentRect),
                 getVisibleHandleForBlockStart: (blockStart) => getVisibleHandleForBlockStart(this.view, blockStart),
             });
             this.dragPerfManager = new DragPerfSessionManager(this.view);
             this.dropPlanner = new DropPlanner(this.view, createDropPlannerDeps({
                 view: this.view,
-                services: this.services,
+                context: this.context,
                 dragPerfManager: this.dragPerfManager,
             }));
             this.dropIndicator = new DropIndicatorManager(view, (info) =>
@@ -124,16 +124,15 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 }
             );
             this.blockMover = new BlockMover({
-                view: this.view,
-                ...this.services.createBlockMoverDeps(),
+                ...this.context,
                 blockFoldState: createBlockFoldStateManager({
                     app: plugin.app,
-                    parseLineWithQuote: (line) => this.services.textMutation.parseLineWithQuote(line),
+                    parseLineWithQuote: this.context.parseLineWithQuote,
                 }),
             });
             this.orchestrator = new DragInteractionOrchestrator({
                 view: this.view,
-                services: this.services,
+                context: this.context,
                 blockMover: this.blockMover,
                 dropPlanner: this.dropPlanner,
                 handleVisibility: this.handleVisibility,

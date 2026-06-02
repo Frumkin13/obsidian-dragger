@@ -1,8 +1,9 @@
+import { BlockType } from '../block/block-types';
 import { DocLike, ListContext, ListContextValue, ListDropIntent, MarkerType, ParsedLine } from '../../shared/types/protocol-types';
 import {
     buildIndentStringFromSample as buildIndentStringFromIndentSample,
     getIndentUnitWidth as getIndentUnitWidthFromIndentSample,
-} from '../markdown/indent-helpers';
+} from '../markdown/indent-calculator';
 
 export type MarkerConversionScope = 'none' | 'root' | 'all';
 
@@ -249,4 +250,27 @@ export function adjustListToTargetContext(params: {
     });
 
     return quoteAdjustedLines.join('\n');
+}
+
+export function buildInsertText(params: {
+    sourceBlockType: BlockType;
+    sourceContent: string;
+    adjustListToTargetContext: (sourceContent: string) => string;
+}): string {
+    const {
+        sourceBlockType,
+        sourceContent,
+        adjustListToTargetContext: adjustListToTargetContextFn,
+    } = params;
+
+    let text = sourceContent;
+
+    // Quote line moves should behave like plain text moves:
+    // keep source content unchanged instead of re-shaping markers/indent by target list context.
+    if (sourceBlockType !== BlockType.Blockquote) {
+        text = adjustListToTargetContextFn(text);
+    }
+
+    text += '\n';
+    return text;
 }

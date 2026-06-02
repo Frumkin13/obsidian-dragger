@@ -9,13 +9,13 @@ import {
     getBlockRect as getBlockRectByRange,
 } from '../../drag/drop/rect-calculator';
 import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
-import { LineParsingService } from '../../domain/markdown/line-parsing-service';
+import { LineParsingContext } from '../../domain/markdown/line-parsing-service';
 import { isEditorLineCollapsed } from '../../platform/obsidian/editor-fold';
 
 export class GeometryCalculator {
     constructor(
         private readonly view: EditorView,
-        private readonly lineParsingService: LineParsingService
+        private readonly lineParsing: LineParsingContext
     ) { }
 
     getAdjustedTargetLocation(
@@ -78,7 +78,7 @@ export class GeometryCalculator {
             this.view,
             lineNumber,
             targetIndentWidth,
-            this.lineParsingService.getTabSize()
+            this.lineParsing.getTabSize()
         );
     }
 

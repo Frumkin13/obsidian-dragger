@@ -8,7 +8,7 @@ import {
 import { buildCancelledLifecycleEvent, buildDropCommitLifecycleEvent } from './drag-lifecycle-flow';
 import { DragLifecycleEmitter } from '../../runtime/drag-lifecycle-emitter';
 import { buildListIntent } from '../../shared/utils/drop-protocol';
-import { DragDropServiceContainer } from '../../runtime/drag-service-container';
+import { EditorContext } from '../../runtime/drag-service-container';
 import { BlockMover } from '../move/block-mover';
 import { DropPlanner } from '../drop/drop-planner';
 import { HandleVisibilityController } from '../source/handle-visibility-controller';
@@ -17,7 +17,7 @@ import { getActiveDragSourceView } from './drag-session';
 
 export interface DragInteractionOrchestratorDeps {
     view: EditorView;
-    services: DragDropServiceContainer;
+    context: EditorContext;
     blockMover: BlockMover;
     dropPlanner: DropPlanner;
     handleVisibility: HandleVisibilityController;
@@ -31,7 +31,7 @@ export interface DragInteractionOrchestratorDeps {
 
 export class DragInteractionOrchestrator {
     private readonly view: EditorView;
-    private readonly services: DragDropServiceContainer;
+    private readonly context: EditorContext;
     private readonly blockMover: BlockMover;
     private readonly dropPlanner: DropPlanner;
     private readonly handleVisibility: HandleVisibilityController;
@@ -44,7 +44,7 @@ export class DragInteractionOrchestrator {
 
     constructor(deps: DragInteractionOrchestratorDeps) {
         this.view = deps.view;
-        this.services = deps.services;
+        this.context = deps.context;
         this.blockMover = deps.blockMover;
         this.dropPlanner = deps.dropPlanner;
         this.handleVisibility = deps.handleVisibility;
@@ -124,7 +124,7 @@ export class DragInteractionOrchestrator {
             if (params.handle) {
                 let fromHandle: BlockInfo | null = null;
                 try {
-                    fromHandle = this.services.dragSource.getBlockInfoForHandle(params.handle);
+                    fromHandle = this.context.dragSource.getBlockInfoForHandle(params.handle);
                 } catch {
                     fromHandle = null;
                 }
@@ -137,7 +137,7 @@ export class DragInteractionOrchestrator {
             if (Number.isFinite(params.clientX) && Number.isFinite(params.clientY)) {
                 let fromPoint: BlockInfo | null = null;
                 try {
-                    fromPoint = this.services.dragSource.getDraggableBlockAtPoint(params.clientX, params.clientY);
+                    fromPoint = this.context.dragSource.getDraggableBlockAtPoint(params.clientX, params.clientY);
                 } catch {
                     fromPoint = null;
                 }
@@ -162,7 +162,7 @@ export class DragInteractionOrchestrator {
 
         if (Number.isFinite(params.clientX) && Number.isFinite(params.clientY)) {
             try {
-                const fromPoint = this.services.dragSource.getDraggableBlockAtPoint(params.clientX, params.clientY);
+                const fromPoint = this.context.dragSource.getDraggableBlockAtPoint(params.clientX, params.clientY);
                 if (fromPoint) {
                     this.syncHandleBlockAttributes(params.handle ?? null, fromPoint);
                     return fromPoint;
