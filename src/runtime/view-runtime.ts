@@ -1,6 +1,8 @@
 import { EditorView } from '@codemirror/view';
 import { getPreviousNonEmptyLineNumber } from '../domain/rules/container-policy';
 import { DropPlannerDeps, DropPlannerSharedDeps } from '../drag/drop/drop-planner';
+import { BlockFoldStateManager } from '../drag/move/block-fold-state';
+import { BlockMoverDeps } from '../drag/move/block-mover-deps';
 import { EditorContext } from './drag-service-container';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
 import { ListDropPlanner } from '../drag/drop/list-drop-planner';
@@ -11,7 +13,17 @@ export function createDropPlannerDeps(params: {
     dragPerfManager: DragPerfSessionManager;
 }): DropPlannerDeps {
     const sharedDeps: DropPlannerSharedDeps = {
-        ...params.context,
+        parseLineWithQuote: params.context.parseLineWithQuote,
+        getAdjustedTargetLocation: params.context.getAdjustedTargetLocation,
+        resolveDropRuleAtInsertion: params.context.resolveDropRuleAtInsertion,
+        getListContext: params.context.getListContext,
+        getIndentUnitWidth: params.context.getIndentUnitWidth,
+        getBlockInfoForEmbed: params.context.getBlockInfoForEmbed,
+        getIndentUnitWidthForDoc: params.context.getIndentUnitWidthForDoc,
+        getLineRect: params.context.getLineRect,
+        getInsertionAnchorY: params.context.getInsertionAnchorY,
+        getLineIndentPosByWidth: params.context.getLineIndentPosByWidth,
+        getBlockRect: params.context.getBlockRect,
         recordPerfDuration: (key, durationMs) => {
             params.dragPerfManager.recordDuration(key, durationMs);
         },
@@ -28,6 +40,21 @@ export function createDropPlannerDeps(params: {
             getBlockRect: sharedDeps.getBlockRect,
             incrementPerfCounter: sharedDeps.incrementPerfCounter,
         }),
+    };
+}
+
+export function createBlockMoverDeps(params: {
+    context: EditorContext;
+    blockFoldState: BlockFoldStateManager;
+}): BlockMoverDeps {
+    return {
+        view: params.context.view,
+        resolveDropRuleAtInsertion: params.context.resolveDropRuleAtInsertion,
+        parseLineWithQuote: params.context.parseLineWithQuote,
+        getListContext: params.context.getListContext,
+        getIndentUnitWidth: params.context.getIndentUnitWidth,
+        buildInsertText: params.context.buildInsertText,
+        blockFoldState: params.blockFoldState,
     };
 }
 

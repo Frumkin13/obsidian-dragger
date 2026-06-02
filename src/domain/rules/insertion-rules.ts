@@ -1,11 +1,4 @@
 import { BlockType } from '../block/block-types';
-import {
-    isBlockquoteLine,
-    isCalloutLine,
-    isHorizontalRuleLine,
-    isListItemLine,
-    isTableLine,
-} from '../block/block-guards';
 
 export type InsertionSlotContext =
     | 'inside_list'
@@ -77,45 +70,6 @@ const REJECT_RULES: ReadonlyMap<RuleKey, InsertionRuleRejectReason> = new Map<Ru
     ...rejectEntries(ALL_TYPES, 'table_before', 'table_before'),
     ...rejectEntries(ALL_TYPES, 'hr_before', 'hr_before'),
 ]);
-
-export function inferSlotContextFromAdjacentLines(input: {
-    prevText: string | null;
-    nextText: string | null;
-}): InsertionSlotContext {
-    const { prevText, nextText } = input;
-    const prevIsQuoteLike = isBlockquoteLine(prevText);
-    const nextIsQuoteLike = isBlockquoteLine(nextText);
-
-    if (isCalloutLine(prevText) && !nextIsQuoteLike) {
-        return 'callout_after';
-    }
-
-    const nextIsTable = isTableLine(nextText);
-    const prevIsTable = isTableLine(prevText);
-    if (nextIsTable && !prevIsTable) {
-        return 'table_before';
-    }
-
-    if (isHorizontalRuleLine(nextText)) {
-        return 'hr_before';
-    }
-
-    if (prevIsQuoteLike && nextIsQuoteLike) {
-        return 'inside_quote_run';
-    }
-    if (!prevIsQuoteLike && nextIsQuoteLike) {
-        return 'quote_before';
-    }
-    if (prevIsQuoteLike && !nextIsQuoteLike) {
-        return 'quote_after';
-    }
-
-    if (isListItemLine(prevText) && isListItemLine(nextText)) {
-        return 'inside_list';
-    }
-
-    return 'outside';
-}
 
 export function resolveInsertionRule(input: InsertionRuleInput): InsertionRuleDecision {
     const key: RuleKey = `${input.sourceType}|${input.slotContext}`;

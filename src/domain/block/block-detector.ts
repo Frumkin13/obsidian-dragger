@@ -171,47 +171,6 @@ function getBlockquoteContainerRange(doc: Text, lineNumber: number, depth: numbe
     return { startLine, endLine };
 }
 
-function getListItemOwnRange(doc: Text, lineNumber: number, tabSize: number): { startLine: number; endLine: number } {
-    const lineText = doc.line(lineNumber).text;
-    const currentInfo = parseListMarker(lineText, tabSize);
-    const currentIndent = currentInfo.indentWidth;
-    let endLine = lineNumber;
-
-    for (let i = lineNumber + 1; i <= doc.lines; i++) {
-        const nextLine = doc.line(i);
-        const nextText = nextLine.text;
-
-        if (nextText.trim().length === 0) {
-            // 空行仅在后续有缩进续行时归属当前项
-            const lookahead = findNextNonEmptyLine(doc, i + 1, tabSize);
-            if (!lookahead || lookahead.indentWidth <= currentIndent || lookahead.isListItem) {
-                break;
-            }
-            endLine = i;
-            continue;
-        }
-
-        const nextInfo = parseListMarker(nextText, tabSize);
-        if (nextInfo.isListItem) {
-            break;
-        }
-
-        const nextIndent = getIndentWidth(nextText, tabSize);
-        const nextType = detectBlockType(nextText);
-        if (nextType !== BlockType.Paragraph) {
-            break;
-        }
-        if (nextIndent > currentIndent) {
-            endLine = i;
-            continue;
-        }
-
-        break;
-    }
-
-    return { startLine: lineNumber, endLine };
-}
-
 function getListItemSubtreeRange(doc: Text, lineNumber: number, tabSize: number): { startLine: number; endLine: number } {
     const lineText = doc.line(lineNumber).text;
     const currentInfo = parseListMarker(lineText, tabSize);
@@ -468,14 +427,3 @@ export function detectBlock(state: EditorState | { doc: { lines: number; line: (
     return detected;
 }
 
-export function getListItemOwnRangeForHandle(state: EditorState, lineNumber: number): { startLine: number; endLine: number } | null {
-    const doc = state.doc;
-    if (lineNumber < 1 || lineNumber > doc.lines) return null;
-    const lineText = doc.line(lineNumber).text;
-    const blockType = detectBlockType(lineText);
-    const tabSize = state.facet(EditorState.tabSize) || 2;
-    if (blockType === BlockType.ListItem) {
-        return getListItemOwnRange(doc, lineNumber, tabSize);
-    }
-    return null;
-}

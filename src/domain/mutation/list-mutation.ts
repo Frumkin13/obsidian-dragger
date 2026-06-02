@@ -1,31 +1,5 @@
 import { BlockType } from '../block/block-types';
-import { DocLike, ListContext, ListContextValue, ListDropIntent, MarkerType, ParsedLine } from '../../shared/types/protocol-types';
-import {
-    buildIndentStringFromSample as buildIndentStringFromIndentSample,
-    getIndentUnitWidth as getIndentUnitWidthFromIndentSample,
-} from '../markdown/indent-calculator';
-
-export type MarkerConversionScope = 'none' | 'root' | 'all';
-
-export function buildTargetMarker(
-    target: Pick<ListContextValue, 'markerType'>,
-    source: { markerType: MarkerType; marker: string }
-): string {
-    if (target.markerType === 'ordered') return '1. ';
-    if (target.markerType === 'task') {
-        if (source.markerType === 'task') return source.marker.replace(/^\s*[-*+]\s\[[ xX]\]\s+/, '- [ ] ');
-        return '- [ ] ';
-    }
-    return '- ';
-}
-
-export function buildIndentStringFromSample(sample: string, width: number, tabSize: number): string {
-    return buildIndentStringFromIndentSample(sample, width, tabSize);
-}
-
-export function getIndentUnitWidth(sample: string, tabSize: number): number {
-    return getIndentUnitWidthFromIndentSample(sample, tabSize);
-}
+import { DocLike, ListContext, ListContextValue, ListDropIntent, ParsedLine } from '../../shared/types/protocol-types';
 
 export function getListContext(
     doc: DocLike,
@@ -186,8 +160,6 @@ export function adjustListToTargetContext(params: {
     parseLineWithQuote: (line: string) => ParsedLine;
     getIndentUnitWidth: (sample: string) => number;
     buildIndentStringFromSample: (sample: string, width: number) => string;
-    buildTargetMarker: (target: ListContextValue, source: { markerType: MarkerType; marker: string }) => string;
-    markerConversionScope?: MarkerConversionScope;
     getListContext?: (doc: DocLike, lineNumber: number) => ListContext;
     listIntent?: ListDropIntent;
 }): string {
@@ -198,8 +170,6 @@ export function adjustListToTargetContext(params: {
         parseLineWithQuote,
         getIndentUnitWidth: getIndentUnitWidthFn,
         buildIndentStringFromSample: buildIndentStringFromSampleFn,
-        buildTargetMarker: buildTargetMarkerFn,
-        markerConversionScope,
         getListContext: getListContextFn,
         listIntent,
     } = params;
@@ -216,7 +186,6 @@ export function adjustListToTargetContext(params: {
         getListContext: getListContextFn,
         listIntent,
     });
-    const markerScope = markerConversionScope ?? 'root';
 
     const quoteAdjustedLines = lines.map((line) => {
         if (line.trim().length === 0) return line;
@@ -237,16 +206,7 @@ export function adjustListToTargetContext(params: {
             indentPlan.indentSample,
             parsed.indentWidth + indentPlan.indentDelta
         );
-        let marker = parsed.marker;
-        const shouldConvertMarker = markerScope === 'none'
-            ? false
-            : markerScope === 'all'
-                ? !!indentPlan.targetContext
-                : !!indentPlan.targetContext && parsed.indentWidth === sourceBase.indentWidth;
-        if (shouldConvertMarker && indentPlan.targetContext) {
-            marker = buildTargetMarkerFn(indentPlan.targetContext, parsed);
-        }
-        return `${parsed.quotePrefix}${newIndent}${marker}${parsed.content}`;
+        return `${parsed.quotePrefix}${newIndent}${parsed.marker}${parsed.content}`;
     });
 
     return quoteAdjustedLines.join('\n');

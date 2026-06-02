@@ -23,13 +23,6 @@ export class ContainerPolicyService {
             { lineMap }
         );
     }
-
-    shouldPreventDropIntoDifferentContainer(
-        sourceBlock: BlockInfo,
-        targetLineNumber: number
-    ): boolean {
-        return !this.resolveDropRuleAtInsertion(sourceBlock, targetLineNumber).decision.allowDrop;
-    }
 }
 
 

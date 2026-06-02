@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BlockType } from '../block/block-types';
 import {
-    inferSlotContextFromAdjacentLines,
     resolveInsertionRule,
 } from './insertion-rules';
 
@@ -130,24 +129,6 @@ describe('insertion-rule-matrix', () => {
         expect(hrRule.rejectReason).toBe('hr_before');
     });
 
-    it('infers quote-run context from adjacent lines', () => {
-        const inside = inferSlotContextFromAdjacentLines({
-            prevText: '> line A',
-            nextText: '> line B',
-        });
-        const before = inferSlotContextFromAdjacentLines({
-            prevText: 'outside',
-            nextText: '> line',
-        });
-        const after = inferSlotContextFromAdjacentLines({
-            prevText: '> line',
-            nextText: 'outside',
-        });
-
-        expect(inside).toBe('inside_quote_run');
-        expect(before).toBe('quote_before');
-        expect(after).toBe('quote_after');
-    });
 });
 
 

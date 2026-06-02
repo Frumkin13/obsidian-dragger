@@ -193,17 +193,6 @@ function resolveListContextAtInsertion(
     return { type: BlockType.ListItem, block: best };
 }
 
-export function getContainerContextAtInsertion(
-    state: StateWithDoc,
-    targetLineNumber: number,
-    detectBlockFn: DetectBlockFn = defaultDetectBlock,
-    options?: ContainerPolicyResolveOptions
-): { type: ContainerType; block: BlockInfo } | null {
-    const doc = state.doc;
-    const clampedTarget = clampInsertionLineNumber(doc, targetLineNumber);
-    return resolveListContextAtInsertion(state, clampedTarget, detectBlockFn, options);
-}
-
 export function resolveSlotContextAtInsertion(
     state: StateWithDoc,
     targetLineNumber: number,
@@ -258,23 +247,6 @@ export function resolveSlotContextAtInsertion(
     }
 
     return 'outside';
-}
-
-export function shouldPreventDropIntoDifferentContainer(
-    state: StateWithDoc,
-    sourceBlock: BlockInfo,
-    targetLineNumber: number,
-    detectBlockFn: DetectBlockFn = defaultDetectBlock,
-    options?: ContainerPolicyResolveOptions
-): boolean {
-    const ruleContext = resolveDropRuleContextAtInsertion(
-        state,
-        sourceBlock,
-        targetLineNumber,
-        detectBlockFn,
-        options
-    );
-    return !ruleContext.decision.allowDrop;
 }
 
 export function resolveDropRuleContextAtInsertion(

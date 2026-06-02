@@ -35,7 +35,7 @@ import {
     syncDragSourceHighlightAttr,
     syncDragSourceStyleAttr,
 } from './editor-dom-sync';
-import { createDropPlannerDeps } from './view-runtime';
+import { createBlockMoverDeps, createDropPlannerDeps } from './view-runtime';
 import { applyViewUpdate } from './editor-update';
 import { destroyViewLifecycle, startViewLifecycle } from './editor-lifecycle';
 import { placeHandleGutterForConfiguredSide } from '../platform/codemirror/gutter';
@@ -123,13 +123,13 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                     },
                 }
             );
-            this.blockMover = new BlockMover({
-                ...this.context,
+            this.blockMover = new BlockMover(createBlockMoverDeps({
+                context: this.context,
                 blockFoldState: createBlockFoldStateManager({
                     app: plugin.app,
                     parseLineWithQuote: this.context.parseLineWithQuote,
                 }),
-            });
+            }));
             this.orchestrator = new DragInteractionOrchestrator({
                 view: this.view,
                 context: this.context,

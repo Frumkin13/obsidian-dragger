@@ -78,7 +78,6 @@ export type DropValidationResult = {
 export type DropPlannerSharedDeps = Omit<DropPlannerDeps, 'listDropPlanner'>;
 
 export class DropPlanner {
-    private readonly listDropPlanner: ListDropPlannerPort;
     private lastResolvedCache: {
         state: unknown;
         key: string;
@@ -88,20 +87,7 @@ export class DropPlanner {
     constructor(
         private readonly view: EditorView,
         private readonly deps: DropPlannerDeps
-    ) {
-        this.listDropPlanner = this.deps.listDropPlanner;
-    }
-
-    getDropPlan(info: {
-        clientX: number;
-        clientY: number;
-        dragSource?: BlockInfo | null;
-        pointerType?: string | null;
-        sourceScope?: DragSourceScope;
-    }): DropPlan | null {
-        const validated = this.resolveValidatedDropTarget(info);
-        return validated.allowed ? validated.plan ?? null : null;
-    }
+    ) {}
 
     resolveValidatedDropTarget(info: {
         clientX: number;
@@ -221,7 +207,7 @@ export class DropPlanner {
         }
 
         const listStartedAt = this.now();
-        const listTarget = this.listDropPlanner.computeListTarget({
+        const listTarget = this.deps.listDropPlanner.computeListTarget({
             targetLineNumber: vertical.targetLineNumber,
             lineNumber: vertical.line.number,
             forcedLineNumber: vertical.forcedLineNumber,
@@ -374,7 +360,7 @@ export class DropPlanner {
 
         const line = this.view.state.doc.line(lineNumber);
         const allowListChildIntent = !!dragSource && dragSource.type === BlockType.ListItem;
-        const lineBoundsForSnap = this.listDropPlanner.getListMarkerBounds(line.number);
+        const lineBoundsForSnap = this.deps.listDropPlanner.getListMarkerBounds(line.number);
         const lineParsedForSnap = this.deps.parseLineWithQuote(line.text);
         const childIntentOnLine = allowListChildIntent
             && !!lineBoundsForSnap

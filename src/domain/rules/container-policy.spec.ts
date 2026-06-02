@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { BlockInfo, BlockType } from '../block/block-types';
 import {
-    getContainerContextAtInsertion,
     resolveDropRuleContextAtInsertion,
     resolveSlotContextAtInsertion,
-    shouldPreventDropIntoDifferentContainer,
     type DetectBlockFn,
 } from './container-policy';
 import { getLineMap } from '../markdown/line-map';
@@ -57,10 +55,8 @@ describe('container-policies', () => {
         const detect = mapDetectBlock({ 1: root, 2: child });
 
         const slot = resolveSlotContextAtInsertion(state, 2, detect);
-        const context = getContainerContextAtInsertion(state, 2, detect);
 
         expect(slot).toBe('inside_list');
-        expect(context?.type).toBe(BlockType.ListItem);
     });
 
     it('keeps boundary between top-level list roots as outside', () => {
@@ -70,10 +66,8 @@ describe('container-policies', () => {
         const detect = mapDetectBlock({ 1: first, 2: second });
 
         const slot = resolveSlotContextAtInsertion(state, 2, detect);
-        const context = getContainerContextAtInsertion(state, 2, detect);
 
         expect(slot).toBe('outside');
-        expect(context).toBeNull();
     });
 
     it('keeps boundary between list subtree and next root as outside', () => {
@@ -84,10 +78,8 @@ describe('container-policies', () => {
         const detect = mapDetectBlock({ 1: root, 2: child, 3: sibling });
 
         const slot = resolveSlotContextAtInsertion(state, 3, detect);
-        const context = getContainerContextAtInsertion(state, 3, detect);
 
         expect(slot).toBe('outside');
-        expect(context).toBeNull();
     });
 
     it('resolves quote run slot contexts', () => {
@@ -139,10 +131,10 @@ describe('container-policies', () => {
         const quoteSource = createBlock(BlockType.Blockquote, 0, 0, '> moved');
         const calloutSource = createBlock(BlockType.Callout, 0, 1, '> [!note] title\n> body');
 
-        expect(shouldPreventDropIntoDifferentContainer(state, quoteSource, 1, detect)).toBe(false);
-        expect(shouldPreventDropIntoDifferentContainer(state, quoteSource, 3, detect)).toBe(false);
-        expect(shouldPreventDropIntoDifferentContainer(state, calloutSource, 1, detect)).toBe(true);
-        expect(shouldPreventDropIntoDifferentContainer(state, calloutSource, 3, detect)).toBe(true);
+        expect(resolveDropRuleContextAtInsertion(state, quoteSource, 1, detect).decision.allowDrop).toBe(true);
+        expect(resolveDropRuleContextAtInsertion(state, quoteSource, 3, detect).decision.allowDrop).toBe(true);
+        expect(resolveDropRuleContextAtInsertion(state, calloutSource, 1, detect).decision.allowDrop).toBe(false);
+        expect(resolveDropRuleContextAtInsertion(state, calloutSource, 3, detect).decision.allowDrop).toBe(false);
     });
 
     it('prevents callout source from entering quote run internals', () => {
@@ -164,8 +156,8 @@ describe('container-policies', () => {
         const paragraph = createBlock(BlockType.Paragraph, 0, 0, 'outside');
         const listItem = createBlock(BlockType.ListItem, 0, 0, '- moved');
 
-        expect(shouldPreventDropIntoDifferentContainer(state, paragraph, 2, detect)).toBe(true);
-        expect(shouldPreventDropIntoDifferentContainer(state, listItem, 2, detect)).toBe(false);
+        expect(resolveDropRuleContextAtInsertion(state, paragraph, 2, detect).decision.allowDrop).toBe(false);
+        expect(resolveDropRuleContextAtInsertion(state, listItem, 2, detect).decision.allowDrop).toBe(true);
     });
 
     it('keeps slot context output stable when passing explicit lineMap', () => {

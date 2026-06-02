@@ -36,8 +36,6 @@ export function buildInsertTextForDrop(params: {
             parseLineWithQuote: lineParsing.parseLine,
             getIndentUnitWidth: lineParsing.getIndentUnitWidth,
             buildIndentStringFromSample: lineParsing.buildIndentStringFromSample,
-            buildTargetMarker: (_target, source) => source.marker,
-            markerConversionScope: 'none',
             getListContext: getListContextForDoc,
             listIntent,
         }),

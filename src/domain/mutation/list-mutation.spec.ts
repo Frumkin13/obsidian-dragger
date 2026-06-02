@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { DocLike } from '../../shared/types/protocol-types';
+import { buildIndentStringFromSample } from '../markdown/indent-calculator';
 import { parseLineWithQuote } from '../markdown/line-parser';
 import {
     adjustListToTargetContext,
-    buildIndentStringFromSample,
-    buildTargetMarker,
     computeListIndentPlan,
     getListContextNearLine,
 } from './list-mutation';
@@ -49,31 +48,19 @@ describe('list-mutation', () => {
         expect(plan.indentDelta).toBe(2);
     });
 
-    it('converts markers at root scope by default, and full tree for all scope', () => {
+    it('keeps source markers while adjusting list indentation', () => {
         const doc = createDoc(['- [ ] existing']);
         const sourceContent = '- parent\n  - child';
 
-        const rootOnly = adjustListToTargetContext({
+        const result = adjustListToTargetContext({
             doc,
             sourceContent,
             targetLineNumber: 2,
             parseLineWithQuote: parse,
             getIndentUnitWidth: () => 2,
             buildIndentStringFromSample: (sample, width) => buildIndentStringFromSample(sample, width, 4),
-            buildTargetMarker,
-        });
-        const fullTree = adjustListToTargetContext({
-            doc,
-            sourceContent,
-            targetLineNumber: 2,
-            parseLineWithQuote: parse,
-            getIndentUnitWidth: () => 2,
-            buildIndentStringFromSample: (sample, width) => buildIndentStringFromSample(sample, width, 4),
-            buildTargetMarker,
-            markerConversionScope: 'all',
         });
 
-        expect(rootOnly).toBe('- [ ] parent\n  - child');
-        expect(fullTree).toBe('- [ ] parent\n  - [ ] child');
+        expect(result).toBe('- parent\n  - child');
     });
 });

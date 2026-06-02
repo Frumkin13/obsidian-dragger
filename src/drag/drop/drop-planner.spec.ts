@@ -120,11 +120,11 @@ describe('DropPlanner', () => {
         const view = createViewStub('plain line');
         const calculator = new DropPlanner(view, createDeps());
 
-        const target = calculator.getDropPlan({ clientX: 40, clientY: 5 });
+        const validation = calculator.resolveValidatedDropTarget({ clientX: 40, clientY: 5 });
 
-        expect(target).not.toBeNull();
-        expect(target?.targetLineNumber).toBe(1);
-        expect(target?.preview.indicatorY).toBe(12);
+        expect(validation.allowed).toBe(true);
+        expect(validation.plan?.targetLineNumber).toBe(1);
+        expect(validation.plan?.preview.indicatorY).toBe(12);
     });
 
     it('returns null when container policy blocks the drop', () => {
@@ -137,13 +137,13 @@ describe('DropPlanner', () => {
             }),
         }));
 
-        const target = calculator.getDropPlan({
+        const validation = calculator.resolveValidatedDropTarget({
             clientX: 40,
             clientY: 5,
             dragSource: createSourceBlock(),
         });
 
-        expect(target).toBeNull();
+        expect(validation.allowed).toBe(false);
     });
 
     it('allows non-list blocks to target the line above a list item', () => {
@@ -151,14 +151,14 @@ describe('DropPlanner', () => {
         const view = createViewStub('- first\n- second');
         const calculator = new DropPlanner(view, createDeps());
 
-        const target = calculator.getDropPlan({
+        const validation = calculator.resolveValidatedDropTarget({
             clientX: 40,
             clientY: 5,
             dragSource: createSourceBlock('outside', 5, 5),
         });
 
-        expect(target).not.toBeNull();
-        expect(target?.targetLineNumber).toBe(1);
+        expect(validation.allowed).toBe(true);
+        expect(validation.plan?.targetLineNumber).toBe(1);
     });
 
     it('rejects drop when pointer is inside rendered table cell', () => {
