@@ -21,13 +21,20 @@ type AnchorSpan = {
 
 type ResolveAnchorSpan = (segment: BlockSelectionSegment) => AnchorSpan | null;
 
+function getCommittedSelectionDocLineCount(committedSelection: CommittedRangeSelection): number {
+    return Math.max(
+        committedSelection.templateBlock.endLine + 1,
+        ...committedSelection.blocks.map((block) => block.endLineNumber)
+    );
+}
+
 function getCommittedSelectionAnchorMaxX(
     committedSelection: CommittedRangeSelection,
     resolveAnchorSpan: ResolveAnchorSpan
 ): number | null {
     let maxX: number | null = null;
     const segments = groupSelectedBlocksIntoSegments(
-        committedSelection.source.primaryBlock.endLine + 1,
+        getCommittedSelectionDocLineCount(committedSelection),
         committedSelection.blocks
     );
     for (const segment of segments) {
@@ -92,7 +99,7 @@ export function isCommittedSelectionGripHit(options: IsCommittedSelectionGripHit
     }
 
     const segments = groupSelectedBlocksIntoSegments(
-        committedSelection.source.primaryBlock.endLine + 1,
+        getCommittedSelectionDocLineCount(committedSelection),
         committedSelection.blocks
     );
     for (const segment of segments) {

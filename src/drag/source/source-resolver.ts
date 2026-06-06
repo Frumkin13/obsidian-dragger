@@ -13,6 +13,7 @@ import {
 } from '../../platform/dom/element-probe';
 import { getRenderedMainLineNumberAtPoint } from '../../platform/dom/line-hit';
 import { isEditorLineCollapsed } from '../../platform/obsidian/editor-fold';
+import { buildSelectionSourceParts, buildSingleBlockSourceRanges } from './source-ranges';
 
 type VerticalContentRect = Pick<DOMRect | DOMRectReadOnly, 'top' | 'bottom'>;
 
@@ -20,13 +21,14 @@ export class DragSourceResolver {
     constructor(private readonly view: EditorView) { }
 
     resolveSource(request: DragSourceRequest): DragSource | null {
-        if (request.kind === 'committed-selection' || request.kind === 'active-selection') {
-            return this.cloneSelectionSource(request.selectionSource);
+        if (request.kind === 'selection') {
+            const parts = buildSelectionSourceParts(request.doc, request.blocks, request.templateBlock);
+            return parts ? createDragSource(parts.primaryBlock, parts.ranges) : null;
         }
 
         const block = this.resolvePrimaryBlock(request);
         if (!block) return null;
-        return createDragSource(block, [{ startLine: block.startLine, endLine: block.endLine }]);
+        return createDragSource(block, buildSingleBlockSourceRanges(block));
     }
 
     getBlockInfoForHandle(handle: HTMLElement): BlockInfo | null {
@@ -98,21 +100,14 @@ export class DragSourceResolver {
     private resolvePrimaryBlock(request: DragSourceRequest): BlockInfo | null {
         switch (request.kind) {
             case 'handle':
-                return this.getBlockInfoForHandle(request.handle)
-                    ?? this.getDraggableBlockAtPoint(request.clientX, request.clientY);
+                return this.getBlockInfoForHandle(request.handle);
             case 'point':
                 return this.getDraggableBlockAtPoint(request.clientX, request.clientY);
+            case 'block':
+                return request.block;
             default:
                 return null;
         }
-    }
-
-    private cloneSelectionSource(source: DragSource | null): DragSource | null {
-        if (!source) return null;
-        return createDragSource(
-            source.primaryBlock,
-            source.ranges.map((range) => ({ ...range }))
-        );
     }
 
     private collectEmbedProbeCandidates(embedEl: HTMLElement): HTMLElement[] {

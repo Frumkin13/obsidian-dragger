@@ -1,20 +1,16 @@
 import type { DragSourceRequest } from '../source';
+import type { RangeSelectionOperation } from '../state/selection/selection-model';
 
-export type DragCancelReason =
-    | 'press_cancelled'
-    | 'pointer_cancelled'
-    | 'session_interrupted'
-    | 'escape'
-    | 'blur'
-    | 'visibility_hidden';
+export type RangeSelectionOptions = {
+    skipLongPress?: boolean;
+    initialOperation?: RangeSelectionOperation;
+};
 
 export type DragIntent =
     | { type: 'ignore' }
-    | { type: 'open_menu'; sourceRequest: DragSourceRequest }
     | { type: 'start_drag'; sourceRequest: DragSourceRequest }
-    | { type: 'start_press_pending'; sourceRequest: DragSourceRequest }
-    | { type: 'start_selection'; sourceRequest: DragSourceRequest }
-    | { type: 'update_selection' }
-    | { type: 'start_committed_selection_drag'; sourceRequest: DragSourceRequest }
-    | { type: 'finish' }
-    | { type: 'cancel'; reason: DragCancelReason };
+    | { type: 'start_range_selection'; sourceRequest: DragSourceRequest; options?: RangeSelectionOptions };
+
+export function isSourceIntent(intent: DragIntent): intent is Extract<DragIntent, { sourceRequest: DragSourceRequest }> {
+    return 'sourceRequest' in intent;
+}

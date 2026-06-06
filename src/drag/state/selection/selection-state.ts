@@ -9,7 +9,6 @@ import {
     type RangeSelectionBoundary,
     type MouseRangeSelectState,
     type CommittedRangeSelection,
-    buildDragSourceFromBlocks,
     collectSelectedBlocksBetween,
 } from './selection-model';
 
@@ -20,7 +19,6 @@ export function computeUpdatedSelectionState(
 ): {
     currentLineNumber: number;
     selectionBlocks: SelectedBlockRange[];
-    activeSelectionSource: MouseRangeSelectState['activeSelectionSource'];
 } {
     const activeBlocks = collectSelectedBlocksBetween(
         editorState,
@@ -37,32 +35,24 @@ export function computeUpdatedSelectionState(
             ...state.committedBlocksSnapshot,
             ...activeBlocks,
         ]);
-    const activeSelectionSource = buildDragSourceFromBlocks(
-        editorState.doc,
-        selectionBlocks,
-        state.anchorSelectionSource.primaryBlock
-    );
-
     return {
         currentLineNumber: target.representativeLineNumber,
         selectionBlocks,
-        activeSelectionSource,
     };
 }
 
 export function buildCommittedRangeSelection(
     doc: Text,
     selectionBlocks: SelectedBlockRange[],
-    templateBlock: MouseRangeSelectState['activeSelectionSource']['primaryBlock']
+    templateBlock: MouseRangeSelectState['anchorBlock']
 ): CommittedRangeSelection | null {
     const committedBlocks = mergeSelectedBlocks(doc.lines, selectionBlocks);
     if (committedBlocks.length === 0) {
         return null;
     }
-    const source = buildDragSourceFromBlocks(doc, committedBlocks, templateBlock);
     return {
-        source,
         blocks: committedBlocks,
+        templateBlock,
     };
 }
 

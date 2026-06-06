@@ -1,43 +1,43 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
-import { createDragSource, DragSource } from '../../shared/types/drag';
+import { DragSource } from '../../shared/types/drag';
 import {
     DRAG_HANDLE_CLASS,
     EMBED_HANDLE_CLASS,
     MOBILE_SELECTION_RESIZE_HANDLE_CLASS,
 } from '../../shared/dom-selectors';
 import { safePosAtCoords, resolveLineNumberFromPos } from '../../platform/dom/element-probe';
-import type { DragEventHandlerDeps } from '../pipeline/drag-controller';
-import { MobileGestureController } from './mobile-gesture-controller';
+import type { DragEventHandlerDeps } from './drag-controller';
+import { MobileGestureController } from '../state/mobile-gesture-controller';
 import { PointerSessionController } from '../input/pointer-session-controller';
-import { RangeSelectionVisualManager } from './selection/selection-visual-manager';
+import { RangeSelectionVisualManager } from '../state/selection/selection-visual-manager';
 import {
-    buildDragSourceFromBlocks,
     buildRangeSelectionBoundaryFromBlock,
     collectSelectedBlocksBetween,
     CommittedRangeSelection,
     RangeSelectionBoundary,
     RangeSelectionOperation,
     resolveBlockBoundaryAtLine,
-} from './selection/selection-model';
-import { resolveRangeBoundaryAtPoint } from './selection/hit-boundary';
+} from '../state/selection/selection-model';
+import { resolveRangeBoundaryAtPoint } from '../state/selection/hit-boundary';
 import {
     isSelectedBlockCoveredByBlocks,
     mergeSelectedBlocks,
     SelectedBlockRange,
     subtractSelectedBlocks,
-} from './selection/block-selection';
+} from '../state/selection/block-selection';
 import {
     autoScrollSelectionRange as autoScrollSelectionRangeByFlow,
     updateSelectionFromBoundary as updateSelectionFromBoundaryByFlow,
-} from './selection/selection-flow';
+} from '../state/selection/selection-flow';
 import {
     InteractionState,
     MobileSelectionData,
     MobileSelectionResizeHandle,
     PointerTerminalMode,
-} from './drag-state';
+} from '../state/drag-state';
 import { shouldStartMobilePressDrag as shouldStartMobilePressDragByFlow } from '../intent/drag-pointer-flow';
+import type { DragSourceRequest } from '../source';
 
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
 
@@ -50,8 +50,12 @@ export interface MobileGesturePipelineHost {
     gesture: InteractionState;
     committedRangeSelection: CommittedRangeSelection | null;
 
+    resolveDragSource(request: DragSourceRequest): DragSource | null;
+    buildCommittedSelectionSourceRequest(): DragSourceRequest | null;
+    buildMobileSelectionSourceRequest(state: { selectedBlocks: SelectedBlockRange[]; activeMovingBoundary: RangeSelectionBoundary }): DragSourceRequest | null;
+
     beginRangeSelectionSession(
-        blockInfo: BlockInfo,
+        source: DragSource,
         e: PointerEvent,
         handle: HTMLElement | null,
         options?: { skipLongPress?: boolean; initialOperation?: RangeSelectionOperation }
@@ -68,7 +72,6 @@ export interface MobileGesturePipelineHost {
         clientY: number,
         pointerType: string | null
     ): void;
-    getCommittedSelectionSource(): DragSource | null;
     tryStartCommittedSelectionDrag(e: PointerEvent, target: HTMLElement): boolean;
     clearCommittedRangeSelection(): void;
     emitPressPendingLifecycle(source: DragSource, pointerType: string | null, pressReady: boolean): void;
@@ -131,16 +134,17 @@ function tryStartMobileHandleInteraction(
     if (tryStartMobileSelectionDrag(host, handle, e)) return true;
     if (tryRetargetActiveMobileRangeSelectionFromHandle(host, handle, e)) return true;
 
-    const blockInfo = resolveBlockForHandle(host, handle, e);
-    if (!blockInfo) return true;
+    const source = host.resolveDragSource({ kind: 'handle', handle });
+    if (!source) return true;
+    const blockInfo = source.primaryBlock;
     if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return true;
 
     if (host.isMultiLineSelectionEnabled() && host.committedRangeSelection) {
-        host.beginRangeSelectionSession(blockInfo, e, handle, { skipLongPress: true });
+        host.beginRangeSelectionSession(source, e, handle, { skipLongPress: true });
         return true;
     }
 
-    host.beginPressPendingDrag(createDragSource(blockInfo, [{ startLine: blockInfo.startLine, endLine: blockInfo.endLine }]), e);
+    host.beginPressPendingDrag(source, e);
     return true;
 }
 
@@ -153,7 +157,8 @@ function tryStartMobileSelectionDrag(
     if (e.pointerType === 'mouse') return false;
     if (!handleEl.classList.contains('dnd-range-selected-handle')) return false;
 
-    const source = host.getCommittedSelectionSource();
+    const committedRequest = host.buildCommittedSelectionSourceRequest();
+    const source = committedRequest ? host.resolveDragSource(committedRequest) : null;
     if (!source) return false;
 
     const state = host.gesture.selection.mobileSelect;
@@ -184,8 +189,9 @@ function tryRetargetActiveMobileRangeSelectionFromHandle(
     if (state.pointerType === 'mouse') return false;
     if (e.pointerType === 'mouse') return false;
 
-    const blockInfo = resolveBlockForHandle(host, handle, e);
-    if (!blockInfo) return false;
+    const source = host.resolveDragSource({ kind: 'handle', handle });
+    if (!source) return false;
+    const blockInfo = source.primaryBlock;
     if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return false;
 
     retargetMobileRangeSelection(host, e);
@@ -220,12 +226,13 @@ function tryStartMobileTextLongPressDrag(
         && host.mobile.isWithinMobileTextLineOrEmbedArea(target, e.clientX, e.clientY);
     if (!inTextLineOrEmbedArea) return false;
 
-    const blockInfo = host.deps.getBlockInfoAtPoint(e.clientX, e.clientY);
-    if (!blockInfo) return false;
+    const source = host.resolveDragSource({ kind: 'point', clientX: e.clientX, clientY: e.clientY });
+    if (!source) return false;
+    const blockInfo = source.primaryBlock;
     if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return false;
 
     // Keep native tap-to-focus behavior in text/embed areas.
-    host.beginPressPendingDrag(createDragSource(blockInfo, [{ startLine: blockInfo.startLine, endLine: blockInfo.endLine }]), e, { deferInterception: true });
+    host.beginPressPendingDrag(source, e, { deferInterception: true });
     return true;
 }
 
@@ -321,7 +328,9 @@ export function enterMobileSelectionMode(host: MobileGesturePipelineHost, e: Eve
     host.mobile.lockMobileInteraction();
     host.mobile.attachFocusGuard();
     host.mobile.suppressMobileKeyboard(document.activeElement);
-    host.emitPressPendingLifecycle(createDragSource(blockInfo, [{ startLine: blockInfo.startLine, endLine: blockInfo.endLine }]), 'touch', true);
+    const source = host.buildMobileSelectionSourceRequest({ selectedBlocks: [selectedBlock], activeMovingBoundary: boundary });
+    const pressSource = source ? host.resolveDragSource(source) : null;
+    if (pressSource) host.emitPressPendingLifecycle(pressSource, 'touch', true);
 }
 
 export function getMobileSelectionTemplateBlock(
@@ -329,7 +338,7 @@ export function getMobileSelectionTemplateBlock(
     state: { activeMovingBoundary: RangeSelectionBoundary }
 ): BlockInfo {
     const line = host.view.state.doc.line(state.activeMovingBoundary.representativeLineNumber);
-    return host.deps.getBlockInfoAtPoint(0, resolveLineClientY(host, line.number))
+    return host.resolveDragSource({ kind: 'point', clientX: 0, clientY: resolveLineClientY(host, line.number) })?.primaryBlock
         ?? {
             type: BlockType.Paragraph,
             startLine: line.number - 1,
@@ -344,7 +353,8 @@ export function getMobileSelectionTemplateBlock(
 function handleMobileSelectionTextPointerDown(host: MobileGesturePipelineHost, e: PointerEvent): boolean {
     if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile')) return false;
     const state = host.gesture.selection.mobileSelect;
-    const blockInfo = host.deps.getBlockInfoAtPoint(e.clientX, e.clientY);
+    const source = host.resolveDragSource({ kind: 'point', clientX: e.clientX, clientY: e.clientY });
+    const blockInfo = source?.primaryBlock ?? null;
     e.preventDefault();
     e.stopPropagation();
 
@@ -472,7 +482,7 @@ function resolveMobileSelectionBoundaryAtPoint(
             host.view,
             probeX,
             clientY,
-            (x, y) => host.deps.getBlockInfoAtPoint(x, y)
+            (x, y) => host.resolveDragSource({ kind: 'point', clientX: x, clientY: y })?.primaryBlock ?? null
         );
         if (boundary) return boundary;
     }
@@ -499,8 +509,8 @@ function resolveLineNumberAtMobileSelectionPoint(
         const pos = safePosAtCoords(host.view, { x, y: clientY });
         if (pos !== null) return resolveLineNumberFromPos(host.view, pos);
     }
-    const fallbackPos = safePosAtCoords(host.view, { x: clientX, y: clientY });
-    return fallbackPos === null ? null : resolveLineNumberFromPos(host.view, fallbackPos);
+    const secondaryPos = safePosAtCoords(host.view, { x: clientX, y: clientY });
+    return secondaryPos === null ? null : resolveLineNumberFromPos(host.view, secondaryPos);
 }
 
 function buildCommittedSelectionFromBlocks(
@@ -511,22 +521,13 @@ function buildCommittedSelectionFromBlocks(
     const selectedBlocks = mergeSelectedBlocks(host.view.state.doc.lines, blocks);
     if (selectedBlocks.length === 0) return null;
     return {
-        source: buildDragSourceFromBlocks(host.view.state.doc, selectedBlocks, template),
         blocks: selectedBlocks,
+        templateBlock: template,
     };
 }
 
 function renderMobileSelection(host: MobileGesturePipelineHost, blocks: SelectedBlockRange[]): void {
     host.rangeVisual.render(blocks, { highlightLines: true, showMobileResizeHandles: true });
-}
-
-function resolveBlockForHandle(
-    host: MobileGesturePipelineHost,
-    handle: HTMLElement,
-    e: PointerEvent
-): BlockInfo | null {
-    return host.deps.getBlockInfoForHandle(handle)
-        ?? host.deps.getBlockInfoAtPoint(e.clientX, e.clientY);
 }
 
 function retargetMobileRangeSelection(host: MobileGesturePipelineHost, e: PointerEvent): void {

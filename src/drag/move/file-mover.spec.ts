@@ -6,7 +6,7 @@ import type { EditorView } from '@codemirror/view';
 import type { App, TFile } from 'obsidian';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
-import { createDragSource } from '../../shared/types/drag';
+import { createDragSource } from '../source/source';
 import { appendMarkdownBlock, FileBlockMover } from './file-mover';
 
 type MutableView = EditorView & {

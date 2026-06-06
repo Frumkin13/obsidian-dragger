@@ -2,6 +2,9 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
+import { createDragSource, type DragSource } from '../source/source';
+import type { DragSourceRequest } from '../source';
+import { buildSelectionSourceParts, buildSingleBlockSourceRanges } from '../source/source-ranges';
 
 type RectLike = {
     left: number;
@@ -44,6 +47,34 @@ export function createBlock(content = '- item', startLine = 0, endLine = startLi
         to: content.length,
         indentLevel: 0,
         content,
+    };
+}
+
+export function resolveDragSourceFromTestBlocks(params: {
+    handle?: ((handle: HTMLElement) => BlockInfo | null) | BlockInfo | null;
+    point?: ((clientX: number, clientY: number) => BlockInfo | null) | BlockInfo | null;
+}): (request: DragSourceRequest) => DragSource | null {
+    return (request) => {
+        const resolveBlock = (value: ((...args: never[]) => BlockInfo | null) | BlockInfo | null | undefined, args: never[]): BlockInfo | null => {
+            if (typeof value === 'function') return value(...args);
+            return value ?? null;
+        };
+        switch (request.kind) {
+            case 'handle': {
+                const block = resolveBlock(params.handle, [request.handle as never]);
+                return block ? createDragSource(block, buildSingleBlockSourceRanges(block)) : null;
+            }
+            case 'point': {
+                const block = resolveBlock(params.point, [request.clientX as never, request.clientY as never]);
+                return block ? createDragSource(block, buildSingleBlockSourceRanges(block)) : null;
+            }
+            case 'block':
+                return createDragSource(request.block, buildSingleBlockSourceRanges(request.block));
+            case 'selection': {
+                const parts = buildSelectionSourceParts(request.doc, request.blocks, request.templateBlock);
+                return parts ? createDragSource(parts.primaryBlock, parts.ranges) : null;
+            }
+        }
     };
 }
 

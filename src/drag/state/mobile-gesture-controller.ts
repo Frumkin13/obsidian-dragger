@@ -61,9 +61,9 @@ export class MobileGestureController {
         }
 
         if (!this.view.contentDOM.contains(target)) return false;
-        const fallbackLineNumber = this.resolveLineNumberFromTarget(target, null);
-        if (fallbackLineNumber !== null) {
-            return this.isWithinLineDragArea(fallbackLineNumber, clientX, clientY);
+        const targetLineNumber = this.resolveLineNumberFromTarget(target, null);
+        if (targetLineNumber !== null) {
+            return this.isWithinLineDragArea(targetLineNumber, clientX, clientY);
         }
 
         return false;

@@ -1,11 +1,9 @@
 import { EditorView } from '@codemirror/view';
 import { anchorSelectionBeforeUndoableChange } from '../../move/undo-selection-anchor';
-import { DragSource } from '../../../shared/types/drag';
 import {
     type CommittedRangeSelection,
     type MouseRangeSelectState,
     type RangeSelectionBoundary,
-    cloneDragSource,
     resolveBlockBoundaryAtLine,
 } from './selection-model';
 import {
@@ -34,7 +32,6 @@ export function updateSelectionFromBoundary(
     const next = computeUpdatedSelectionState(view.state, state, target);
     state.currentLineNumber = next.currentLineNumber;
     state.selectionBlocks = next.selectionBlocks;
-    state.activeSelectionSource = next.activeSelectionSource;
     rangeVisual.render(state.selectionBlocks);
 }
 
@@ -66,7 +63,7 @@ export function commitSelectionRange(
     const committed = buildCommittedRangeSelection(
         view.state.doc,
         state.selectionBlocks,
-        state.anchorSelectionSource.primaryBlock
+        state.anchorBlock
     );
     if (!committed) {
         rangeVisual.clear();
@@ -94,17 +91,12 @@ export function deleteCommittedSelectionRange(
     const doc = view.state.doc;
     const changes = buildCommittedRangeDeletionChanges(doc, committed.blocks);
     if (changes.length > 0) {
-        anchorSelectionBeforeUndoableChange(view, committed.source.primaryBlock.from);
+        anchorSelectionBeforeUndoableChange(view, committed.templateBlock.from);
         view.dispatch({ changes });
     }
     rangeVisual.clear();
 
     return null;
-}
-
-export function cloneCommittedSelectionSource(committed: CommittedRangeSelection | null): DragSource | null {
-    if (!committed) return null;
-    return cloneDragSource(committed.source);
 }
 
 export function refreshSelectionVisual(

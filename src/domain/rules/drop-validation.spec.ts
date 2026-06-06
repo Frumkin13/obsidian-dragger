@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDragSource } from '../../shared/types/drag';
+import { createDragSource } from '../../drag/source/source';
 import { BlockType, type BlockInfo } from '../block/block-types';
 import { validateInPlaceDrop } from './drop-validation';
 import { getLineMap } from '../markdown/line-map';

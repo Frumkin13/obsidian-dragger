@@ -10,6 +10,7 @@ import {
     dispatchPointer,
     dispatchTouchMove,
     createRect,
+    resolveDragSourceFromTestBlocks,
 } from './drag-controller.test-helpers';
 
 registerMouseHandlerTestHooks();
@@ -21,8 +22,7 @@ describe('DragEventHandler', () => {
         const beginPointerDragSession = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => null,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => null, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -65,8 +65,7 @@ describe('DragEventHandler', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => null,
-            getBlockInfoAtPoint: () => createBlock(),
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => null, point: () => createBlock() }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -112,8 +111,7 @@ describe('DragEventHandler', () => {
         const finishDragSession = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
@@ -173,8 +171,7 @@ describe('DragEventHandler', () => {
         });
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
@@ -219,8 +216,7 @@ describe('DragEventHandler', () => {
         const blurSpy = vi.spyOn(input, 'blur');
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
@@ -260,8 +256,7 @@ describe('DragEventHandler', () => {
         const sourceBlock = createBlock('- item', 0, 0);
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession: vi.fn(),
@@ -315,8 +310,7 @@ describe('DragEventHandler', () => {
         const scheduleDropIndicatorUpdate = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -380,8 +374,7 @@ describe('DragEventHandler', () => {
         });
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
@@ -422,8 +415,7 @@ describe('DragEventHandler', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => false,
             beginPointerDragSession,
@@ -469,8 +461,7 @@ describe('DragEventHandler', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
@@ -524,8 +515,7 @@ describe('DragEventHandler', () => {
         });
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
@@ -589,8 +579,7 @@ describe('DragEventHandler', () => {
         });
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
@@ -639,8 +628,7 @@ describe('DragEventHandler', () => {
         const lifecycleEvents: Array<{ type: string; phase: string; pressReady?: boolean }> = [];
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession: vi.fn(),
@@ -695,8 +683,7 @@ describe('DragEventHandler', () => {
         const lifecycleEvents: Array<{ type: string; phase: string; pressReady?: boolean }> = [];
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMultiLineSelectionEnabled: () => false,
             beginPointerDragSession: vi.fn(),

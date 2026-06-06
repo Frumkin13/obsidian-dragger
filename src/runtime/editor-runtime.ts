@@ -122,7 +122,6 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
             }));
             this.orchestrator = new DragInteractionOrchestrator({
                 view: this.view,
-                context: this.context,
                 blockMover: this.blockMover,
                 dropPlanner: this.dropPlanner,
                 handleVisibility: this.handleVisibility,
@@ -154,17 +153,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
             };
             this.unregisterPointerDragTargetClient = registerPointerDragTargetClient(this.pointerDragTargetClient);
             this.dragEventHandler = new DragEventHandler(this.view, {
-                getBlockInfoForHandle: (handle) =>
-                    this.orchestrator.resolveInteractionBlockInfo({
-                        handle,
-                        clientX: Number.NaN,
-                        clientY: Number.NaN,
-                    }),
-                getBlockInfoAtPoint: (clientX, clientY) =>
-                    this.orchestrator.resolveInteractionBlockInfo({
-                        clientX,
-                        clientY,
-                    }),
+                resolveDragSource: (request) => this.context.dragSource.resolveSource(request),
                 getVisibleHandleForBlockStart: (blockStart) =>
                     getVisibleHandleForBlockStart(this.view, blockStart),
                 isBlockInsideRenderedTableCell: (blockInfo) =>

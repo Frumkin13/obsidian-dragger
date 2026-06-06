@@ -5,7 +5,7 @@ import type { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
 import { parseLineWithQuote } from '../../domain/markdown/line-parser';
-import { createDragSource } from '../../shared/types/drag';
+import { createDragSource } from '../source/source';
 import { DropPlanner, type DropPlannerDeps } from './drop-planner';
 
 function originalElementFromPoint(this: void, x: number, y: number): Element | null {

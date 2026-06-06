@@ -75,6 +75,51 @@ describe('DragSourceResolver', () => {
         expect(block).toBeNull();
     });
 
+    it('does not downgrade handle source requests to point resolution', () => {
+        const state = EditorState.create({
+            doc: 'alpha\nbeta\n- item\ngamma',
+        });
+        const handle = document.createElement('span');
+
+        const view = {
+            state,
+            contentDOM: {
+                getBoundingClientRect: () => ({
+                    left: 0,
+                    top: 0,
+                    right: 300,
+                    bottom: 120,
+                }),
+            },
+            posAtCoords: () => state.doc.line(3).from,
+        } as unknown as EditorView;
+
+        const resolver = new DragSourceResolver(view);
+        const source = resolver.resolveSource({ kind: 'handle', handle });
+        expect(source).toBeNull();
+    });
+
+    it('resolves block source requests without re-detecting by point', () => {
+        const state = EditorState.create({ doc: 'alpha\nbeta' });
+        const block = {
+            type: BlockType.Paragraph,
+            startLine: 1,
+            endLine: 1,
+            from: state.doc.line(2).from,
+            to: state.doc.line(2).to,
+            indentLevel: 0,
+            content: 'beta',
+        };
+        const view = { state } as unknown as EditorView;
+
+        const resolver = new DragSourceResolver(view);
+        const source = resolver.resolveSource({ kind: 'block', block });
+        expect(source).toEqual({
+            primaryBlock: block,
+            ranges: [{ startLine: 1, endLine: 1 }],
+        });
+    });
+
     it('uses data attributes when DOM lookup fails', () => {
         const state = EditorState.create({
             doc: 'first\nsecond\nthird',
@@ -206,7 +251,7 @@ describe('DragSourceResolver', () => {
         expect(block?.endLine).toBe(1);
     });
 
-    it('falls back to coordinate-based block resolution when embed direct hit misses', () => {
+    it('uses coordinate-based point resolution when embed direct hit misses', () => {
         const state = EditorState.create({
             doc: '$$\nx^2\n$$\nafter',
         });

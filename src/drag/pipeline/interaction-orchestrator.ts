@@ -1,5 +1,4 @@
 import { EditorView } from '@codemirror/view';
-import { BlockInfo } from '../../domain/block/block-types';
 import {
     DragDocumentRelation,
     DragLifecycleEvent,
@@ -9,7 +8,6 @@ import {
 import { buildCancelledLifecycleEvent, buildDropCommitLifecycleEvent } from './drag-lifecycle-flow';
 import { DragLifecycleEmitter } from '../../runtime/drag-lifecycle-emitter';
 import { buildListIntent } from '../../shared/utils/drop-protocol';
-import { EditorContext } from '../../runtime/drag-service-container';
 import { BlockMover } from '../move/block-mover';
 import { DropPlanner } from '../drop/drop-planner';
 import { HandleVisibilityController } from '../preview/handle-visibility-controller';
@@ -18,7 +16,6 @@ import { getActiveDragSourceView } from '../state/active-drag-registry';
 
 export interface DragInteractionOrchestratorDeps {
     view: EditorView;
-    context: EditorContext;
     blockMover: BlockMover;
     dropPlanner: DropPlanner;
     handleVisibility: HandleVisibilityController;
@@ -32,7 +29,6 @@ export interface DragInteractionOrchestratorDeps {
 
 export class DragInteractionOrchestrator {
     private readonly view: EditorView;
-    private readonly context: EditorContext;
     private readonly blockMover: BlockMover;
     private readonly dropPlanner: DropPlanner;
     private readonly handleVisibility: HandleVisibilityController;
@@ -45,7 +41,6 @@ export class DragInteractionOrchestrator {
 
     constructor(deps: DragInteractionOrchestratorDeps) {
         this.view = deps.view;
-        this.context = deps.context;
         this.blockMover = deps.blockMover;
         this.dropPlanner = deps.dropPlanner;
         this.handleVisibility = deps.handleVisibility;
@@ -112,68 +107,6 @@ export class DragInteractionOrchestrator {
         }));
     }
 
-    resolveInteractionBlockInfo(params: {
-        handle?: HTMLElement | null;
-        clientX: number;
-        clientY: number;
-        fallback?: () => BlockInfo | null;
-        allowRefreshRetry?: boolean;
-    }): BlockInfo | null {
-        const allowRefreshRetry = params.allowRefreshRetry !== false;
-        const resolveOnce = (): BlockInfo | null => {
-            if (params.handle) {
-                let fromHandle: BlockInfo | null = null;
-                try {
-                    fromHandle = this.context.dragSource.getBlockInfoForHandle(params.handle);
-                } catch {
-                    fromHandle = null;
-                }
-                if (fromHandle) {
-                    this.syncHandleBlockAttributes(params.handle, fromHandle);
-                    return fromHandle;
-                }
-            }
-
-            if (Number.isFinite(params.clientX) && Number.isFinite(params.clientY)) {
-                let fromPoint: BlockInfo | null = null;
-                try {
-                    fromPoint = this.context.dragSource.getDraggableBlockAtPoint(params.clientX, params.clientY);
-                } catch {
-                    fromPoint = null;
-                }
-                if (fromPoint) {
-                    this.syncHandleBlockAttributes(params.handle ?? null, fromPoint);
-                    return fromPoint;
-                }
-            }
-
-            const fromFallback = params.fallback?.() ?? null;
-            if (fromFallback) {
-                this.syncHandleBlockAttributes(params.handle ?? null, fromFallback);
-            }
-            return fromFallback;
-        };
-
-        const first = resolveOnce();
-        if (first || !allowRefreshRetry) return first;
-
-        this.refreshDecorationsAndEmbeds();
-
-        if (Number.isFinite(params.clientX) && Number.isFinite(params.clientY)) {
-            try {
-                const fromPoint = this.context.dragSource.getDraggableBlockAtPoint(params.clientX, params.clientY);
-                if (fromPoint) {
-                    this.syncHandleBlockAttributes(params.handle ?? null, fromPoint);
-                    return fromPoint;
-                }
-            } catch {
-                // fall through
-            }
-        }
-
-        return params.fallback?.() ?? null;
-    }
-
     ensureDragPerfSession(): void {
         this.getSemanticRefreshScheduler().ensureSemanticReadyForInteraction();
         this.dragPerfManager.ensure();
@@ -185,12 +118,6 @@ export class DragInteractionOrchestrator {
 
     emitDragLifecycle(event: DragLifecycleEvent): void {
         this.lifecycleEmitter.emit(event);
-    }
-
-    private syncHandleBlockAttributes(handle: HTMLElement | null, blockInfo: BlockInfo): void {
-        if (!handle || !handle.isConnected) return;
-        handle.setAttribute('data-block-start', String(blockInfo.startLine));
-        handle.setAttribute('data-block-end', String(blockInfo.endLine));
     }
 
     private resolveDragDocumentRelation(sourceView: EditorView | null): DragDocumentRelation {

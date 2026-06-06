@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../domain/block/block-types';
-import { createDragSource, DragLifecycleEvent, DragSource } from '../../shared/types/drag';
+import { DragLifecycleEvent, DragSource } from '../../shared/types/drag';
 import {
     DRAG_HANDLE_CLASS,
     EMBED_HANDLE_CLASS,
@@ -32,14 +32,13 @@ import {
 import {
     autoScrollSelectionRange as autoScrollSelectionRangeByFlow,
     clearCommittedSelectionRange as clearCommittedSelectionRangeByFlow,
-    cloneCommittedSelectionSource as cloneCommittedSelectionSourceByFlow,
     commitSelectionRange as commitSelectionRangeByFlow,
     deleteCommittedSelectionRange as deleteCommittedSelectionRangeByFlow,
     refreshSelectionVisual as refreshSelectionVisualByFlow,
     updateSelectionFromBoundary as updateSelectionFromBoundaryByFlow,
     updateSelectionFromLine as updateSelectionFromLineByFlow,
 } from '../state/selection/selection-flow';
-import { cloneSelectedBlocks } from '../state/selection/block-selection';
+import { cloneSelectedBlocks, type SelectedBlockRange } from '../state/selection/block-selection';
 import {
     buildCancelledLifecycleEvent,
     buildDragStartedLifecycleEvent,
@@ -49,6 +48,7 @@ import {
 import {
     isMobileEnvironment as isMobileEnvironmentByFlow,
 } from '../intent/drag-pointer-flow';
+import { type DragSourceRequest } from '../source';
 import { runDesktopPointerDownPipeline } from './desktop-pointerdown-runner';
 import {
     enterMobileSelectionMode,
@@ -56,7 +56,7 @@ import {
     getMobileSelectionTemplateBlock,
     handleMobileSelectingPointerMove,
     runMobilePointerDownPipeline,
-} from '../state/mobile-selection-actions';
+} from './mobile-selection-runner';
 
 const MOBILE_DRAG_LONG_PRESS_MS = 200;
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
@@ -68,8 +68,7 @@ const MOUSE_RANGE_SELECT_LONG_PRESS_MS = 260;
 const MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX = 4;
 
 export interface DragEventHandlerDeps {
-    getBlockInfoForHandle: (handle: HTMLElement) => BlockInfo | null;
-    getBlockInfoAtPoint: (clientX: number, clientY: number) => BlockInfo | null;
+    resolveDragSource: (request: DragSourceRequest) => DragSource | null;
     getVisibleHandleForBlockStart?: (blockStart: number) => HTMLElement | null;
     isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
     isMultiLineSelectionEnabled?: () => boolean;
@@ -187,11 +186,12 @@ export class DragEventHandler {
     }
 
     beginRangeSelectionSession(
-        blockInfo: BlockInfo,
+        source: DragSource,
         e: PointerEvent,
         handle: HTMLElement | null,
         options?: { skipLongPress?: boolean; initialOperation?: RangeSelectionOperation }
     ): void {
+        const blockInfo = source.primaryBlock;
         const committedBlocksSnapshot = cloneSelectedBlocks(this.committedRangeSelection?.blocks ?? []);
         const pointerType = e.pointerType || null;
         const skipLongPress = options?.skipLongPress === true;
@@ -229,9 +229,11 @@ export class DragEventHandler {
             dragTimeoutId = window.setTimeout(() => {
                 if (!(this.gesture.phase === 'selecting' && this.gesture.selection.mode === 'range')) return;
                 const state = this.gesture.selection.rangeSelect;
+                const source = this.resolveDragSource(this.buildDirectRangeSelectionSourceRequest(state));
+                if (!source) return;
                 if (state.pointerId !== e.pointerId) return;
                 state.dragReady = true;
-                this.emitPressPendingLifecycle(state.directDragSource, state.pointerType, true);
+                this.emitPressPendingLifecycle(source, state.pointerType, true);
             }, MOBILE_DRAG_LONG_PRESS_MS);
         } else if (preferLongPressDrag) {
             dragTimeoutId = window.setTimeout(() => {
@@ -240,7 +242,9 @@ export class DragEventHandler {
                 if (state.pointerId !== e.pointerId) return;
                 if (!state.preferLongPressDrag || state.selectionGestureStarted) return;
                 state.dragReady = true;
-                this.emitPressPendingLifecycle(state.activeSelectionSource, state.pointerType, true);
+                const source = this.resolveDragSource(this.buildActiveRangeSelectionSourceRequest(state));
+                if (!source) return;
+                this.emitPressPendingLifecycle(source, state.pointerType, true);
             }, MOUSE_RANGE_SELECT_LONG_PRESS_MS);
         }
         if (!shouldDeferInterception) {
@@ -256,7 +260,8 @@ export class DragEventHandler {
                 const state = this.gesture.selection.rangeSelect;
                 if (state.pointerId !== e.pointerId) return;
                 state.longPressReady = true;
-                this.emitPressPendingLifecycle(state.activeSelectionSource, state.pointerType, true);
+                const source = this.resolveDragSource(this.buildActiveRangeSelectionSourceRequest(state));
+                if (source) this.emitPressPendingLifecycle(source, state.pointerType, true);
                 this.activateMouseRangeSelectInterception(state);
                 this.updateMouseRangeSelectionFromLine(state, state.currentLineNumber);
             }, config.longPressMs);
@@ -270,7 +275,8 @@ export class DragEventHandler {
         };
         this.pointer.attachPointerListeners();
         const isPressReady = skipLongPress && !preferLongPressDrag;
-        this.emitPressPendingLifecycle(initialRangeSelectState.activeSelectionSource, pointerType, isPressReady);
+        const initialSource = this.resolveDragSource(this.buildActiveRangeSelectionSourceRequest(initialRangeSelectState));
+        if (initialSource) this.emitPressPendingLifecycle(initialSource, pointerType, isPressReady);
         if (skipLongPress && !preferLongPressDrag) {
             this.updateMouseRangeSelectionFromLine(initialRangeSelectState, initialRangeSelectState.currentLineNumber);
         }
@@ -521,7 +527,8 @@ export class DragEventHandler {
                 if (distance >= MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX) {
                     e.preventDefault();
                     e.stopPropagation();
-                    const source = state.directDragSource;
+                    const source = this.resolveDragSource(this.buildDirectRangeSelectionSourceRequest(state));
+                    if (!source) return;
                     const pointerId = state.pointerId;
                     this.clearCommittedRangeSelection();
                     this.clearMouseRangeSelectState();
@@ -537,7 +544,8 @@ export class DragEventHandler {
                 if (distance >= MOBILE_DRAG_START_MOVE_THRESHOLD_PX) {
                     e.preventDefault();
                     e.stopPropagation();
-                    const source = state.directDragSource;
+                    const source = this.resolveDragSource(this.buildDirectRangeSelectionSourceRequest(state));
+                    if (!source) return;
                     const pointerId = state.pointerId;
                     this.clearCommittedRangeSelection();
                     this.clearMouseRangeSelectState();
@@ -562,7 +570,8 @@ export class DragEventHandler {
                 }
                 e.preventDefault();
                 e.stopPropagation();
-                const source = this.getCommittedSelectionSource() ?? state.activeSelectionSource;
+                const source = this.getCommittedSelectionSource() ?? this.resolveDragSource(this.buildActiveRangeSelectionSourceRequest(state));
+                if (!source) return;
                 const pointerId = state.pointerId;
                 this.clearCommittedRangeSelection();
                 this.clearMouseRangeSelectState();
@@ -576,7 +585,7 @@ export class DragEventHandler {
         e.stopPropagation();
 
         const targetBoundary = this.resolveHandleRangeBoundaryAtPoint(e.clientX, e.clientY)
-            ?? resolveRangeBoundaryAtPoint(this.view, e.clientX, e.clientY, (x, y) => this.deps.getBlockInfoAtPoint(x, y));
+            ?? resolveRangeBoundaryAtPoint(this.view, e.clientX, e.clientY, (x, y) => this.resolveDragSource({ kind: 'point', clientX: x, clientY: y })?.primaryBlock ?? null);
         if (targetBoundary) {
             this.updateMouseRangeSelection(state, targetBoundary);
         }
@@ -609,9 +618,9 @@ export class DragEventHandler {
         if (!handle || handle.classList.contains(EMBED_HANDLE_CLASS)) return null;
         if (!this.view.dom.contains(handle)) return null;
 
-        const blockInfo = this.deps.getBlockInfoForHandle(handle);
-        if (!blockInfo) return null;
-        return buildRangeSelectionBoundaryFromBlock(this.view.state.doc, blockInfo);
+        const source = this.resolveDragSource({ kind: 'handle', handle });
+        if (!source) return null;
+        return buildRangeSelectionBoundaryFromBlock(this.view.state.doc, source.primaryBlock);
     }
 
     private retargetMobileRangeSelection(e: PointerEvent): void {
@@ -687,8 +696,47 @@ export class DragEventHandler {
         this.clearCommittedRangeSelection();
     };
 
-    getCommittedSelectionSource() {
-        return cloneCommittedSelectionSourceByFlow(this.committedRangeSelection);
+    getCommittedSelectionSource(): DragSource | null {
+        const request = this.buildCommittedSelectionSourceRequest();
+        return request ? this.resolveDragSource(request) : null;
+    }
+
+    buildCommittedSelectionSourceRequest(): DragSourceRequest | null {
+        if (!this.committedRangeSelection) return null;
+        return {
+            kind: 'selection',
+            doc: this.view.state.doc,
+            blocks: this.committedRangeSelection.blocks,
+            templateBlock: this.committedRangeSelection.templateBlock,
+        };
+    }
+
+    buildActiveRangeSelectionSourceRequest(state: MouseRangeSelectState): DragSourceRequest {
+        return {
+            kind: 'selection',
+            doc: this.view.state.doc,
+            blocks: state.selectionBlocks,
+            templateBlock: state.anchorBlock,
+        };
+    }
+
+    buildDirectRangeSelectionSourceRequest(state: MouseRangeSelectState): DragSourceRequest {
+        return { kind: 'block', block: state.directBlock };
+    }
+
+    buildMobileSelectionSourceRequest(state: { selectedBlocks: SelectedBlockRange[]; activeMovingBoundary: RangeSelectionBoundary }): DragSourceRequest | null {
+        const templateBlock = getMobileSelectionTemplateBlock(this, state);
+        if (state.selectedBlocks.length === 0) return null;
+        return {
+            kind: 'selection',
+            doc: this.view.state.doc,
+            blocks: state.selectedBlocks,
+            templateBlock,
+        };
+    }
+
+    resolveDragSource(request: DragSourceRequest): DragSource | null {
+        return this.deps.resolveDragSource(request);
     }
 
     private refreshRangeSelectionVisual(): void {
@@ -843,7 +891,8 @@ export class DragEventHandler {
             if (mode === 'up' && rangeState.pointerType === 'mouse') {
                 e.preventDefault();
                 e.stopPropagation();
-                this.deps.openBlockTypeMenu?.(rangeState.activeSelectionSource.primaryBlock, e);
+                const source = this.resolveDragSource(this.buildActiveRangeSelectionSourceRequest(rangeState));
+                if (source) this.deps.openBlockTypeMenu?.(source.primaryBlock, e);
                 this.finishRangeSelectionSession();
                 return;
             }
@@ -993,15 +1042,17 @@ export class DragEventHandler {
                 };
             case 'selecting':
                 if (gesture.selection.mode === 'range') {
+                    const source = this.resolveDragSource(this.buildActiveRangeSelectionSourceRequest(gesture.selection.rangeSelect));
                     this.clearMouseRangeSelectState();
                     return {
-                        source: gesture.selection.rangeSelect.activeSelectionSource,
+                        source,
                         hadDrag: false,
                     };
                 }
+                const mobileSource = this.buildMobileSelectionSourceRequest(gesture.selection.mobileSelect);
                 this.clearCommittedRangeSelection();
                 return {
-                    source: createDragSource(getMobileSelectionTemplateBlock(this, gesture.selection.mobileSelect), [{ startLine: getMobileSelectionTemplateBlock(this, gesture.selection.mobileSelect).startLine, endLine: getMobileSelectionTemplateBlock(this, gesture.selection.mobileSelect).endLine }]),
+                    source: mobileSource ? this.resolveDragSource(mobileSource) : null,
                     hadDrag: false,
                 };
             default:

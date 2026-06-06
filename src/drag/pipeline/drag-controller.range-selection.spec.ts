@@ -12,6 +12,7 @@ import {
     appendHandleGutterMarker,
     dispatchPointer,
     createRect,
+    resolveDragSourceFromTestBlocks,
 } from './drag-controller.test-helpers';
 
 registerMouseHandlerTestHooks();
@@ -30,8 +31,7 @@ describe('DragEventHandler Range Selection', () => {
         const endBlock = createBlock('line 6', 5, 5);
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession,
@@ -123,8 +123,7 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -179,12 +178,14 @@ describe('DragEventHandler Range Selection', () => {
         const sourceBlock = createBlock('anchor', 1, 1);
         const codeBlock = createBlock('```ts', 4, 6);
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: (handle) => {
-                if (handle === anchorHandle) return sourceBlock;
-                if (handle === codeBlockHandle) return codeBlock;
-                return null;
-            },
-            getBlockInfoAtPoint: (_x, y) => (y >= 110 ? codeBlock : sourceBlock),
+            resolveDragSource: resolveDragSourceFromTestBlocks({
+                handle: (handle) => {
+                    if (handle === anchorHandle) return sourceBlock;
+                    if (handle === codeBlockHandle) return codeBlock;
+                    return null;
+                },
+                point: (_x, y) => (y >= 110 ? codeBlock : sourceBlock),
+            }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -236,8 +237,7 @@ describe('DragEventHandler Range Selection', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const endBlock = createBlock('- end', 5, 5);
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: (_x, y) => (y >= 160 ? endBlock : sourceBlock),
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 160 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -282,8 +282,7 @@ describe('DragEventHandler Range Selection', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const endBlock = createBlock('- end', 5, 5);
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -328,8 +327,7 @@ describe('DragEventHandler Range Selection', () => {
         const beginPointerDragSession = vi.fn();
         const scheduleDropIndicatorUpdate = vi.fn();
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -408,8 +406,7 @@ describe('DragEventHandler Range Selection', () => {
         const beginPointerDragSession = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: (handle) => (handle === endHandle ? endBlock : sourceBlock),
-            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -482,8 +479,7 @@ describe('DragEventHandler Range Selection', () => {
         const scheduleDropIndicatorUpdate = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: (handle) => (handle === endHandle ? endBlock : sourceBlock),
-            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -557,8 +553,7 @@ describe('DragEventHandler Range Selection', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: (handle) => (handle === endHandle ? endBlock : sourceBlock),
-            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -635,8 +630,7 @@ describe('DragEventHandler Range Selection', () => {
         const scheduleDropIndicatorUpdate = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: (handle) => (handle === endHandle ? endBlock : sourceBlock),
-            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -712,8 +706,7 @@ describe('DragEventHandler Range Selection', () => {
         const beginPointerDragSession = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: (handle) => (handle === endHandle ? endBlock : sourceBlock),
-            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -769,15 +762,14 @@ describe('DragEventHandler Range Selection', () => {
         handler.destroy();
     });
 
-    it('falls back to point-based source resolution when handle mapping is stale', () => {
+    it('does not downgrade stale handle mapping to point-based source resolution', () => {
         const view = createViewStub(8);
         const handle = appendHandleForBlockStart(view, 1);
         appendHandleForBlockStart(view, 4);
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => null,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => null, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -810,7 +802,7 @@ describe('DragEventHandler Range Selection', () => {
             clientY: 90,
         });
 
-        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).not.toHaveLength(0);
+        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).toHaveLength(0);
         handler.destroy();
     });
 
@@ -828,8 +820,7 @@ describe('DragEventHandler Range Selection', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession,
@@ -912,8 +903,7 @@ describe('DragEventHandler Range Selection', () => {
         const beginPointerDragSession = vi.fn();
         const performDropAtPoint = vi.fn();
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             getMultiLineSelectionLongPressMs: () => 1200,
             beginPointerDragSession,
@@ -958,8 +948,7 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -1014,8 +1003,7 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -1048,8 +1036,7 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -1084,8 +1071,7 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -1131,8 +1117,7 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -1199,8 +1184,7 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -1257,13 +1241,15 @@ describe('DragEventHandler Range Selection', () => {
         const middleBlock = createBlock('line 5', 4, 4);
         const endBlock = createBlock('line 8', 7, 7);
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: (handle) => {
-                if (handle === topHandle) return sourceBlock;
-                if (handle === middleHandle) return middleBlock;
-                if (handle === bottomHandle) return endBlock;
-                return null;
-            },
-            getBlockInfoAtPoint: (_x, y) => (y >= 140 ? endBlock : sourceBlock),
+            resolveDragSource: resolveDragSourceFromTestBlocks({
+                handle: (handle) => {
+                    if (handle === topHandle) return sourceBlock;
+                    if (handle === middleHandle) return middleBlock;
+                    if (handle === bottomHandle) return endBlock;
+                    return null;
+                },
+                point: (_x, y) => (y >= 140 ? endBlock : sourceBlock),
+            }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -1339,8 +1325,7 @@ describe('DragEventHandler Range Selection', () => {
         const scheduleDropIndicatorUpdate = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: (_x, y) => (y >= 20 ? listParentBlock : sourceBlock),
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 20 ? listParentBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -1467,8 +1452,7 @@ describe('DragEventHandler Range Selection', () => {
         };
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: (_x, y) => (y >= 82 && y <= 138 ? calloutBlock : null),
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 82 && y <= 138 ? calloutBlock : null) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -1552,12 +1536,14 @@ describe('DragEventHandler Range Selection', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: (handle) => {
-                if (handle === handleA) return blockA;
-                if (handle === handleB) return blockB;
-                return null;
-            },
-            getBlockInfoAtPoint: () => null,
+            resolveDragSource: resolveDragSourceFromTestBlocks({
+                handle: (handle) => {
+                    if (handle === handleA) return blockA;
+                    if (handle === handleB) return blockB;
+                    return null;
+                },
+                point: () => null,
+            }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -1676,8 +1662,7 @@ describe('DragEventHandler Range Selection', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -1739,8 +1724,7 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -1786,8 +1770,7 @@ describe('DragEventHandler Range Selection', () => {
         const beginPointerDragSession = vi.fn();
         const scheduleDropIndicatorUpdate = vi.fn();
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -1830,8 +1813,7 @@ describe('DragEventHandler Range Selection', () => {
         const performDropAtPoint = vi.fn();
         const finishDragSession = vi.fn();
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             isMultiLineSelectionEnabled: () => false,
             beginPointerDragSession,
@@ -1894,8 +1876,7 @@ describe('DragEventHandler Range Selection', () => {
         const finishDragSession = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => null,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             isMultiLineSelectionEnabled: () => false,
             beginPointerDragSession,
@@ -1949,8 +1930,7 @@ describe('DragEventHandler Range Selection', () => {
         const beginPointerDragSession = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: (handle) => (handle === endHandle ? endBlock : sourceBlock),
-            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -2013,8 +1993,7 @@ describe('DragEventHandler Range Selection', () => {
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession,
@@ -2074,8 +2053,7 @@ describe('DragEventHandler Range Selection', () => {
         const scheduleDropIndicatorUpdate = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -2138,11 +2116,13 @@ describe('DragEventHandler Range Selection', () => {
         const beginPointerDragSession = vi.fn();
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => null,
-            getBlockInfoAtPoint: (_x, y) => {
-                const lineIndex = Math.max(0, Math.min(7, Math.floor(y / 20)));
-                return createBlock(`line ${lineIndex + 1}`, lineIndex, lineIndex);
-            },
+            resolveDragSource: resolveDragSourceFromTestBlocks({
+                handle: () => null,
+                point: (_x, y) => {
+                    const lineIndex = Math.max(0, Math.min(7, Math.floor(y / 20)));
+                    return createBlock(`line ${lineIndex + 1}`, lineIndex, lineIndex);
+                },
+            }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -2242,12 +2222,14 @@ describe('DragEventHandler Range Selection', () => {
         const thirdHandle = appendHandleForBlockStart(view, 2);
 
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => null,
-            getBlockInfoAtPoint: (_x, y) => {
-                if (!Number.isFinite(y)) return null;
-                const lineIndex = Math.max(0, Math.min(3, Math.floor(y / 20)));
-                return createBlock(`line ${lineIndex + 1}`, lineIndex, lineIndex);
-            },
+            resolveDragSource: resolveDragSourceFromTestBlocks({
+                handle: () => null,
+                point: (_x, y) => {
+                    if (!Number.isFinite(y)) return null;
+                    const lineIndex = Math.max(0, Math.min(3, Math.floor(y / 20)));
+                    return createBlock(`line ${lineIndex + 1}`, lineIndex, lineIndex);
+                },
+            }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -2329,8 +2311,7 @@ describe('DragEventHandler Range Selection', () => {
         appendHandleForBlockStart(view, 0);
         const sourceBlock = createBlock('- item', 0, 0);
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: () => sourceBlock,
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -2366,8 +2347,7 @@ describe('DragEventHandler Range Selection', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const endBlock = createBlock('line 6', 5, 5);
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
@@ -2419,8 +2399,7 @@ describe('DragEventHandler Range Selection', () => {
         const endBlock = createBlock('line 6', 5, 5);
         const hideDropIndicator = vi.fn();
         const handler = new DragEventHandler(view, {
-            getBlockInfoForHandle: () => sourceBlock,
-            getBlockInfoAtPoint: (_x, y) => (y >= 100 ? endBlock : sourceBlock),
+            resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),

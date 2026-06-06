@@ -10,8 +10,6 @@ import {
     type MouseRangeSelectState,
     type RangeSelectionOperation,
     type RangeSelectConfig,
-    buildDragSourceFromBlock,
-    buildDragSourceFromBlocks,
 } from './selection-model';
 
 type CreateInitialRangeSelectionStateOptions = {
@@ -66,12 +64,9 @@ export function createInitialRangeSelectionState(
     const selectionBlocks = operation === 'remove'
         ? subtractSelectedBlocks(options.doc.lines, options.committedBlocksSnapshot, [anchorBlock])
         : mergeSelectedBlocks(options.doc.lines, [...options.committedBlocksSnapshot, anchorBlock]);
-    const anchorSelectionSource = buildDragSourceFromBlocks(options.doc, selectionBlocks, options.blockInfo);
-
     return {
-        anchorSelectionSource,
-        directDragSource: buildDragSourceFromBlock(options.blockInfo),
-        activeSelectionSource: anchorSelectionSource,
+        anchorBlock: options.blockInfo,
+        directBlock: options.blockInfo,
         operation,
         preferLongPressDrag: false,
         selectionGestureStarted: false,

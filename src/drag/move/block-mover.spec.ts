@@ -2,7 +2,7 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
-import { createDragSource } from '../../shared/types/drag';
+import { createDragSource } from '../source/source';
 import { buildInsertTextForDrop } from '../../domain/mutation/text-mutation-policy';
 import { BlockMover } from './block-mover';
 import { createLineParsingContext } from '../../domain/markdown/line-parsing-service';

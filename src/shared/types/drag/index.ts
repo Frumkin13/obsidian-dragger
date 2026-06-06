@@ -2,7 +2,6 @@ export type {
     DragSource,
     DragSourceRange,
 } from './source';
-export { createDragSource } from './source';
 
 export type {
     DragDocumentRelation,
