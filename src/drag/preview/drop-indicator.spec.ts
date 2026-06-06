@@ -2,7 +2,6 @@
 
 import type { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BlockType } from '../../domain/block/block-types';
 import { DropIndicatorManager } from './drop-indicator';
 import { HIDDEN_CLASS } from '../../shared/dom-selectors';
 
@@ -25,8 +24,19 @@ function createViewStub(): EditorView {
     } as unknown as EditorView;
 }
 
-function dropValidation(targetLineNumber: number, preview: { indicatorY: number; lineRect?: { left: number; width: number }; highlightRect?: { top: number; left: number; width: number; height: number } }) {
-    return { allowed: true, plan: { targetLineNumber, preview } };
+function dropResult(targetLineNumber: number, preview: { indicatorY: number; lineRect?: { left: number; width: number }; highlightRect?: { top: number; left: number; width: number; height: number } }) {
+    return { allowed: true, plan: { targetLineNumber, preview } } as const;
+}
+
+function setupAnimationFrameQueue(): FrameRequestCallback[] {
+    const queuedFrames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+        queuedFrames.push(cb);
+        return queuedFrames.length;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => { });
+    vi.spyOn(window, 'getComputedStyle').mockReturnValue({ paddingRight: '0' } as CSSStyleDeclaration);
+    return queuedFrames;
 }
 
 afterEach(() => {
@@ -35,68 +45,35 @@ afterEach(() => {
 });
 
 describe('DropIndicatorManager', () => {
-    it('skips target recalculation for tiny pointer moves on same source', () => {
+    it('renders a precomputed drop result without resolving drop', () => {
         const view = createViewStub();
-        const resolveDropValidation = vi.fn(() => dropValidation(1, {
+        const onFrameMetrics = vi.fn();
+        const queuedFrames = setupAnimationFrameQueue();
+        const manager = new DropIndicatorManager(view, { onFrameMetrics });
+
+        manager.scheduleRender(dropResult(1, {
             indicatorY: 10,
             lineRect: { left: 5, width: 100 },
-        }));
-        const onFrameMetrics = vi.fn();
-        const queuedFrames: FrameRequestCallback[] = [];
-        vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
-            queuedFrames.push(cb);
-            return queuedFrames.length;
-        });
-        vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => { });
-        vi.spyOn(window, 'getComputedStyle').mockReturnValue({ paddingRight: '0' } as CSSStyleDeclaration);
-
-        const manager = new DropIndicatorManager(view, resolveDropValidation, { onFrameMetrics });
-        const source = {
-            type: BlockType.Paragraph,
-            startLine: 0,
-            endLine: 0,
-            from: 0,
-            to: 5,
-            indentLevel: 0,
-            content: 'plain',
-        };
-
-        manager.scheduleFromPoint(10, 10, source, 'mouse');
+        }), null, 'mouse');
         queuedFrames.shift()?.(0);
-        manager.scheduleFromPoint(11, 10, source, 'mouse');
-        queuedFrames.shift()?.(16);
 
-        expect(resolveDropValidation).toHaveBeenCalledTimes(1);
-        expect(onFrameMetrics).toHaveBeenCalledTimes(2);
-        expect(onFrameMetrics).toHaveBeenLastCalledWith(
-            expect.objectContaining({
-                evaluated: false,
-                skipped: true,
-                reused: true,
-            })
-        );
+        const indicatorEl = document.querySelector('.dnd-drop-indicator');
+        expect(indicatorEl?.classList.contains(HIDDEN_CLASS)).toBe(false);
+        expect(onFrameMetrics).toHaveBeenCalledWith(expect.objectContaining({ evaluated: true }));
 
         manager.destroy();
     });
 
     it('shows list drop highlight when highlightRect is provided', () => {
         const view = createViewStub();
-        const resolveDropValidation = vi.fn(() => dropValidation(2, {
+        const queuedFrames = setupAnimationFrameQueue();
+        const manager = new DropIndicatorManager(view);
+
+        manager.scheduleRender(dropResult(2, {
             indicatorY: 24,
             lineRect: { left: 8, width: 140 },
             highlightRect: { top: 16, left: 10, width: 180, height: 30 },
-        }));
-        const queuedFrames: FrameRequestCallback[] = [];
-        vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
-            queuedFrames.push(cb);
-            return queuedFrames.length;
-        });
-        vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => { });
-        vi.spyOn(window, 'getComputedStyle').mockReturnValue({ paddingRight: '0' } as CSSStyleDeclaration);
-
-        const manager = new DropIndicatorManager(view, resolveDropValidation);
-
-        manager.scheduleFromPoint(12, 18, null, 'mouse');
+        }), null, 'mouse');
         queuedFrames.shift()?.(0);
 
         const indicatorEl = document.querySelector('.dnd-drop-indicator');
@@ -110,24 +87,16 @@ describe('DropIndicatorManager', () => {
 
     it('hides list drop highlight when disabled by setting callback', () => {
         const view = createViewStub();
-        const resolveDropValidation = vi.fn(() => dropValidation(2, {
-            indicatorY: 24,
-            lineRect: { left: 8, width: 140 },
-            highlightRect: { top: 16, left: 10, width: 180, height: 30 },
-        }));
-        const queuedFrames: FrameRequestCallback[] = [];
-        vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
-            queuedFrames.push(cb);
-            return queuedFrames.length;
-        });
-        vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => { });
-        vi.spyOn(window, 'getComputedStyle').mockReturnValue({ paddingRight: '0' } as CSSStyleDeclaration);
-
-        const manager = new DropIndicatorManager(view, resolveDropValidation, {
+        const queuedFrames = setupAnimationFrameQueue();
+        const manager = new DropIndicatorManager(view, {
             isDropHighlightEnabled: () => false,
         });
 
-        manager.scheduleFromPoint(12, 18, null, 'mouse');
+        manager.scheduleRender(dropResult(2, {
+            indicatorY: 24,
+            lineRect: { left: 8, width: 140 },
+            highlightRect: { top: 16, left: 10, width: 180, height: 30 },
+        }), null, 'mouse');
         queuedFrames.shift()?.(0);
 
         const indicatorEl = document.querySelector('.dnd-drop-indicator');
@@ -142,29 +111,21 @@ describe('DropIndicatorManager', () => {
     it('keeps only one editor indicator visible across manager instances', () => {
         const viewA = createViewStub();
         const viewB = createViewStub();
-        const resolveDropValidationA = vi.fn(() => dropValidation(1, {
+        const queuedFrames = setupAnimationFrameQueue();
+
+        const managerA = new DropIndicatorManager(viewA);
+        const managerB = new DropIndicatorManager(viewB);
+
+        managerA.scheduleRender(dropResult(1, {
             indicatorY: 12,
             lineRect: { left: 6, width: 120 },
-        }));
-        const resolveDropValidationB = vi.fn(() => dropValidation(2, {
-            indicatorY: 26,
-            lineRect: { left: 10, width: 140 },
-        }));
-        const queuedFrames: FrameRequestCallback[] = [];
-        vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
-            queuedFrames.push(cb);
-            return queuedFrames.length;
-        });
-        vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => { });
-        vi.spyOn(window, 'getComputedStyle').mockReturnValue({ paddingRight: '0' } as CSSStyleDeclaration);
-
-        const managerA = new DropIndicatorManager(viewA, resolveDropValidationA);
-        const managerB = new DropIndicatorManager(viewB, resolveDropValidationB);
-
-        managerA.scheduleFromPoint(10, 10, null, 'mouse');
+        }), null, 'mouse');
         queuedFrames.shift()?.(0);
 
-        managerB.scheduleFromPoint(20, 20, null, 'mouse');
+        managerB.scheduleRender(dropResult(2, {
+            indicatorY: 26,
+            lineRect: { left: 10, width: 140 },
+        }), null, 'mouse');
         queuedFrames.shift()?.(16);
 
         const indicators = Array.from(document.querySelectorAll<HTMLElement>('.dnd-drop-indicator'));

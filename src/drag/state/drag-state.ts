@@ -55,6 +55,5 @@ export type MobileSelectionData = {
 export type InteractionState =
     | { phase: 'idle' }
     | { phase: 'press_pending'; press: PointerPressData }
-    | { phase: 'range_selecting'; rangeSelect: MouseRangeSelectState }
-    | { phase: 'mobile_selecting'; mobileSelect: MobileSelectionData }
+    | { phase: 'selecting'; selection: { mode: 'range'; rangeSelect: MouseRangeSelectState } | { mode: 'mobile'; mobileSelect: MobileSelectionData } }
     | { phase: 'dragging'; drag: PointerDragData };

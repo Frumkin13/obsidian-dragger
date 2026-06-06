@@ -90,19 +90,8 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 context: this.context,
                 dragPerfManager: this.dragPerfManager,
             }));
-            this.dropIndicator = new DropIndicatorManager(view, (info) =>
-                this.dropPlanner.resolveValidatedDropTarget({
-                    clientX: info.clientX,
-                    clientY: info.clientY,
-                    dragSource: info.dragSource ?? getActiveDragSource(this.view) ?? null,
-                    pointerType: info.pointerType ?? null,
-                    sourceScope: this.resolveDragSourceScope(),
-                })
-                , {
+            this.dropIndicator = new DropIndicatorManager(view, {
                     isDropHighlightEnabled: () => plugin.settings.enableListDropHighlight !== false,
-                    recordPerfDuration: (key, durationMs) => {
-                        this.dragPerfManager.recordDuration(key, durationMs);
-                    },
                     onDropTargetEvaluated: ({ source, pointerType, validation }) => {
                         if (!source) return;
                         this.orchestrator.emitDragLifecycle(buildDragTargetChangedLifecycleEvent({
@@ -146,8 +135,19 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
             });
             this.pointerDragTargetClient = {
                 containsPoint: (clientX, clientY) => this.containsPoint(clientX, clientY),
-                scheduleDropIndicatorUpdate: (clientX, clientY, dragSource, pointerType) =>
-                    this.dropIndicator.scheduleFromPoint(clientX, clientY, dragSource, pointerType),
+                scheduleDropIndicatorUpdate: (clientX, clientY, dragSource, pointerType) => {
+                    const source = dragSource ?? getActiveDragSource(this.view) ?? null;
+                    const startedAt = performance.now();
+                    const validation = this.dropPlanner.resolveValidatedDropTarget({
+                        clientX,
+                        clientY,
+                        dragSource: source,
+                        pointerType: pointerType ?? null,
+                        sourceScope: this.resolveDragSourceScope(),
+                    });
+                    this.dragPerfManager.recordDuration('drop_indicator_resolve', performance.now() - startedAt);
+                    this.dropIndicator.scheduleRender(validation, source, pointerType);
+                },
                 hideDropIndicator: () => this.dropIndicator.hide(),
                 performDropAtPoint: (source, clientX, clientY, pointerType) =>
                     this.orchestrator.performDropAtPoint(source, clientX, clientY, pointerType),

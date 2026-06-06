@@ -2,7 +2,7 @@ import type { EditorView } from '@codemirror/view';
 import type { BlockInfo } from '../../domain/block/block-types';
 import { createDragSource, type DragSource } from '../../shared/types/drag';
 import { DRAG_HANDLE_CLASS, EMBED_HANDLE_CLASS } from '../../shared/dom-selectors';
-import type { DragEventHandlerDeps } from '../pipeline/drag-controller';
+import type { DragEventHandlerDeps } from './drag-controller';
 import type { PointerSessionController } from '../input/pointer-session-controller';
 import type { CommittedRangeSelection, RangeSelectionOperation } from '../state/selection/selection-model';
 

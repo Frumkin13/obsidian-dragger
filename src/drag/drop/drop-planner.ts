@@ -1,7 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
 import { validateInPlaceDrop } from '../../domain/rules/drop-validation';
-import { InsertionRuleRejectReason, InsertionSlotContext } from '../../domain/rules/insertion-rules';
+import { InsertionSlotContext } from '../../domain/rules/insertion-rules';
 import { getLineMap, LineMap } from '../../domain/markdown/line-map';
 import { getCoordsAtPos } from './rect-calculator';
 import { DocLike, DropPlan, ListContext, ParsedLine } from '../../shared/types/protocol-types';
@@ -13,6 +13,7 @@ import { getRenderedMainLineNumberAtPoint } from '../../platform/dom/line-hit';
 
 import { DragSource, DragSourceScope } from '../../shared/types/drag';
 import { ListDropPlannerPort } from './list-drop-planner-port';
+import type { DropRejectReason, DropResult } from './drop-result';
 
 type PerfDurationKey =
     | 'resolve_total'
@@ -60,20 +61,7 @@ export interface DropPlannerDeps {
     ) => void;
 }
 
-export type DropRejectReason =
-    | 'table_cell'
-    | 'no_target'
-    | 'no_anchor'
-    | 'self_range_blocked'
-    | 'self_embedding'
-    | InsertionRuleRejectReason
-    | 'container_policy';
-
-export type DropValidationResult = {
-    allowed: boolean;
-    reason?: DropRejectReason;
-    plan?: DropPlan;
-};
+export type DropValidationResult = DropResult;
 
 export type DropPlannerSharedDeps = Omit<DropPlannerDeps, 'listDropPlanner'>;
 

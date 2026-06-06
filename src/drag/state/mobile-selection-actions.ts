@@ -8,9 +8,9 @@ import {
 } from '../../shared/dom-selectors';
 import { safePosAtCoords, resolveLineNumberFromPos } from '../../platform/dom/element-probe';
 import type { DragEventHandlerDeps } from '../pipeline/drag-controller';
-import { MobileGestureController } from '../state/mobile-gesture-controller';
+import { MobileGestureController } from './mobile-gesture-controller';
 import { PointerSessionController } from '../input/pointer-session-controller';
-import { RangeSelectionVisualManager } from '../state/selection/selection-visual-manager';
+import { RangeSelectionVisualManager } from './selection/selection-visual-manager';
 import {
     buildDragSourceFromBlocks,
     buildRangeSelectionBoundaryFromBlock,
@@ -19,25 +19,25 @@ import {
     RangeSelectionBoundary,
     RangeSelectionOperation,
     resolveBlockBoundaryAtLine,
-} from '../state/selection/selection-model';
-import { resolveRangeBoundaryAtPoint } from '../state/selection/hit-boundary';
+} from './selection/selection-model';
+import { resolveRangeBoundaryAtPoint } from './selection/hit-boundary';
 import {
     isSelectedBlockCoveredByBlocks,
     mergeSelectedBlocks,
     SelectedBlockRange,
     subtractSelectedBlocks,
-} from '../state/selection/block-selection';
+} from './selection/block-selection';
 import {
     autoScrollSelectionRange as autoScrollSelectionRangeByFlow,
     updateSelectionFromBoundary as updateSelectionFromBoundaryByFlow,
-} from '../state/selection/selection-flow';
+} from './selection/selection-flow';
 import {
     InteractionState,
     MobileSelectionData,
     MobileSelectionResizeHandle,
     PointerTerminalMode,
-} from '../state/drag-state';
-import { shouldStartMobilePressDrag as shouldStartMobilePressDragByFlow } from './drag-pointer-flow';
+} from './drag-state';
+import { shouldStartMobilePressDrag as shouldStartMobilePressDragByFlow } from '../intent/drag-pointer-flow';
 
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
 
@@ -94,7 +94,7 @@ function tryStartMobileSelectionResize(
     e: PointerEvent,
     target: HTMLElement
 ): boolean {
-    if (host.gesture.phase !== 'mobile_selecting') return false;
+    if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile')) return false;
     if (e.pointerType === 'mouse') return false;
 
     const handleEl = target.closest<HTMLElement>(`.${MOBILE_SELECTION_RESIZE_HANDLE_CLASS}`);
@@ -103,7 +103,7 @@ function tryStartMobileSelectionResize(
     const rawHandle = handleEl.getAttribute('data-dnd-mobile-selection-handle');
     if (rawHandle !== 'top' && rawHandle !== 'bottom') return false;
 
-    const state = host.gesture.mobileSelect;
+    const state = host.gesture.selection.mobileSelect;
     state.activeInteraction = {
         type: 'resize',
         pointerId: e.pointerId,
@@ -149,14 +149,14 @@ function tryStartMobileSelectionDrag(
     handleEl: HTMLElement,
     e: PointerEvent
 ): boolean {
-    if (host.gesture.phase !== 'mobile_selecting') return false;
+    if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile')) return false;
     if (e.pointerType === 'mouse') return false;
     if (!handleEl.classList.contains('dnd-range-selected-handle')) return false;
 
     const source = host.getCommittedSelectionSource();
     if (!source) return false;
 
-    const state = host.gesture.mobileSelect;
+    const state = host.gesture.selection.mobileSelect;
     state.activeInteraction = {
         type: 'drag',
         pointerId: e.pointerId,
@@ -179,8 +179,8 @@ function tryRetargetActiveMobileRangeSelectionFromHandle(
     handle: HTMLElement,
     e: PointerEvent
 ): boolean {
-    if (host.gesture.phase !== 'range_selecting') return false;
-    const state = host.gesture.rangeSelect;
+    if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'range')) return false;
+    const state = host.gesture.selection.rangeSelect;
     if (state.pointerType === 'mouse') return false;
     if (e.pointerType === 'mouse') return false;
 
@@ -200,7 +200,7 @@ function tryRetargetActiveMobileRangeSelectionFromHandle(
 }
 
 function tryHandleActiveMobileSelection(host: MobileGesturePipelineHost, e: PointerEvent): boolean {
-    if (host.gesture.phase !== 'mobile_selecting') return false;
+    if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile')) return false;
     handleMobileSelectionTextPointerDown(host, e);
     return true;
 }
@@ -230,8 +230,8 @@ function tryStartMobileTextLongPressDrag(
 }
 
 export function handleMobileSelectingPointerMove(host: MobileGesturePipelineHost, e: PointerEvent): void {
-    if (host.gesture.phase !== 'mobile_selecting') return;
-    const state = host.gesture.mobileSelect;
+    if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile')) return;
+    const state = host.gesture.selection.mobileSelect;
     const interaction = state.activeInteraction;
     if (!interaction || e.pointerId !== interaction.pointerId) return;
     e.preventDefault();
@@ -263,8 +263,8 @@ export function finishMobileSelectionPointer(
     e: PointerEvent,
     mode: PointerTerminalMode
 ): void {
-    if (host.gesture.phase !== 'mobile_selecting') return;
-    const state = host.gesture.mobileSelect;
+    if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile')) return;
+    const state = host.gesture.selection.mobileSelect;
     const interaction = state.activeInteraction;
     if (!interaction || e.pointerId !== interaction.pointerId) return;
     if (mode === 'up') {
@@ -308,14 +308,14 @@ export function enterMobileSelectionMode(host: MobileGesturePipelineHost, e: Eve
     };
     host.committedRangeSelection = buildCommittedSelectionFromBlocks(host, [selectedBlock], blockInfo);
     host.gesture = {
-        phase: 'mobile_selecting',
-        mobileSelect: {
+        phase: 'selecting',
+        selection: { mode: 'mobile', mobileSelect: {
             selectedBlocks: [selectedBlock],
             activeFixedBoundary: boundary,
             activeMovingBoundary: boundary,
             activeRangeBlocks: [selectedBlock],
             activeInteraction: null,
-        },
+        } },
     };
     renderMobileSelection(host, [selectedBlock]);
     host.mobile.lockMobileInteraction();
@@ -342,8 +342,8 @@ export function getMobileSelectionTemplateBlock(
 }
 
 function handleMobileSelectionTextPointerDown(host: MobileGesturePipelineHost, e: PointerEvent): boolean {
-    if (host.gesture.phase !== 'mobile_selecting') return false;
-    const state = host.gesture.mobileSelect;
+    if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile')) return false;
+    const state = host.gesture.selection.mobileSelect;
     const blockInfo = host.deps.getBlockInfoAtPoint(e.clientX, e.clientY);
     e.preventDefault();
     e.stopPropagation();
@@ -436,8 +436,8 @@ function finishNativeMobileSelectionSession(host: MobileGesturePipelineHost): vo
 }
 
 function exitMobileSelectionMode(host: MobileGesturePipelineHost): void {
-    if (host.gesture.phase !== 'mobile_selecting') return;
-    host.gesture.mobileSelect.activeInteraction = null;
+    if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile')) return;
+    host.gesture.selection.mobileSelect.activeInteraction = null;
     finishNativeMobileSelectionSession(host);
     host.gesture = { phase: 'idle' };
     host.clearCommittedRangeSelection();
@@ -445,8 +445,8 @@ function exitMobileSelectionMode(host: MobileGesturePipelineHost): void {
 }
 
 function hasMobileSelection(host: MobileGesturePipelineHost): boolean {
-    return host.gesture.phase === 'mobile_selecting'
-        && host.gesture.mobileSelect.selectedBlocks.length > 0;
+    return host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile'
+        && host.gesture.selection.mobileSelect.selectedBlocks.length > 0;
 }
 
 function resolveMobileSelectionBoundaryAtPoint(
@@ -530,8 +530,8 @@ function resolveBlockForHandle(
 }
 
 function retargetMobileRangeSelection(host: MobileGesturePipelineHost, e: PointerEvent): void {
-    if (host.gesture.phase !== 'range_selecting') return;
-    const state = host.gesture.rangeSelect;
+    if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'range')) return;
+    const state = host.gesture.selection.rangeSelect;
     if (state.pointerType === 'mouse') return;
     state.pointerId = e.pointerId;
     state.startX = e.clientX;

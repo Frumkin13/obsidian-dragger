@@ -1,15 +1,8 @@
 import { EditorView } from '@codemirror/view';
 import { DragSource } from '../../shared/types/drag';
 import { DropPlan } from '../../shared/types/protocol-types';
-import { DropValidationResult } from '../drop/drop-planner';
+import type { DropResult } from '../drop';
 import { DROP_INDICATOR_CLASS, DROP_HIGHLIGHT_CLASS, HIDDEN_CLASS } from '../../shared/dom-selectors';
-
-type DropValidationResolver = (info: {
-    clientX: number;
-    clientY: number;
-    dragSource: DragSource | null;
-    pointerType: string | null;
-}) => DropValidationResult;
 
 interface DropIndicatorManagerOptions {
     isDropHighlightEnabled?: () => boolean;
@@ -23,7 +16,7 @@ interface DropIndicatorManagerOptions {
     onDropTargetEvaluated?: (info: {
         source: DragSource | null;
         pointerType: string | null;
-        validation: DropValidationResult;
+        validation: DropResult;
     }) => void;
 }
 
@@ -31,14 +24,12 @@ export class DropIndicatorManager {
     private static readonly instances = new Set<DropIndicatorManager>();
     private readonly indicatorEl: HTMLDivElement;
     private readonly highlightEl: HTMLDivElement;
-    private pendingDragInfo: { x: number; y: number; dragSource: DragSource | null; pointerType: string | null } | null = null;
+    private pendingDragInfo: { validation: DropResult; dragSource: DragSource | null; pointerType: string | null } | null = null;
     private rafId: number | null = null;
-    private lastEvaluatedInput: { x: number; y: number; dragSource: DragSource | null; pointerType: string | null } | null = null;
     private lastDropPlan: DropPlan | null = null;
 
     constructor(
         private readonly view: EditorView,
-        private readonly resolveDropValidation: DropValidationResolver,
         private readonly options?: DropIndicatorManagerOptions
     ) {
         DropIndicatorManager.instances.add(this);
@@ -51,14 +42,14 @@ export class DropIndicatorManager {
         document.body.appendChild(this.highlightEl);
     }
 
-    scheduleFromPoint(clientX: number, clientY: number, dragSource: DragSource | null, pointerType: string | null): void {
-        this.pendingDragInfo = { x: clientX, y: clientY, dragSource, pointerType };
+    scheduleRender(validation: DropResult, dragSource: DragSource | null, pointerType: string | null): void {
+        this.pendingDragInfo = { validation, dragSource, pointerType };
         if (this.rafId !== null) return;
         this.rafId = requestAnimationFrame(() => {
             this.rafId = null;
             const pending = this.pendingDragInfo;
             if (!pending) return;
-            this.updateFromPoint(pending);
+            this.renderValidation(pending);
         });
     }
 
@@ -68,7 +59,6 @@ export class DropIndicatorManager {
             this.rafId = null;
         }
         this.pendingDragInfo = null;
-        this.lastEvaluatedInput = null;
         this.lastDropPlan = null;
         this.indicatorEl.classList.add(HIDDEN_CLASS);
         this.highlightEl.classList.add(HIDDEN_CLASS);
@@ -81,34 +71,9 @@ export class DropIndicatorManager {
         DropIndicatorManager.instances.delete(this);
     }
 
-    private updateFromPoint(info: { x: number; y: number; dragSource: DragSource | null; pointerType: string | null }): void {
-        if (this.shouldReuseLastResult(info)) {
-            const reused = this.lastDropPlan !== null;
-            if (this.lastDropPlan) {
-                this.renderDropPlan(this.lastDropPlan);
-            } else {
-                this.indicatorEl.classList.add(HIDDEN_CLASS);
-                this.highlightEl.classList.add(HIDDEN_CLASS);
-            }
-            this.options?.onFrameMetrics?.({
-                evaluated: false,
-                skipped: true,
-                reused,
-                durationMs: 0,
-            });
-            return;
-        }
-
-        const startedAt = this.now();
-        const validation = this.resolveDropValidation({
-            clientX: info.x,
-            clientY: info.y,
-            dragSource: info.dragSource,
-            pointerType: info.pointerType,
-        });
+    private renderValidation(info: { validation: DropResult; dragSource: DragSource | null; pointerType: string | null }): void {
+        const validation = info.validation;
         const dropPlan = validation.allowed ? validation.plan ?? null : null;
-        const durationMs = this.now() - startedAt;
-        this.options?.recordPerfDuration?.('drop_indicator_resolve', durationMs);
         this.options?.onDropTargetEvaluated?.({
             source: info.dragSource,
             pointerType: info.pointerType,
@@ -118,9 +83,8 @@ export class DropIndicatorManager {
             evaluated: true,
             skipped: false,
             reused: false,
-            durationMs,
+            durationMs: 0,
         });
-        this.lastEvaluatedInput = { ...info };
         this.lastDropPlan = dropPlan;
         if (!dropPlan) {
             this.indicatorEl.classList.add(HIDDEN_CLASS);
@@ -165,34 +129,5 @@ export class DropIndicatorManager {
             if (instance === this) continue;
             instance.hide();
         }
-    }
-
-    private shouldReuseLastResult(info: { x: number; y: number; dragSource: DragSource | null; pointerType: string | null }): boolean {
-        if (!this.lastEvaluatedInput) return false;
-        if (this.lastEvaluatedInput.pointerType !== info.pointerType) return false;
-        if (!this.isSameSource(this.lastEvaluatedInput.dragSource, info.dragSource)) return false;
-        const dx = Math.abs(this.lastEvaluatedInput.x - info.x);
-        const dy = Math.abs(this.lastEvaluatedInput.y - info.y);
-        return dx + dy < 2;
-    }
-
-    private isSameSource(a: DragSource | null, b: DragSource | null): boolean {
-        if (a === b) return true;
-        if (!a || !b) return false;
-        if (a.primaryBlock.type !== b.primaryBlock.type) return false;
-        if (a.primaryBlock.startLine !== b.primaryBlock.startLine) return false;
-        if (a.primaryBlock.endLine !== b.primaryBlock.endLine) return false;
-        if (a.ranges.length !== b.ranges.length) return false;
-        return a.ranges.every((range, index) => (
-            range.startLine === b.ranges[index].startLine
-            && range.endLine === b.ranges[index].endLine
-        ));
-    }
-
-    private now(): number {
-        if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-            return performance.now();
-        }
-        return Date.now();
     }
 }

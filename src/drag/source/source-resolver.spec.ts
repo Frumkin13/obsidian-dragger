@@ -59,7 +59,7 @@ describe('DragSourceResolver', () => {
         expect(block?.content).toContain('- item');
     });
 
-    it('falls back to DOM position when handle data attributes are missing', () => {
+    it('returns null when handle data attributes are missing', () => {
         const state = EditorState.create({
             doc: 'alpha\nbeta\n- item\ngamma',
         });
@@ -67,21 +67,15 @@ describe('DragSourceResolver', () => {
 
         const view = {
             state,
-            posAtDOM: (node: Node) => {
-                if (node === handle) {
-                    return state.doc.line(3).from;
-                }
-                throw new Error('unexpected node');
-            },
+            posAtDOM: () => state.doc.line(3).from,
         } as unknown as EditorView;
 
         const resolver = new DragSourceResolver(view);
         const block = resolver.getBlockInfoForHandle(handle);
-        expect(block).not.toBeNull();
-        expect(block?.startLine).toBe(2);
+        expect(block).toBeNull();
     });
 
-    it('falls back to data attributes when DOM lookup fails', () => {
+    it('uses data attributes when DOM lookup fails', () => {
         const state = EditorState.create({
             doc: 'first\nsecond\nthird',
         });
@@ -161,7 +155,7 @@ describe('DragSourceResolver', () => {
         expect(block).toBeNull();
     });
 
-    it('resolves rendered callout block from embed hit before coordinate fallback', () => {
+    it('resolves rendered callout block from embed hit before coordinate point lookup', () => {
         const state = EditorState.create({
             doc: '> [!note] title\n> body\nafter',
         });

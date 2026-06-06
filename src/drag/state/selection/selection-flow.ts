@@ -112,12 +112,12 @@ export function refreshSelectionVisual(
     committed: CommittedRangeSelection | null,
     rangeVisual: RangeSelectionVisualManager
 ): void {
-    if (gesture.phase === 'range_selecting') {
-        rangeVisual.render(gesture.rangeSelect.selectionBlocks);
+    if (gesture.phase === 'selecting' && gesture.selection.mode === 'range') {
+        rangeVisual.render(gesture.selection.rangeSelect.selectionBlocks);
         return;
     }
-    if (gesture.phase === 'mobile_selecting') {
-        rangeVisual.render(gesture.mobileSelect.selectedBlocks, { highlightLines: true, showMobileResizeHandles: true });
+    if (gesture.phase === 'selecting' && gesture.selection.mode === 'mobile') {
+        rangeVisual.render(gesture.selection.mobileSelect.selectedBlocks, { highlightLines: true, showMobileResizeHandles: true });
         return;
     }
     if (committed) {

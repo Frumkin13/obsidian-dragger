@@ -20,6 +20,10 @@ export class DragSourceResolver {
     constructor(private readonly view: EditorView) { }
 
     resolveSource(request: DragSourceRequest): DragSource | null {
+        if (request.kind === 'committed-selection' || request.kind === 'active-selection') {
+            return this.cloneSelectionSource(request.selectionSource);
+        }
+
         const block = this.resolvePrimaryBlock(request);
         if (!block) return null;
         return createDragSource(block, [{ startLine: block.startLine, endLine: block.endLine }]);
@@ -30,19 +34,8 @@ export class DragSourceResolver {
         // from the bound source line (especially on rendered blocks like `---`).
         // Prefer handle attributes as the authoritative source.
         const startLine = resolveLineNumberFromBlockStartAttribute(this.view, handle);
-        if (startLine !== null) {
-            const block = this.getDraggableBlockAtLine(startLine);
-            if (block) return block;
-        }
-
-        // Fallback to DOM lookup for unexpected/legacy handles without attributes.
-        const lineNumber = resolveLineNumberFromDomNodes(this.view, [handle]);
-        if (lineNumber !== null) {
-            const block = this.getDraggableBlockAtLine(lineNumber);
-            if (block) return block;
-        }
-
-        return null;
+        if (startLine === null) return null;
+        return this.getDraggableBlockAtLine(startLine);
     }
 
     getDraggableBlockAtLine(lineNumber: number): BlockInfo | null {
@@ -109,10 +102,17 @@ export class DragSourceResolver {
                     ?? this.getDraggableBlockAtPoint(request.clientX, request.clientY);
             case 'point':
                 return this.getDraggableBlockAtPoint(request.clientX, request.clientY);
-            case 'active-selection':
-            case 'committed-selection':
+            default:
                 return null;
         }
+    }
+
+    private cloneSelectionSource(source: DragSource | null): DragSource | null {
+        if (!source) return null;
+        return createDragSource(
+            source.primaryBlock,
+            source.ranges.map((range) => ({ ...range }))
+        );
     }
 
     private collectEmbedProbeCandidates(embedEl: HTMLElement): HTMLElement[] {
