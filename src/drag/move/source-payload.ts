@@ -1,4 +1,5 @@
 import { BlockInfo } from '../../domain/block/block-types';
+import { DragSource } from '../../shared/types/drag';
 import { DocLikeWithRange } from '../../shared/types/protocol-types';
 import { normalizeCompositeRanges, type CompositeLineRange } from '../../shared/utils/composite-selection';
 import { resolveDeleteRange } from './document-change';
@@ -23,8 +24,8 @@ export type CapturedMoveSource = {
     payload: SourcePayload;
 };
 
-export function captureMoveSource(doc: DocLikeWithRange, sourceBlock: BlockInfo): CapturedMoveSource | null {
-    const payload = captureSourcePayload(doc, sourceBlock);
+export function captureMoveSource(doc: DocLikeWithRange, source: DragSource): CapturedMoveSource | null {
+    const payload = captureSourcePayload(doc, source);
     if (!payload) return null;
 
     const firstRange = payload.ranges[0];
@@ -34,24 +35,19 @@ export function captureMoveSource(doc: DocLikeWithRange, sourceBlock: BlockInfo)
 
     return {
         block: {
-            ...sourceBlock,
+            ...source.primaryBlock,
             startLine: firstRange.startLine,
             endLine: lastRange.endLine,
             from: firstLine.from,
             to: lastLine.to,
             content: payload.content,
-            compositeSelection: { ranges: payload.ranges },
         },
         payload,
     };
 }
 
-export function captureSourcePayload(doc: DocLikeWithRange, sourceBlock: BlockInfo): SourcePayload | null {
-    const rawRanges = sourceBlock.compositeSelection?.ranges ?? [{
-        startLine: sourceBlock.startLine,
-        endLine: sourceBlock.endLine,
-    }];
-    const ranges = normalizeCompositeRanges(rawRanges, doc.lines);
+export function captureSourcePayload(doc: DocLikeWithRange, source: DragSource): SourcePayload | null {
+    const ranges = normalizeCompositeRanges(source.ranges, doc.lines);
     if (ranges.length === 0) return null;
 
     const segments = ranges.map((range) => {

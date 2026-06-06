@@ -1,10 +1,10 @@
 import type { EditorView } from '@codemirror/view';
 import type { App, MarkdownView, TFile } from 'obsidian';
-import { BlockInfo } from '../../domain/block/block-types';
 import { createLineParsingContext } from '../../domain/markdown/line-parsing-service';
 import { DocLikeWithRange } from '../../shared/types/protocol-types';
 import { getCodeMirrorView } from '../../platform/obsidian/editor-view';
 import { ListRenumberer } from './list-renumberer';
+import { DragSource } from '../../shared/types/drag';
 import { captureSourcePayload, SourcePayload } from './source-payload';
 import { TextChange } from './document-change';
 import { anchorSelectionBeforeUndoableChange } from './undo-selection-anchor';
@@ -23,15 +23,15 @@ export class FileBlockMover {
 
     async moveBlockToFile(params: {
         sourceView: EditorView;
-        sourceBlock: BlockInfo;
+        source: DragSource;
         targetFile: TFile;
     }): Promise<FileBlockMoveResult> {
-        const { sourceView, sourceBlock, targetFile } = params;
+        const { sourceView, source, targetFile } = params;
         if (targetFile.extension !== 'md') {
             return { moved: false, reason: 'target_not_markdown' };
         }
 
-        const payload = captureSourcePayload(sourceView.state.doc, sourceBlock);
+        const payload = captureSourcePayload(sourceView.state.doc, source);
         if (!payload || payload.content.length === 0) {
             return { moved: false, reason: 'empty_source' };
         }

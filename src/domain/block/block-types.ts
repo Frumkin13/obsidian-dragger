@@ -32,11 +32,4 @@ export interface BlockInfo {
     indentLevel: number;
     /** 块内容 */
     content: string;
-    /** 复合多段选择（可选，0-indexed 行区间） */
-    compositeSelection?: {
-        ranges: Array<{
-            startLine: number;
-            endLine: number;
-        }>;
-    };
 }

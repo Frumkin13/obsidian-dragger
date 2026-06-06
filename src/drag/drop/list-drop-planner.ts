@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { BlockInfo, BlockType } from '../../domain/block/block-types';
+import { BlockType } from '../../domain/block/block-types';
 import {
     getLineMap,
     getLineMetaAt,
@@ -8,7 +8,7 @@ import {
 } from '../../domain/markdown/line-map';
 import { getCoordsAtPos } from './rect-calculator';
 import { DocLike, ParsedLine } from '../../shared/types/protocol-types';
-import { DragSourceScope } from '../../shared/types/drag';
+import { DragSource, DragSourceScope } from '../../shared/types/drag';
 import { ListDropPlanContribution } from './list-drop-planner-port';
 
 export interface ListDropPlannerDeps {
@@ -88,7 +88,7 @@ export class ListDropPlanner {
         lineNumber: number;
         forcedLineNumber: number | null;
         childIntentOnLine: boolean;
-        dragSource: BlockInfo | null;
+        dragSource: DragSource | null;
         sourceScope?: DragSourceScope;
         clientX: number;
         lineMap?: LineMap;
@@ -103,7 +103,7 @@ export class ListDropPlanner {
             clientX,
             lineMap: providedLineMap,
         } = params;
-        if (!dragSource || dragSource.type !== BlockType.ListItem) return {};
+        if (!dragSource || dragSource.primaryBlock.type !== BlockType.ListItem) return {};
 
         const finalize = (result: ListDropPlanContribution): ListDropPlanContribution => {
             return result;
@@ -135,8 +135,8 @@ export class ListDropPlanner {
         if (baseLineNumber === null) return finalize({});
         const isSelfTarget = sourceScope !== 'cross_editor'
             && !!dragSource
-            && dragSource.type === BlockType.ListItem
-            && baseLineNumber === dragSource.startLine + 1;
+            && dragSource.primaryBlock.type === BlockType.ListItem
+            && baseLineNumber === dragSource.primaryBlock.startLine + 1;
         const allowChild = !isSelfTarget;
         const dropTarget = this.getListDropTarget(baseLineNumber, clientX, allowChild, context);
         if (!dropTarget) return finalize({});

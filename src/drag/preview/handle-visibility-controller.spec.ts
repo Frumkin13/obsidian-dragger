@@ -18,7 +18,7 @@ import {
 } from '../../shared/dom-selectors';
 import { HandleVisibilityController } from './handle-visibility-controller';
 
-function createBlock(startLine: number, endLine: number, composite?: Array<{ startLine: number; endLine: number }>): BlockInfo {
+function createBlock(startLine: number, endLine: number): BlockInfo {
     return {
         type: BlockType.Paragraph,
         startLine,
@@ -27,7 +27,6 @@ function createBlock(startLine: number, endLine: number, composite?: Array<{ sta
         to: 0,
         indentLevel: 0,
         content: '',
-        compositeSelection: composite ? { ranges: composite } : undefined,
     };
 }
 
@@ -178,7 +177,7 @@ describe('HandleVisibilityController', () => {
         expect(lines[3].classList.contains(DRAG_SOURCE_LINE_LAST_CLASS)).toBe(false);
     });
 
-    it('highlights disjoint composite ranges without filling the gap', () => {
+    it('highlights disjoint drag source ranges without filling the gap', () => {
         const { view, lines } = createViewStub(7);
         const controller = new HandleVisibilityController(view, {
             getBlockInfoForHandle: () => null,
@@ -187,13 +186,10 @@ describe('HandleVisibilityController', () => {
             getVisibleHandleForBlockStart: () => null,
         });
 
-        controller.enterGrabVisualStateForBlock(
-            createBlock(0, 5, [
-                { startLine: 0, endLine: 0 },
-                { startLine: 3, endLine: 4 },
-            ]),
-            null
-        );
+        controller.enterGrabVisualState([
+            { startLineNumber: 1, endLineNumber: 1 },
+            { startLineNumber: 4, endLineNumber: 5 },
+        ], null);
 
         expect(lines[0].classList.contains(DRAG_SOURCE_LINE_CLASS)).toBe(true);
         expect(lines[3].classList.contains(DRAG_SOURCE_LINE_CLASS)).toBe(true);

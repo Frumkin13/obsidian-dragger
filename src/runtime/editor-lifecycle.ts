@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { prewarmFenceScan } from '../domain/markdown/fence-scanner';
-import { DragEventHandler } from '../drag/gesture/drag-controller';
+import { DragEventHandler } from '../drag/pipeline';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import {
     GlobalPointerMoveClient,

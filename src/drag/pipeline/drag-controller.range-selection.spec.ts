@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
+import { type DragSource } from '../../shared/types/drag';
 import { DragEventHandler } from './drag-controller';
 import {
     registerMouseHandlerTestHooks,
@@ -93,13 +94,15 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as BlockInfo;
-        expect(selectedBlock.startLine).toBe(1);
-        expect(selectedBlock.endLine).toBe(5);
+        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as DragSource;
+        expect(selectedBlock.ranges[0].startLine).toBe(1);
+        expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(5);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 105, expect.objectContaining({
-            startLine: 1,
-            endLine: 5,
-        }), 'mouse');
+            ranges: [expect.objectContaining({
+                startLine: 1,
+                endLine: 5,
+            })],
+            }), 'mouse');
         dispatchPointer(window, 'pointerup', {
             pointerId: 8,
             pointerType: 'mouse',
@@ -532,13 +535,15 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as BlockInfo;
-        expect(selectedBlock.startLine).toBe(1);
-        expect(selectedBlock.endLine).toBe(5);
+        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as DragSource;
+        expect(selectedBlock.ranges[0].startLine).toBe(1);
+        expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(5);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 105, expect.objectContaining({
-            startLine: 1,
-            endLine: 5,
-        }), 'mouse');
+            ranges: [expect.objectContaining({
+                startLine: 1,
+                endLine: 5,
+            })],
+            }), 'mouse');
         handler.destroy();
     });
 
@@ -689,9 +694,11 @@ describe('DragEventHandler Range Selection', () => {
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 105, expect.objectContaining({
-            startLine: 1,
-            endLine: 5,
-        }), 'mouse');
+            ranges: [expect.objectContaining({
+                startLine: 1,
+                endLine: 5,
+            })],
+            }), 'mouse');
         handler.destroy();
     });
 
@@ -880,13 +887,15 @@ describe('DragEventHandler Range Selection', () => {
             clientY: 105,
         });
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as BlockInfo;
-        expect(selectedBlock.startLine).toBe(1);
-        expect(selectedBlock.endLine).toBe(1);
+        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as DragSource;
+        expect(selectedBlock.ranges[0].startLine).toBe(1);
+        expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(1);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(12, 105, expect.objectContaining({
-            startLine: 1,
-            endLine: 1,
-        }), 'touch');
+            ranges: [expect.objectContaining({
+                startLine: 1,
+                endLine: 1,
+            })],
+            }), 'touch');
         expect(performDropAtPoint).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
@@ -1391,13 +1400,15 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as BlockInfo;
-        expect(selectedBlock.startLine).toBe(0);
-        expect(selectedBlock.endLine).toBe(2); // list child line must be included
+        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as DragSource;
+        expect(selectedBlock.ranges[0].startLine).toBe(0);
+        expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(2); // list child line must be included
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 25, expect.objectContaining({
-            startLine: 0,
-            endLine: 2,
-        }), 'mouse');
+            ranges: [expect.objectContaining({
+                startLine: 0,
+                endLine: 2,
+            })],
+            }), 'mouse');
         handler.destroy();
     });
 
@@ -1517,13 +1528,15 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as BlockInfo;
-        expect(selectedBlock.startLine).toBe(1);
-        expect(selectedBlock.endLine).toBe(5);
+        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as DragSource;
+        expect(selectedBlock.ranges[0].startLine).toBe(1);
+        expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(5);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 92, expect.objectContaining({
-            startLine: 1,
-            endLine: 5,
-        }), 'mouse');
+            ranges: [expect.objectContaining({
+                startLine: 1,
+                endLine: 5,
+            })],
+            }), 'mouse');
         handler.destroy();
     });
 
@@ -1621,20 +1634,18 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        const composite = beginPointerDragSession.mock.calls[0][0] as BlockInfo;
-        expect(composite.startLine).toBe(1);
-        expect(composite.endLine).toBe(7);
-        expect(composite.compositeSelection?.ranges).toEqual([
+        const composite = beginPointerDragSession.mock.calls[0][0] as DragSource;
+        expect(composite.ranges[0].startLine).toBe(1);
+        expect(composite.ranges[composite.ranges.length - 1].endLine).toBe(7);
+        expect(composite.ranges).toEqual([
             { startLine: 1, endLine: 1 },
             { startLine: 7, endLine: 7 },
         ]);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 80, expect.objectContaining({
-            compositeSelection: {
-                ranges: [
-                    { startLine: 1, endLine: 1 },
-                    { startLine: 7, endLine: 7 },
-                ],
-            },
+            ranges: [
+                { startLine: 1, endLine: 1 },
+                { startLine: 7, endLine: 7 },
+            ],
         }), 'mouse');
 
         dispatchPointer(window, 'pointerup', {
@@ -1646,8 +1657,8 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(performDropAtPoint).toHaveBeenCalledTimes(1);
-        const droppedSource = performDropAtPoint.mock.calls[0][0] as BlockInfo;
-        expect(droppedSource.compositeSelection?.ranges).toEqual([
+        const droppedSource = performDropAtPoint.mock.calls[0][0] as DragSource;
+        expect(droppedSource.ranges).toEqual([
             { startLine: 1, endLine: 1 },
             { startLine: 7, endLine: 7 },
         ]);
@@ -1701,9 +1712,11 @@ describe('DragEventHandler Range Selection', () => {
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledTimes(1);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(120, 30, expect.objectContaining({
-            startLine: 1,
-            endLine: 1,
-        }), 'mouse');
+            ranges: [expect.objectContaining({
+                startLine: 1,
+                endLine: 1,
+            })],
+            }), 'mouse');
         expect(performDropAtPoint).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
         handler.destroy();
@@ -1758,9 +1771,11 @@ describe('DragEventHandler Range Selection', () => {
         });
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(45, 12, expect.objectContaining({
-            startLine: 0,
-            endLine: 0,
-        }), 'touch');
+            ranges: [expect.objectContaining({
+                startLine: 0,
+                endLine: 0,
+            })],
+            }), 'touch');
         expect(vibrate).toHaveBeenCalledTimes(1);
         handler.destroy();
     });
@@ -1849,13 +1864,17 @@ describe('DragEventHandler Range Selection', () => {
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(12, 30, expect.objectContaining({
-            startLine: 1,
-            endLine: 1,
-        }), 'mouse');
+            ranges: [expect.objectContaining({
+                startLine: 1,
+                endLine: 1,
+            })],
+            }), 'mouse');
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(12, 90, expect.objectContaining({
-            startLine: 1,
-            endLine: 1,
-        }), 'mouse');
+            ranges: [expect.objectContaining({
+                startLine: 1,
+                endLine: 1,
+            })],
+            }), 'mouse');
         expect(performDropAtPoint).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
@@ -1909,9 +1928,11 @@ describe('DragEventHandler Range Selection', () => {
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 80, expect.objectContaining({
-            startLine: 1,
-            endLine: 1,
-        }), 'touch');
+            ranges: [expect.objectContaining({
+                startLine: 1,
+                endLine: 1,
+            })],
+            }), 'touch');
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
         expect(performDropAtPoint).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
@@ -2025,9 +2046,11 @@ describe('DragEventHandler Range Selection', () => {
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(12, 30, expect.objectContaining({
-            startLine: 0,
-            endLine: 0,
-        }), 'touch');
+            ranges: [expect.objectContaining({
+                startLine: 0,
+                endLine: 0,
+            })],
+            }), 'touch');
 
         dispatchPointer(window, 'pointerup', {
             pointerId: 401,
@@ -2089,9 +2112,11 @@ describe('DragEventHandler Range Selection', () => {
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(12, 30, expect.objectContaining({
-            startLine: 0,
-            endLine: 0,
-        }), 'touch');
+            ranges: [expect.objectContaining({
+                startLine: 0,
+                endLine: 0,
+            })],
+            }), 'touch');
         expect(handle.classList.contains('dnd-range-selected-handle')).toBe(true);
         expect(view.dom.querySelectorAll('.dnd-range-selected-line')).not.toHaveLength(0);
 

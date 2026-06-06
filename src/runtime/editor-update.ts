@@ -1,6 +1,6 @@
 import { ViewUpdate } from '@codemirror/view';
-import { DragEventHandler } from '../drag/gesture/drag-controller';
-import { HandleVisibilityController } from '../drag/source/handle-visibility-controller';
+import { DragEventHandler } from '../drag/pipeline';
+import { HandleVisibilityController } from '../drag/preview';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 
 export interface ViewUpdateFlowDeps {

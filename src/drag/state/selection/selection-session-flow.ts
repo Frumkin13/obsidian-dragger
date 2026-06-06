@@ -10,9 +10,8 @@ import {
     type MouseRangeSelectState,
     type RangeSelectionOperation,
     type RangeSelectConfig,
-    buildDragSourceBlockFromBlocks,
-    buildSelectedBlockRangeFromBlockInfo,
-    cloneBlockInfo,
+    buildDragSourceFromBlock,
+    buildDragSourceFromBlocks,
 } from './selection-model';
 
 type CreateInitialRangeSelectionStateOptions = {
@@ -55,7 +54,10 @@ export function createInitialRangeSelectionState(
         return null;
     }
 
-    const anchorBlock = buildSelectedBlockRangeFromBlockInfo(options.blockInfo);
+    const anchorBlock = {
+        startLineNumber: anchorStartLineNumber,
+        endLineNumber: anchorEndLineNumber,
+    };
     const operation: RangeSelectionOperation = options.initialOperation ?? (isSelectedBlockCoveredByBlocks(
         options.doc.lines,
         anchorBlock,
@@ -64,12 +66,12 @@ export function createInitialRangeSelectionState(
     const selectionBlocks = operation === 'remove'
         ? subtractSelectedBlocks(options.doc.lines, options.committedBlocksSnapshot, [anchorBlock])
         : mergeSelectedBlocks(options.doc.lines, [...options.committedBlocksSnapshot, anchorBlock]);
-    const anchorSelectionBlock = buildDragSourceBlockFromBlocks(options.doc, selectionBlocks, options.blockInfo);
+    const anchorSelectionSource = buildDragSourceFromBlocks(options.doc, selectionBlocks, options.blockInfo);
 
     return {
-        anchorSelectionBlock,
-        directDragSourceBlock: cloneBlockInfo(options.blockInfo),
-        activeSelectionBlock: anchorSelectionBlock,
+        anchorSelectionSource,
+        directDragSource: buildDragSourceFromBlock(options.blockInfo),
+        activeSelectionSource: anchorSelectionSource,
         operation,
         preferLongPressDrag: false,
         selectionGestureStarted: false,
@@ -107,4 +109,3 @@ export function autoScrollRangeSelection(scroller: HTMLElement, clientY: number)
     scroller.scrollTop += delta;
     return scroller.scrollTop !== previousScrollTop;
 }
-

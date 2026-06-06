@@ -4,11 +4,12 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it } from 'vitest';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
+import { createDragSource } from '../../shared/types/drag';
 import {
     beginDragSession,
     finishDragSession,
-    getActiveDragSourceBlock,
-} from './drag-session';
+    getActiveDragSource,
+} from './active-drag-registry';
 
 function createViewStub(docText = 'line'): EditorView {
     const state = EditorState.create({ doc: docText });
@@ -50,16 +51,16 @@ describe('pointer drag session scoping', () => {
         const blockA = createBlock('A', 0);
         const blockB = createBlock('B', 0);
 
-        beginDragSession(blockA, viewA);
-        beginDragSession(blockB, viewB);
+        beginDragSession(createDragSource(blockA, [{ startLine: blockA.startLine, endLine: blockA.endLine }]), viewA);
+        beginDragSession(createDragSource(blockB, [{ startLine: blockB.startLine, endLine: blockB.endLine }]), viewB);
 
         expect(document.body.classList.contains('dnd-dragging')).toBe(true);
-        expect(getActiveDragSourceBlock(viewA)?.content).toBe('A');
-        expect(getActiveDragSourceBlock(viewB)?.content).toBe('B');
+        expect(getActiveDragSource(viewA)?.primaryBlock.content).toBe('A');
+        expect(getActiveDragSource(viewB)?.primaryBlock.content).toBe('B');
 
         finishDragSession(viewA);
-        expect(getActiveDragSourceBlock(viewA)).toBeNull();
-        expect(getActiveDragSourceBlock(viewB)?.content).toBe('B');
+        expect(getActiveDragSource(viewA)).toBeNull();
+        expect(getActiveDragSource(viewB)?.primaryBlock.content).toBe('B');
         expect(document.body.classList.contains('dnd-dragging')).toBe(true);
 
         finishDragSession(viewB);

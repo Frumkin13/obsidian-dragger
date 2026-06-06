@@ -1,16 +1,15 @@
-import { BlockInfo } from '../../domain/block/block-types';
-import { DragLifecycleEvent } from '../../shared/types/drag';
+import { DragLifecycleEvent, DragSource } from '../../shared/types/drag';
 import { ListDropIntent } from '../../shared/types/protocol-types';
 
 export function buildPressPendingLifecycleEvent(
-    sourceBlock: BlockInfo,
+    source: DragSource,
     pointerType: string | null,
     pressReady: boolean
 ): DragLifecycleEvent {
     return {
         type: 'drag_press_pending',
         phase: 'press_pending',
-        sourceBlock,
+        source,
         targetLine: null,
         listIntent: null,
         rejectReason: null,
@@ -20,13 +19,13 @@ export function buildPressPendingLifecycleEvent(
 }
 
 export function buildDragStartedLifecycleEvent(
-    sourceBlock: BlockInfo,
+    source: DragSource,
     pointerType: string | null
 ): DragLifecycleEvent {
     return {
         type: 'drag_started',
         phase: 'drag_active',
-        sourceBlock,
+        source,
         targetLine: null,
         listIntent: null,
         rejectReason: null,
@@ -35,7 +34,7 @@ export function buildDragStartedLifecycleEvent(
 }
 
 export function buildDragTargetChangedLifecycleEvent(params: {
-    sourceBlock: BlockInfo;
+    source: DragSource;
     targetLine: number | null;
     listIntent: ListDropIntent | null;
     rejectReason: string | null;
@@ -44,7 +43,7 @@ export function buildDragTargetChangedLifecycleEvent(params: {
     return {
         type: 'drag_target_changed',
         phase: 'drag_active',
-        sourceBlock: params.sourceBlock,
+        source: params.source,
         targetLine: params.targetLine,
         listIntent: params.listIntent,
         rejectReason: params.rejectReason,
@@ -53,7 +52,7 @@ export function buildDragTargetChangedLifecycleEvent(params: {
 }
 
 export function buildDropCommitLifecycleEvent(params: {
-    sourceBlock: BlockInfo;
+    source: DragSource;
     targetLine: number | null;
     listIntent: ListDropIntent | null;
     pointerType: string | null;
@@ -61,7 +60,7 @@ export function buildDropCommitLifecycleEvent(params: {
     return {
         type: 'drag_drop_commit',
         phase: 'drop_commit',
-        sourceBlock: params.sourceBlock,
+        source: params.source,
         targetLine: params.targetLine,
         listIntent: params.listIntent,
         rejectReason: null,
@@ -70,7 +69,7 @@ export function buildDropCommitLifecycleEvent(params: {
 }
 
 export function buildCancelledLifecycleEvent(params: {
-    sourceBlock: BlockInfo | null;
+    source: DragSource | null;
     targetLine?: number | null;
     listIntent?: ListDropIntent | null;
     rejectReason: string;
@@ -79,7 +78,7 @@ export function buildCancelledLifecycleEvent(params: {
     return {
         type: 'drag_cancelled',
         phase: 'cancelled',
-        sourceBlock: params.sourceBlock,
+        source: params.source,
         targetLine: params.targetLine ?? null,
         listIntent: params.listIntent ?? null,
         rejectReason: params.rejectReason,
@@ -91,7 +90,7 @@ export function buildIdleLifecycleEvent(): DragLifecycleEvent {
     return {
         type: 'drag_idle',
         phase: 'idle',
-        sourceBlock: null,
+        source: null,
         targetLine: null,
         listIntent: null,
         rejectReason: null,

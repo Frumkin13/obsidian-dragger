@@ -1,16 +1,16 @@
-import { BlockInfo } from '../domain/block/block-types';
+import { DragSource } from '../shared/types/drag';
 
 export interface PointerDragTargetClient {
     containsPoint: (clientX: number, clientY: number) => boolean;
     scheduleDropIndicatorUpdate: (
         clientX: number,
         clientY: number,
-        dragSource: BlockInfo | null,
+        source: DragSource | null,
         pointerType: string | null
     ) => void;
     hideDropIndicator: () => void;
     performDropAtPoint: (
-        sourceBlock: BlockInfo,
+        source: DragSource,
         clientX: number,
         clientY: number,
         pointerType: string | null
@@ -49,23 +49,23 @@ export function schedulePointerDropIndicatorFromPoint(
     fallbackClient: PointerDragTargetClient,
     clientX: number,
     clientY: number,
-    dragSource: BlockInfo | null,
+    source: DragSource | null,
     pointerType: string | null
 ): void {
     const targetClient = resolveClientAtPoint(clientX, clientY) ?? fallbackClient;
     setActiveClient(targetClient);
-    targetClient.scheduleDropIndicatorUpdate(clientX, clientY, dragSource, pointerType);
+    targetClient.scheduleDropIndicatorUpdate(clientX, clientY, source, pointerType);
 }
 
 export function performPointerDropAtPoint(
     fallbackClient: PointerDragTargetClient,
-    sourceBlock: BlockInfo,
+    source: DragSource,
     clientX: number,
     clientY: number,
     pointerType: string | null
 ): void {
     const targetClient = resolveClientAtPoint(clientX, clientY) ?? activeClient ?? fallbackClient;
-    targetClient.performDropAtPoint(sourceBlock, clientX, clientY, pointerType);
+    targetClient.performDropAtPoint(source, clientX, clientY, pointerType);
 }
 
 export function hidePointerDropIndicators(): void {

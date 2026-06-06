@@ -4,7 +4,7 @@ import { createLineParsingContext } from '../domain/markdown/line-parsing-servic
 import { getListContext } from '../domain/mutation/list-mutation';
 import { buildInsertTextForDrop } from '../domain/mutation/text-mutation-policy';
 import { ContainerPolicyService } from '../domain/rules/container-policy-service';
-import { DragSourceResolver } from '../drag/source/source-resolver';
+import { DragSourceResolver } from '../drag/source';
 import { GeometryCalculator } from '../platform/codemirror/geometry';
 import { DocLike, ListDropIntent } from '../shared/types/protocol-types';
 

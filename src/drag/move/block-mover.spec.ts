@@ -2,6 +2,7 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
+import { createDragSource } from '../../shared/types/drag';
 import { buildInsertTextForDrop } from '../../domain/mutation/text-mutation-policy';
 import { BlockMover } from './block-mover';
 import { createLineParsingContext } from '../../domain/markdown/line-parsing-service';
@@ -52,6 +53,10 @@ function createHeadingBlock(doc: EditorState['doc'], startLine: number, endLine:
         indentLevel: 0,
         content: doc.sliceString(start.from, end.to),
     };
+}
+
+function sourceFromBlock(block: BlockInfo, ranges = [{ startLine: block.startLine, endLine: block.endLine }]) {
+    return createDragSource(block, ranges);
 }
 
 function createMutableView(state: EditorState): {
@@ -120,14 +125,14 @@ function createTextMutationDeps(view: EditorView) {
         getIndentUnitWidth: lineParsing.getIndentUnitWidth,
         buildInsertText: (
             doc: EditorState['doc'],
-            sourceBlock: BlockInfo,
+            source: BlockInfo,
             targetLineNumber: number,
             sourceContent: string,
             listIntent?: ListDropIntent
         ) => buildInsertTextForDrop({
             lineParsing,
             doc,
-            sourceBlock,
+            sourceBlock: source,
             targetLineNumber,
             sourceContent,
             listIntent,
@@ -153,7 +158,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createBlockFromLine(state.doc, 1),
+            source: sourceFromBlock(createBlockFromLine(state.doc, 1)),
             dropPlan: dropPlan(3),
         });
 
@@ -178,7 +183,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createBlockFromLine(state.doc, 1),
+            source: sourceFromBlock(createBlockFromLine(state.doc, 1)),
             dropPlan: dropPlan(3),
         });
 
@@ -213,7 +218,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createBlockFromLine(sourceInitialState.doc, 2),
+            source: sourceFromBlock(createBlockFromLine(sourceInitialState.doc, 2)),
             dropPlan: dropPlan(2),
             sourceView,
         });
@@ -244,7 +249,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createListBlock(initialState.doc, 1, 1),
+            source: sourceFromBlock(createListBlock(initialState.doc, 1, 1)),
             dropPlan: dropPlan(3),
         });
 
@@ -285,7 +290,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createListBlock(initialState.doc, 3, 4),
+            source: sourceFromBlock(createListBlock(initialState.doc, 3, 4)),
             dropPlan: dropPlan(1),
         });
 
@@ -323,7 +328,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createListBlock(initialState.doc, 5, 6),
+            source: sourceFromBlock(createListBlock(initialState.doc, 5, 6)),
             dropPlan: dropPlan(1),
         });
 
@@ -353,7 +358,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createHeadingBlock(initialState.doc, 1, 4),
+            source: sourceFromBlock(createHeadingBlock(initialState.doc, 1, 4)),
             dropPlan: dropPlan(6),
         });
 
@@ -386,7 +391,7 @@ describe('BlockMover', () => {
         const line2 = sourceInitialState.doc.line(2);
         const line4 = sourceInitialState.doc.line(4);
         mover.moveBlock({
-            sourceBlock: {
+            source: sourceFromBlock({
                 type: BlockType.Paragraph,
                 startLine: 1,
                 endLine: 3,
@@ -394,13 +399,10 @@ describe('BlockMover', () => {
                 to: line4.to,
                 indentLevel: 0,
                 content: 'beta\ndelta',
-                compositeSelection: {
-                    ranges: [
+                }, [
                         { startLine: 1, endLine: 1 },
                         { startLine: 3, endLine: 3 },
-                    ],
-                },
-            },
+                    ]),
             dropPlan: dropPlan(2),
             sourceView,
         });
@@ -428,7 +430,7 @@ describe('BlockMover', () => {
         const line2 = initialState.doc.line(2);
         const line3 = initialState.doc.line(3);
         mover.moveBlock({
-            sourceBlock: {
+            source: sourceFromBlock({
                 type: BlockType.Paragraph,
                 startLine: 1,
                 endLine: 2,
@@ -436,13 +438,10 @@ describe('BlockMover', () => {
                 to: line3.to,
                 indentLevel: 0,
                 content: 'b\nc',
-                compositeSelection: {
-                    ranges: [
+                }, [
                         { startLine: 1, endLine: 1 },
                         { startLine: 2, endLine: 2 },
-                    ],
-                },
-            },
+                    ]),
             dropPlan: dropPlan(1),
         });
 
@@ -467,7 +466,7 @@ describe('BlockMover', () => {
         const line3 = initialState.doc.line(3);
         const line5 = initialState.doc.line(5);
         mover.moveBlock({
-            sourceBlock: {
+            source: sourceFromBlock({
                 type: BlockType.ListItem,
                 startLine: 2,
                 endLine: 4,
@@ -475,13 +474,10 @@ describe('BlockMover', () => {
                 to: line5.to,
                 indentLevel: 0,
                 content: '- a\n- b',
-                compositeSelection: {
-                    ranges: [
+                }, [
                         { startLine: 2, endLine: 2 },
                         { startLine: 4, endLine: 4 },
-                    ],
-                },
-            },
+                    ]),
             dropPlan: dropPlan(2, { contextLineNumber: 1, targetIndentWidth: 2 }),
         });
 
@@ -511,7 +507,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createListBlock(sourceInitialState.doc, 2, 2),
+            source: sourceFromBlock(createListBlock(sourceInitialState.doc, 2, 2)),
             dropPlan: dropPlan(2),
             sourceView,
         });
@@ -549,7 +545,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createBlockFromLine(initialState.doc, 2),
+            source: sourceFromBlock(createBlockFromLine(initialState.doc, 2)),
             dropPlan: dropPlan(1),
             sourceView,
             sourceDocumentRelation: 'same_document',
@@ -591,7 +587,7 @@ describe('BlockMover', () => {
         const line2 = initialState.doc.line(2);
         const line3 = initialState.doc.line(3);
         mover.moveBlock({
-            sourceBlock: {
+            source: sourceFromBlock({
                 type: BlockType.Heading,
                 startLine: 1,
                 endLine: 2,
@@ -599,13 +595,10 @@ describe('BlockMover', () => {
                 to: line3.to,
                 indentLevel: 0,
                 content: 'beta\ngamma',
-                compositeSelection: {
-                    ranges: [
+                }, [
                         { startLine: 1, endLine: 1 },
                         { startLine: 2, endLine: 2 },
-                    ],
-                },
-            },
+                    ]),
             dropPlan: dropPlan(1),
             sourceView,
             sourceDocumentRelation: 'same_document',
@@ -618,9 +611,6 @@ describe('BlockMover', () => {
             expect.objectContaining({
                 startLine: 1,
                 endLine: 2,
-                compositeSelection: {
-                    ranges: [{ startLine: 1, endLine: 2 }],
-                },
             })
         );
         expect(blockFoldState.restore).toHaveBeenCalledWith(
@@ -650,7 +640,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createListBlock(state.doc, 1, 2),
+            source: sourceFromBlock(createListBlock(state.doc, 1, 2)),
             dropPlan: dropPlan(3, { contextLineNumber: 2, targetIndentWidth: 2 }),
         });
 
@@ -677,7 +667,7 @@ describe('BlockMover', () => {
         const line2 = state.doc.line(2);
         const line5 = state.doc.line(5);
         mover.moveBlock({
-            sourceBlock: {
+            source: sourceFromBlock({
                 type: BlockType.Paragraph,
                 startLine: 1,
                 endLine: 4,
@@ -685,13 +675,10 @@ describe('BlockMover', () => {
                 to: line5.to,
                 indentLevel: 0,
                 content: 'b\ne',
-                compositeSelection: {
-                    ranges: [
+                }, [
                         { startLine: 1, endLine: 1 },
                         { startLine: 4, endLine: 4 },
-                    ],
-                },
-            },
+                    ]),
             dropPlan: dropPlan(1),
         });
 
@@ -725,7 +712,7 @@ describe('BlockMover', () => {
         const line2 = state.doc.line(2);
         const line5 = state.doc.line(5);
         mover.moveBlock({
-            sourceBlock: {
+            source: sourceFromBlock({
                 type: BlockType.Paragraph,
                 startLine: 1,
                 endLine: 4,
@@ -733,13 +720,10 @@ describe('BlockMover', () => {
                 to: line5.to,
                 indentLevel: 0,
                 content: 'b\ne',
-                compositeSelection: {
-                    ranges: [
+                }, [
                         { startLine: 1, endLine: 1 },
                         { startLine: 4, endLine: 4 },
-                    ],
-                },
-            },
+                    ]),
             dropPlan: dropPlan(3),
         });
 
@@ -766,7 +750,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createBlockFromLine(initialState.doc, 1),
+            source: sourceFromBlock(createBlockFromLine(initialState.doc, 1)),
             dropPlan: dropPlan(initialState.doc.lines + 1),
         });
 
@@ -793,7 +777,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createBlockFromLine(initialState.doc, 3),
+            source: sourceFromBlock(createBlockFromLine(initialState.doc, 3)),
             dropPlan: dropPlan(1),
         });
 
@@ -820,7 +804,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createBlockFromLine(initialState.doc, 2),
+            source: sourceFromBlock(createBlockFromLine(initialState.doc, 2)),
             dropPlan: dropPlan(1),
         });
 
@@ -847,7 +831,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createBlockFromLine(initialState.doc, 2),
+            source: sourceFromBlock(createBlockFromLine(initialState.doc, 2)),
             dropPlan: dropPlan(initialState.doc.lines),
         });
 
@@ -874,7 +858,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createBlockFromLine(initialState.doc, 1),
+            source: sourceFromBlock(createBlockFromLine(initialState.doc, 1)),
             dropPlan: dropPlan(initialState.doc.lines),
         });
 
@@ -901,7 +885,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createBlockFromLine(initialState.doc, 2),
+            source: sourceFromBlock(createBlockFromLine(initialState.doc, 2)),
             dropPlan: dropPlan(initialState.doc.lines + 1),
         });
 
@@ -928,7 +912,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createBlockFromLine(initialState.doc, 1),
+            source: sourceFromBlock(createBlockFromLine(initialState.doc, 1)),
             dropPlan: dropPlan(initialState.doc.lines),
         });
 
@@ -955,7 +939,7 @@ describe('BlockMover', () => {
         });
 
         mover.moveBlock({
-            sourceBlock: createBlockFromLine(initialState.doc, 1),
+            source: sourceFromBlock(createBlockFromLine(initialState.doc, 1)),
             dropPlan: dropPlan(initialState.doc.lines + 1),
         });
 

@@ -1,4 +1,4 @@
-import type { BlockInfo } from '../../../domain/block/block-types';
+import type { DragSource } from './source';
 import type { ListDropIntent } from '../protocol-types';
 
 export type DragSessionPhase =
@@ -19,7 +19,7 @@ export type DragLifecycleEvent =
 export interface DragIdleLifecycleEvent {
     type: 'drag_idle';
     phase: 'idle';
-    sourceBlock: null;
+    source: null;
     targetLine: null;
     listIntent: null;
     rejectReason: null;
@@ -29,7 +29,7 @@ export interface DragIdleLifecycleEvent {
 export interface DragPressPendingLifecycleEvent {
     type: 'drag_press_pending';
     phase: 'press_pending';
-    sourceBlock: BlockInfo;
+    source: DragSource;
     targetLine: null;
     listIntent: null;
     rejectReason: null;
@@ -40,7 +40,7 @@ export interface DragPressPendingLifecycleEvent {
 export interface DragStartedLifecycleEvent {
     type: 'drag_started';
     phase: 'drag_active';
-    sourceBlock: BlockInfo;
+    source: DragSource;
     targetLine: null;
     listIntent: null;
     rejectReason: null;
@@ -50,7 +50,7 @@ export interface DragStartedLifecycleEvent {
 export interface DragTargetChangedLifecycleEvent {
     type: 'drag_target_changed';
     phase: 'drag_active';
-    sourceBlock: BlockInfo;
+    source: DragSource;
     targetLine: number | null;
     listIntent: ListDropIntent | null;
     rejectReason: string | null;
@@ -60,7 +60,7 @@ export interface DragTargetChangedLifecycleEvent {
 export interface DragDropCommitLifecycleEvent {
     type: 'drag_drop_commit';
     phase: 'drop_commit';
-    sourceBlock: BlockInfo;
+    source: DragSource;
     targetLine: number | null;
     listIntent: ListDropIntent | null;
     rejectReason: null;
@@ -70,7 +70,7 @@ export interface DragDropCommitLifecycleEvent {
 export interface DragCancelledLifecycleEvent {
     type: 'drag_cancelled';
     phase: 'cancelled';
-    sourceBlock: BlockInfo | null;
+    source: DragSource | null;
     targetLine: number | null;
     listIntent: ListDropIntent | null;
     rejectReason: string;

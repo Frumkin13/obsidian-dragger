@@ -2,6 +2,7 @@ import { EditorState } from '@codemirror/state';
 import { BlockInfo } from '../../../domain/block/block-types';
 import { detectBlock } from '../../../domain/block/block-detector';
 import { clampLineNumber } from '../../../shared/utils/line-number';
+import { createDragSource, DragSource } from '../../../shared/types/drag';
 import {
     groupSelectedBlocksIntoSegments,
     mergeSelectedBlocks,
@@ -21,14 +22,14 @@ export type RangeSelectConfig = {
 };
 
 export type CommittedRangeSelection = {
-    selectedBlock: BlockInfo;
+    source: DragSource;
     blocks: SelectedBlockRange[];
 };
 
 export type MouseRangeSelectState = {
-    anchorSelectionBlock: BlockInfo;
-    directDragSourceBlock: BlockInfo;
-    activeSelectionBlock: BlockInfo;
+    anchorSelectionSource: DragSource;
+    directDragSource: DragSource;
+    activeSelectionSource: DragSource;
     operation: RangeSelectionOperation;
     preferLongPressDrag: boolean;
     selectionGestureStarted: boolean;
@@ -61,15 +62,15 @@ type SliceDocWithLength = SliceDoc & {
     length: number;
 };
 
-export function cloneBlockInfo(block: BlockInfo): BlockInfo {
-    return {
-        ...block,
-        compositeSelection: block.compositeSelection
-            ? {
-                ranges: block.compositeSelection.ranges.map((range) => ({ ...range })),
-            }
-            : undefined,
-    };
+export function buildDragSourceFromBlock(block: BlockInfo): DragSource {
+    return createDragSource(block, [{ startLine: block.startLine, endLine: block.endLine }]);
+}
+
+export function cloneDragSource(source: DragSource): DragSource {
+    return createDragSource(
+        { ...source.primaryBlock },
+        source.ranges.map((range) => ({ ...range }))
+    );
 }
 
 export function buildSelectedBlockRangeFromBlockInfo(block: BlockInfo): SelectedBlockRange {
@@ -79,7 +80,7 @@ export function buildSelectedBlockRangeFromBlockInfo(block: BlockInfo): Selected
     };
 }
 
-function buildBlockInfoFromRange(
+function buildPrimaryBlockFromRange(
     doc: SliceDoc,
     startLineNumber: number,
     endLineNumber: number,
@@ -100,50 +101,32 @@ function buildBlockInfoFromRange(
     };
 }
 
-export function buildDragSourceBlockFromBlocks(
+export function buildDragSourceFromBlocks(
     doc: SliceDocWithLength,
     blocks: SelectedBlockRange[],
     template: BlockInfo
-): BlockInfo {
+): DragSource {
     const normalizedBlocks = mergeSelectedBlocks(doc.lines, blocks);
     if (normalizedBlocks.length === 0) {
-        return buildBlockInfoFromRange(doc, template.startLine + 1, template.endLine + 1, template);
+        return buildDragSourceFromBlock(template);
     }
 
     const segments = groupSelectedBlocksIntoSegments(doc.lines, normalizedBlocks);
-    if (segments.length === 1) {
-        const [segment] = segments;
-        return buildBlockInfoFromRange(doc, segment.startLineNumber, segment.endLineNumber, template);
-    }
-
     const firstSegment = segments[0];
-    const lastSegment = segments[segments.length - 1];
+    const primaryBlock = buildPrimaryBlockFromRange(
+        doc,
+        firstSegment.startLineNumber,
+        firstSegment.endLineNumber,
+        template
+    );
 
-    const firstLine = doc.line(firstSegment.startLineNumber);
-    const lastLine = doc.line(lastSegment.endLineNumber);
-    const content = segments.map((segment) => {
-        const startLine = doc.line(segment.startLineNumber);
-        const endLine = doc.line(segment.endLineNumber);
-        const from = startLine.from;
-        const to = endLine.to;
-        return doc.sliceString(from, to);
-    }).join('\n');
-
-    return {
-        type: template.type,
-        startLine: firstSegment.startLineNumber - 1,
-        endLine: lastSegment.endLineNumber - 1,
-        from: firstLine.from,
-        to: lastLine.to,
-        indentLevel: template.indentLevel,
-        content,
-        compositeSelection: {
-            ranges: segments.map((segment) => ({
-                startLine: segment.startLineNumber - 1,
-                endLine: segment.endLineNumber - 1,
-            })),
-        },
-    };
+    return createDragSource(
+        primaryBlock,
+        segments.map((segment) => ({
+            startLine: segment.startLineNumber - 1,
+            endLine: segment.endLineNumber - 1,
+        }))
+    );
 }
 
 export function resolveBlockBoundaryAtLine(
@@ -212,4 +195,3 @@ export function collectSelectedBlocksBetween(
 
     return mergeSelectedBlocks(docLines, blocks);
 }
-

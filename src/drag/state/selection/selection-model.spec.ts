@@ -1,12 +1,12 @@
 import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
 import { BlockType } from '../../../domain/block/block-types';
-import { buildDragSourceBlockFromBlocks } from './selection-model';
+import { buildDragSourceFromBlocks } from './selection-model';
 
 describe('selection-model', () => {
-    it('treats contiguous selected blocks as a single combined block', () => {
+    it('treats contiguous selected blocks as a single combined drag source', () => {
         const state = EditorState.create({ doc: 'a\nb\nc\nd' });
-        const sourceBlock = buildDragSourceBlockFromBlocks(
+        const source = buildDragSourceFromBlocks(
             state.doc,
             [
                 { startLineNumber: 2, endLineNumber: 2 },
@@ -23,15 +23,15 @@ describe('selection-model', () => {
             }
         );
 
-        expect(sourceBlock.startLine).toBe(1);
-        expect(sourceBlock.endLine).toBe(2);
-        expect(sourceBlock.content).toBe('b\nc');
-        expect(sourceBlock.compositeSelection).toBeUndefined();
+        expect(source.primaryBlock.startLine).toBe(1);
+        expect(source.primaryBlock.endLine).toBe(2);
+        expect(source.primaryBlock.content).toBe('b\nc');
+        expect(source.ranges).toEqual([{ startLine: 1, endLine: 2 }]);
     });
 
-    it('keeps only disjoint segments in composite selection metadata', () => {
+    it('keeps disjoint segments in DragSource.ranges', () => {
         const state = EditorState.create({ doc: 'a\nb\nc\nd\ne' });
-        const sourceBlock = buildDragSourceBlockFromBlocks(
+        const source = buildDragSourceFromBlocks(
             state.doc,
             [
                 { startLineNumber: 2, endLineNumber: 2 },
@@ -48,10 +48,10 @@ describe('selection-model', () => {
             }
         );
 
-        expect(sourceBlock.startLine).toBe(1);
-        expect(sourceBlock.endLine).toBe(3);
-        expect(sourceBlock.content).toBe('b\nd');
-        expect(sourceBlock.compositeSelection?.ranges).toEqual([
+        expect(source.primaryBlock.startLine).toBe(1);
+        expect(source.primaryBlock.endLine).toBe(1);
+        expect(source.primaryBlock.content).toBe('b');
+        expect(source.ranges).toEqual([
             { startLine: 1, endLine: 1 },
             { startLine: 3, endLine: 3 },
         ]);

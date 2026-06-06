@@ -146,9 +146,11 @@ describe('DragEventHandler', () => {
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 10, expect.objectContaining({
-            startLine: 0,
-            endLine: 0,
-        }), 'touch');
+            ranges: [expect.objectContaining({
+                startLine: 0,
+                endLine: 0,
+            })],
+            }), 'touch');
         expect(performDropAtPoint).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
@@ -348,9 +350,11 @@ describe('DragEventHandler', () => {
         expect(touchMove.defaultPrevented).toBe(true);
         expect(scroller.scrollTop).toBeGreaterThan(40);
         expect(scheduleDropIndicatorUpdate).toHaveBeenLastCalledWith(12, 196, expect.objectContaining({
-            startLine: 0,
-            endLine: 0,
-        }), 'touch');
+            ranges: [expect.objectContaining({
+                startLine: 0,
+                endLine: 0,
+            })],
+            }), 'touch');
 
         dispatchPointer(window, 'pointerup', {
             pointerId: 916,
@@ -404,7 +408,7 @@ describe('DragEventHandler', () => {
             clientX: 90,
             clientY: 10,
         });
-        expect(beginPointerDragSession).toHaveBeenCalledWith(sourceBlock);
+        expect(beginPointerDragSession).toHaveBeenCalledWith(expect.objectContaining({ primaryBlock: sourceBlock }));
         handler.destroy();
     });
 
@@ -554,9 +558,11 @@ describe('DragEventHandler', () => {
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(110, 70, expect.objectContaining({
-            startLine: 2,
-            endLine: 3,
-        }), 'touch');
+            ranges: [expect.objectContaining({
+                startLine: 2,
+                endLine: 3,
+            })],
+            }), 'touch');
         handler.destroy();
     });
 
@@ -617,9 +623,11 @@ describe('DragEventHandler', () => {
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(118, 110, expect.objectContaining({
-            startLine: 4,
-            endLine: 4,
-        }), 'touch');
+            ranges: [expect.objectContaining({
+                startLine: 4,
+                endLine: 4,
+            })],
+            }), 'touch');
         handler.destroy();
     });
 

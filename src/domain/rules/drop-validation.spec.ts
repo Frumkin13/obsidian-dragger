@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createDragSource } from '../../shared/types/drag';
 import { BlockType, type BlockInfo } from '../block/block-types';
 import { validateInPlaceDrop } from './drop-validation';
 import { getLineMap } from '../markdown/line-map';
@@ -23,11 +24,16 @@ function createBlock(type: BlockType, startLine: number, endLine: number, conten
     };
 }
 
+function sourceFromBlock(block: BlockInfo, ranges = [{ startLine: block.startLine, endLine: block.endLine }]) {
+    return createDragSource(block, ranges);
+}
+
 describe('drop-validation', () => {
     it('uses insertion matrix to reject invalid container drops', () => {
+        const sourceBlock = createBlock(BlockType.Paragraph, 0, 0, 'plain');
         const result = validateInPlaceDrop({
             doc: createDoc(['- list item']),
-            sourceBlock: createBlock(BlockType.Paragraph, 0, 0, 'plain'),
+            source: sourceFromBlock(sourceBlock),
             targetLineNumber: 1,
             parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
             getListContext: () => null,
@@ -42,9 +48,10 @@ describe('drop-validation', () => {
     it('keeps result stable when lineMap is provided', () => {
         const state = { doc: createDoc(['- root', '  - child', 'tail']) };
         const sourceBlock = createBlock(BlockType.ListItem, 0, 1, '- root\n  - child');
+        const source = sourceFromBlock(sourceBlock);
         const withoutMap = validateInPlaceDrop({
             doc: state.doc,
-            sourceBlock,
+            source,
             targetLineNumber: 2,
             parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
             getListContext: () => ({ indentWidth: 0, indentRaw: '', markerType: 'unordered' }),
@@ -58,7 +65,7 @@ describe('drop-validation', () => {
         });
         const withMap = validateInPlaceDrop({
             doc: state.doc,
-            sourceBlock,
+            source,
             targetLineNumber: 2,
             parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
             getListContext: () => ({ indentWidth: 0, indentRaw: '', markerType: 'unordered' }),
@@ -75,20 +82,16 @@ describe('drop-validation', () => {
         expect(withMap).toEqual(withoutMap);
     });
 
-    it('treats disjoint composite selection gaps as valid drop targets', () => {
-        const sourceBlock: BlockInfo = {
-            ...createBlock(BlockType.ListItem, 1, 6, '- a\n- z'),
-            compositeSelection: {
-                ranges: [
-                    { startLine: 1, endLine: 1 },
-                    { startLine: 6, endLine: 6 },
-                ],
-            },
-        };
+    it('treats disjoint source gaps as valid drop targets', () => {
+        const sourceBlock = createBlock(BlockType.ListItem, 1, 6, '- a\n- z');
+        const source = sourceFromBlock(sourceBlock, [
+            { startLine: 1, endLine: 1 },
+            { startLine: 6, endLine: 6 },
+        ]);
 
         const inGap = validateInPlaceDrop({
             doc: createDoc(['0', 'a', 'b', 'c', 'd', 'e', 'z', 'tail']),
-            sourceBlock,
+            source,
             targetLineNumber: 4,
             parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
             getListContext: () => null,
@@ -99,7 +102,7 @@ describe('drop-validation', () => {
 
         const inSelectedRange = validateInPlaceDrop({
             doc: createDoc(['0', 'a', 'b', 'c', 'd', 'e', 'z', 'tail']),
-            sourceBlock,
+            source,
             targetLineNumber: 2,
             parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
             getListContext: () => null,
@@ -109,20 +112,16 @@ describe('drop-validation', () => {
         expect(inSelectedRange.rejectReason).toBe('self_range_blocked');
     });
 
-    it('treats contiguous composite ranges like a single block for in-place indent changes', () => {
-        const sourceBlock: BlockInfo = {
-            ...createBlock(BlockType.ListItem, 0, 1, '- root\n  - child'),
-            compositeSelection: {
-                ranges: [
-                    { startLine: 0, endLine: 0 },
-                    { startLine: 1, endLine: 1 },
-                ],
-            },
-        };
+    it('treats contiguous ranges like a single block for in-place indent changes', () => {
+        const sourceBlock = createBlock(BlockType.ListItem, 0, 1, '- root\n  - child');
+        const source = sourceFromBlock(sourceBlock, [
+            { startLine: 0, endLine: 0 },
+            { startLine: 1, endLine: 1 },
+        ]);
 
         const result = validateInPlaceDrop({
             doc: createDoc(['- root', '  - child', 'after']),
-            sourceBlock,
+            source,
             targetLineNumber: 3,
             parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
             getListContext: () => null,
@@ -138,21 +137,17 @@ describe('drop-validation', () => {
         expect(result.rejectReason).toBeUndefined();
     });
 
-    it('blocks in-place list indent when a composite source contains non-list content', () => {
-        const sourceBlock: BlockInfo = {
-            ...createBlock(BlockType.ListItem, 0, 2, '- root\nparagraph\n- child'),
-            compositeSelection: {
-                ranges: [
-                    { startLine: 0, endLine: 0 },
-                    { startLine: 1, endLine: 1 },
-                    { startLine: 2, endLine: 2 },
-                ],
-            },
-        };
+    it('blocks in-place list indent when a source contains non-list content', () => {
+        const sourceBlock = createBlock(BlockType.ListItem, 0, 2, '- root\nparagraph\n- child');
+        const source = sourceFromBlock(sourceBlock, [
+            { startLine: 0, endLine: 0 },
+            { startLine: 1, endLine: 1 },
+            { startLine: 2, endLine: 2 },
+        ]);
 
         const result = validateInPlaceDrop({
             doc: createDoc(['- root', 'paragraph', '- child', 'after']),
-            sourceBlock,
+            source,
             targetLineNumber: 4,
             parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
             getListContext: () => null,
@@ -168,5 +163,3 @@ describe('drop-validation', () => {
         expect(result.rejectReason).toBe('self_range_blocked');
     });
 });
-
-

@@ -29,7 +29,7 @@ function normalizeEvent(event: DragLifecycleEvent): DragLifecycleEvent {
             return {
                 type: 'drag_idle',
                 phase: 'idle',
-                sourceBlock: null,
+                source: null,
                 targetLine: null,
                 listIntent: null,
                 rejectReason: null,
@@ -39,7 +39,7 @@ function normalizeEvent(event: DragLifecycleEvent): DragLifecycleEvent {
             return {
                 type: 'drag_press_pending',
                 phase: 'press_pending',
-                sourceBlock: event.sourceBlock,
+                source: event.source,
                 targetLine: null,
                 listIntent: null,
                 rejectReason: null,
@@ -50,7 +50,7 @@ function normalizeEvent(event: DragLifecycleEvent): DragLifecycleEvent {
             return {
                 type: 'drag_started',
                 phase: 'drag_active',
-                sourceBlock: event.sourceBlock,
+                source: event.source,
                 targetLine: null,
                 listIntent: null,
                 rejectReason: null,
@@ -60,7 +60,7 @@ function normalizeEvent(event: DragLifecycleEvent): DragLifecycleEvent {
             return {
                 type: 'drag_target_changed',
                 phase: 'drag_active',
-                sourceBlock: event.sourceBlock,
+                source: event.source,
                 targetLine: typeof event.targetLine === 'number' ? event.targetLine : null,
                 listIntent: event.listIntent ?? null,
                 rejectReason: event.rejectReason ?? null,
@@ -70,7 +70,7 @@ function normalizeEvent(event: DragLifecycleEvent): DragLifecycleEvent {
             return {
                 type: 'drag_drop_commit',
                 phase: 'drop_commit',
-                sourceBlock: event.sourceBlock,
+                source: event.source,
                 targetLine: typeof event.targetLine === 'number' ? event.targetLine : null,
                 listIntent: event.listIntent ?? null,
                 rejectReason: null,
@@ -80,7 +80,7 @@ function normalizeEvent(event: DragLifecycleEvent): DragLifecycleEvent {
             return {
                 type: 'drag_cancelled',
                 phase: 'cancelled',
-                sourceBlock: event.sourceBlock ?? null,
+                source: event.source ?? null,
                 targetLine: typeof event.targetLine === 'number' ? event.targetLine : null,
                 listIntent: event.listIntent ?? null,
                 rejectReason: event.rejectReason,
@@ -93,8 +93,9 @@ function buildSignature(event: DragLifecycleEvent): string {
     return JSON.stringify({
         type: event.type,
         phase: event.phase,
-        sourceStart: event.sourceBlock?.startLine ?? null,
-        sourceEnd: event.sourceBlock?.endLine ?? null,
+        sourceStart: event.source?.primaryBlock.startLine ?? null,
+        sourceEnd: event.source?.primaryBlock.endLine ?? null,
+        sourceRanges: event.source?.ranges ?? null,
         targetLine: event.targetLine,
         listIntent: event.listIntent,
         rejectReason: event.rejectReason,

@@ -1,9 +1,9 @@
-import { BlockInfo } from '../../domain/block/block-types';
-import { MouseRangeSelectState, RangeSelectionBoundary } from './range-selection/selection-model';
-import { SelectedBlockRange } from './range-selection/block-selection';
+import { DragSource } from '../../shared/types/drag';
+import { MouseRangeSelectState, RangeSelectionBoundary } from './selection/selection-model';
+import { SelectedBlockRange } from './selection/block-selection';
 
 export type PointerDragData = {
-    sourceBlock: BlockInfo;
+    source: DragSource;
     pointerId: number;
     latestX: number;
     latestY: number;
@@ -12,7 +12,7 @@ export type PointerDragData = {
 };
 
 export type PointerPressData = {
-    sourceBlock: BlockInfo;
+    source: DragSource;
     pointerId: number;
     startX: number;
     startY: number;
@@ -41,7 +41,7 @@ export type MobileSelectionInteraction =
         pointerId: number;
         startX: number;
         startY: number;
-        sourceBlock: BlockInfo;
+        source: DragSource;
     };
 
 export type MobileSelectionData = {

@@ -1,25 +1,25 @@
 import { EditorView } from '@codemirror/view';
-import { BlockInfo } from '../../domain/block/block-types';
+import { DragSource } from '../../shared/types/drag';
 import { DROP_HIGHLIGHT_SELECTOR, DROP_INDICATOR_SELECTOR, DRAGGING_BODY_CLASS, HIDDEN_CLASS } from '../../shared/dom-selectors';
 
-const activeDragSourceByView = new WeakMap<EditorView, BlockInfo | null>();
+const activeDragSourceByView = new WeakMap<EditorView, DragSource | null>();
 const knownViewRefs = new Set<WeakRef<EditorView>>();
 
 export type ActiveDragSourceEntry = {
     view: EditorView;
-    block: BlockInfo;
+    source: DragSource;
 };
 
-export function beginDragSession(blockInfo: BlockInfo, view: EditorView): void {
-    setActiveDragSourceBlock(view, blockInfo);
+export function beginDragSession(source: DragSource, view: EditorView): void {
+    setActiveDragSource(view, source);
     document.body.classList.add(DRAGGING_BODY_CLASS);
 }
 
 export function finishDragSession(view?: EditorView): void {
     if (view) {
-        clearActiveDragSourceBlock(view);
+        clearActiveDragSource(view);
     } else {
-        clearAllActiveDragSourceBlocks();
+        clearAllActiveDragSources();
     }
 
     if (!getActiveDragSourceEntry()) {
@@ -28,9 +28,9 @@ export function finishDragSession(view?: EditorView): void {
     hideDropVisuals();
 }
 
-export function setActiveDragSourceBlock(view: EditorView, block: BlockInfo | null): void {
-    if (block) {
-        activeDragSourceByView.set(view, block);
+export function setActiveDragSource(view: EditorView, source: DragSource | null): void {
+    if (source) {
+        activeDragSourceByView.set(view, source);
         knownViewRefs.add(new WeakRef(view));
         return;
     }
@@ -38,12 +38,12 @@ export function setActiveDragSourceBlock(view: EditorView, block: BlockInfo | nu
     removeWeakRef(knownViewRefs, view);
 }
 
-export function getActiveDragSourceBlock(view?: EditorView): BlockInfo | null {
+export function getActiveDragSource(view?: EditorView): DragSource | null {
     if (view) {
         return activeDragSourceByView.get(view) ?? null;
     }
 
-    return getActiveDragSourceEntry()?.block ?? null;
+    return getActiveDragSourceEntry()?.source ?? null;
 }
 
 export function getActiveDragSourceView(): EditorView | null {
@@ -57,20 +57,20 @@ export function getActiveDragSourceEntry(): ActiveDragSourceEntry | null {
             knownViewRefs.delete(ref);
             continue;
         }
-        const block = activeDragSourceByView.get(view);
-        if (block) {
-            return { view, block };
+        const source = activeDragSourceByView.get(view);
+        if (source) {
+            return { view, source };
         }
     }
     return null;
 }
 
-export function clearActiveDragSourceBlock(view: EditorView): void {
+export function clearActiveDragSource(view: EditorView): void {
     activeDragSourceByView.delete(view);
     removeWeakRef(knownViewRefs, view);
 }
 
-export function clearAllActiveDragSourceBlocks(): void {
+export function clearAllActiveDragSources(): void {
     for (const ref of knownViewRefs) {
         const v = ref.deref();
         if (v) activeDragSourceByView.delete(v);
@@ -95,4 +95,3 @@ export function hideDropVisuals(scope: ParentNode = document): void {
         el.classList.add(HIDDEN_CLASS);
     });
 }
-

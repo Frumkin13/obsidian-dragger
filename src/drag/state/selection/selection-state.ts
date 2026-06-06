@@ -1,5 +1,4 @@
 import type { EditorState, Text } from '@codemirror/state';
-import type { BlockInfo } from '../../../domain/block/block-types';
 import {
     groupSelectedBlocksIntoSegments,
     mergeSelectedBlocks,
@@ -10,7 +9,7 @@ import {
     type RangeSelectionBoundary,
     type MouseRangeSelectState,
     type CommittedRangeSelection,
-    buildDragSourceBlockFromBlocks,
+    buildDragSourceFromBlocks,
     collectSelectedBlocksBetween,
 } from './selection-model';
 
@@ -21,7 +20,7 @@ export function computeUpdatedSelectionState(
 ): {
     currentLineNumber: number;
     selectionBlocks: SelectedBlockRange[];
-    activeSelectionBlock: BlockInfo;
+    activeSelectionSource: MouseRangeSelectState['activeSelectionSource'];
 } {
     const activeBlocks = collectSelectedBlocksBetween(
         editorState,
@@ -38,31 +37,31 @@ export function computeUpdatedSelectionState(
             ...state.committedBlocksSnapshot,
             ...activeBlocks,
         ]);
-    const activeSelectionBlock = buildDragSourceBlockFromBlocks(
+    const activeSelectionSource = buildDragSourceFromBlocks(
         editorState.doc,
         selectionBlocks,
-        state.anchorSelectionBlock
+        state.anchorSelectionSource.primaryBlock
     );
 
     return {
         currentLineNumber: target.representativeLineNumber,
         selectionBlocks,
-        activeSelectionBlock,
+        activeSelectionSource,
     };
 }
 
 export function buildCommittedRangeSelection(
     doc: Text,
     selectionBlocks: SelectedBlockRange[],
-    templateBlock: BlockInfo
+    templateBlock: MouseRangeSelectState['activeSelectionSource']['primaryBlock']
 ): CommittedRangeSelection | null {
     const committedBlocks = mergeSelectedBlocks(doc.lines, selectionBlocks);
     if (committedBlocks.length === 0) {
         return null;
     }
-    const selectedBlock = buildDragSourceBlockFromBlocks(doc, committedBlocks, templateBlock);
+    const source = buildDragSourceFromBlocks(doc, committedBlocks, templateBlock);
     return {
-        selectedBlock,
+        source,
         blocks: committedBlocks,
     };
 }
@@ -82,4 +81,3 @@ export function buildCommittedRangeDeletionChanges(
         return { from, to };
     }).filter((change) => change.to > change.from);
 }
-

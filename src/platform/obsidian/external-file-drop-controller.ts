@@ -4,9 +4,9 @@ import type DragNDropPlugin from '../../plugin/main';
 import { FILE_DROP_TARGET_CLASS } from '../../shared/dom-selectors';
 import {
     getActiveDragSourceView,
-} from '../../drag/gesture/drag-session';
-import { FileBlockMover } from '../../drag/move/file-mover';
-import { BlockInfo } from '../../domain/block/block-types';
+} from '../../drag/state';
+import { FileBlockMover } from '../../drag/move';
+import { DragSource } from '../../shared/types/drag';
 import {
     PointerDragTargetClient,
     registerPointerDragTargetClient,
@@ -41,7 +41,7 @@ export class ExternalFileDropController {
             this.setHighlightedTarget(target.element);
         },
         hideDropIndicator: () => this.clearHighlight(),
-        performDropAtPoint: (sourceBlock, clientX, clientY) => this.performDropAtPoint(sourceBlock, clientX, clientY),
+        performDropAtPoint: (source, clientX, clientY) => this.performDropAtPoint(source, clientX, clientY),
     };
 
     constructor(private readonly plugin: DragNDropPlugin) {
@@ -56,7 +56,7 @@ export class ExternalFileDropController {
         });
     }
 
-    private performDropAtPoint(sourceBlock: BlockInfo, clientX: number, clientY: number): void {
+    private performDropAtPoint(source: DragSource, clientX: number, clientY: number): void {
         const target = this.resolveDropTargetAtPoint(clientX, clientY);
         if (!target) {
             this.clearHighlight();
@@ -72,7 +72,7 @@ export class ExternalFileDropController {
 
         void this.fileBlockMover.moveBlockToFile({
             sourceView,
-            sourceBlock,
+            source,
             targetFile: target.file,
         }).then((result) => {
             if (!result.moved) {

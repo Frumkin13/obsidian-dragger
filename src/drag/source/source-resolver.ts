@@ -1,6 +1,8 @@
 import { EditorView } from '@codemirror/view';
 import { detectBlock, getHeadingSectionRange } from '../../domain/block/block-detector';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
+import { createDragSource, type DragSource } from './source';
+import type { DragSourceRequest } from './source-request';
 import { findEmbedElementAtPoint } from '../../platform/dom/embed-probe';
 import { CODEMIRROR_LINE_SELECTOR, EMBED_ROOT_SELECTOR } from '../../shared/dom-selectors';
 import {
@@ -16,6 +18,12 @@ type VerticalContentRect = Pick<DOMRect | DOMRectReadOnly, 'top' | 'bottom'>;
 
 export class DragSourceResolver {
     constructor(private readonly view: EditorView) { }
+
+    resolveSource(request: DragSourceRequest): DragSource | null {
+        const block = this.resolvePrimaryBlock(request);
+        if (!block) return null;
+        return createDragSource(block, [{ startLine: block.startLine, endLine: block.endLine }]);
+    }
 
     getBlockInfoForHandle(handle: HTMLElement): BlockInfo | null {
         // Line handles are absolutely positioned overlays, so DOM position can drift
@@ -92,6 +100,19 @@ export class DragSourceResolver {
             if (block) return block;
         }
         return null;
+    }
+
+    private resolvePrimaryBlock(request: DragSourceRequest): BlockInfo | null {
+        switch (request.kind) {
+            case 'handle':
+                return this.getBlockInfoForHandle(request.handle)
+                    ?? this.getDraggableBlockAtPoint(request.clientX, request.clientY);
+            case 'point':
+                return this.getDraggableBlockAtPoint(request.clientX, request.clientY);
+            case 'active-selection':
+            case 'committed-selection':
+                return null;
+        }
     }
 
     private collectEmbedProbeCandidates(embedEl: HTMLElement): HTMLElement[] {

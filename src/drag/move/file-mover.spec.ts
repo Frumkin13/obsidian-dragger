@@ -6,6 +6,7 @@ import type { EditorView } from '@codemirror/view';
 import type { App, TFile } from 'obsidian';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
+import { createDragSource } from '../../shared/types/drag';
 import { appendMarkdownBlock, FileBlockMover } from './file-mover';
 
 type MutableView = EditorView & {
@@ -26,7 +27,7 @@ describe('FileBlockMover', () => {
 
         const result = await new FileBlockMover(app).moveBlockToFile({
             sourceView,
-            sourceBlock: createBlock(1, 1),
+            source: sourceFromBlock(createBlock(1, 1)),
             targetFile,
         });
 
@@ -47,15 +48,10 @@ describe('FileBlockMover', () => {
 
         const result = await new FileBlockMover(app).moveBlockToFile({
             sourceView,
-            sourceBlock: {
-                ...createBlock(0, 2),
-                compositeSelection: {
-                    ranges: [
-                        { startLine: 0, endLine: 0 },
-                        { startLine: 2, endLine: 2 },
-                    ],
-                },
-            },
+            source: sourceFromBlock(createBlock(0, 2), [
+                { startLine: 0, endLine: 0 },
+                { startLine: 2, endLine: 2 },
+            ]),
             targetFile: createMarkdownFile('Archive.md'),
         });
 
@@ -76,7 +72,7 @@ describe('FileBlockMover', () => {
 
         const result = await new FileBlockMover(app).moveBlockToFile({
             sourceView,
-            sourceBlock: createBlock(1, 1),
+            source: sourceFromBlock(createBlock(1, 1)),
             targetFile,
         });
 
@@ -95,7 +91,7 @@ describe('FileBlockMover', () => {
 
         const result = await new FileBlockMover(app).moveBlockToFile({
             sourceView,
-            sourceBlock: createBlock(1, 1),
+            source: sourceFromBlock(createBlock(1, 1)),
             targetFile,
         });
 
@@ -113,7 +109,7 @@ describe('FileBlockMover', () => {
 
         const result = await new FileBlockMover(app).moveBlockToFile({
             sourceView,
-            sourceBlock: createBlock(0, 0),
+            source: sourceFromBlock(createBlock(0, 0)),
             targetFile,
         });
 
@@ -161,6 +157,10 @@ function createBlock(startLine: number, endLine: number): BlockInfo {
         indentLevel: 0,
         content: '',
     };
+}
+
+function sourceFromBlock(block: BlockInfo, ranges = [{ startLine: block.startLine, endLine: block.endLine }]) {
+    return createDragSource(block, ranges);
 }
 
 function createMarkdownFile(path: string): TFile {

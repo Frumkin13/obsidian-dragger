@@ -23,7 +23,6 @@ export function createBlockFoldStateManager(params: {
     return {
         capture(view, sourceBlock) {
             if (!isBlockFoldStateSupported(sourceBlock)) return null;
-            if ((sourceBlock.compositeSelection?.ranges?.length ?? 0) > 1) return null;
 
             const startLineNumber = sourceBlock.startLine + 1;
             const endLineNumber = sourceBlock.endLine + 1;

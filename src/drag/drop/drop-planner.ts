@@ -11,7 +11,7 @@ import { isPointInsideRenderedTableCell } from '../../platform/dom/table-guard';
 import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
 import { getRenderedMainLineNumberAtPoint } from '../../platform/dom/line-hit';
 
-import { DragSourceScope } from '../../shared/types/drag';
+import { DragSource, DragSourceScope } from '../../shared/types/drag';
 import { ListDropPlannerPort } from './list-drop-planner-port';
 
 type PerfDurationKey =
@@ -92,7 +92,7 @@ export class DropPlanner {
     resolveValidatedDropTarget(info: {
         clientX: number;
         clientY: number;
-        dragSource?: BlockInfo | null;
+        dragSource?: DragSource | null;
         pointerType?: string | null;
         sourceScope?: DragSourceScope;
     }): DropValidationResult {
@@ -134,11 +134,11 @@ export class DropPlanner {
         info: {
             clientX: number;
             clientY: number;
-            dragSource?: BlockInfo | null;
+            dragSource?: DragSource | null;
             pointerType?: string | null;
             sourceScope?: DragSourceScope;
         };
-        dragSource: BlockInfo | null;
+        dragSource: DragSource | null;
         sourceScope: DragSourceScope;
         lineMap: ReturnType<typeof getLineMap>;
     }): DropValidationResult {
@@ -277,7 +277,7 @@ export class DropPlanner {
     }
 
     private resolveContainerRule(
-        dragSource: BlockInfo | null,
+        dragSource: DragSource | null,
         targetLineNumber: number,
         lineMap: LineMap
     ): {
@@ -286,7 +286,7 @@ export class DropPlanner {
     } {
         const containerStartedAt = this.now();
         const containerRule = dragSource
-            ? this.deps.resolveDropRuleAtInsertion(dragSource, targetLineNumber, { lineMap })
+            ? this.deps.resolveDropRuleAtInsertion(dragSource.primaryBlock, targetLineNumber, { lineMap })
             : null;
         this.deps.recordPerfDuration?.('container', this.now() - containerStartedAt);
         if (!containerRule) {
@@ -302,7 +302,7 @@ export class DropPlanner {
     }
 
     private getInPlaceRejectReason(params: {
-        dragSource: BlockInfo | null;
+        dragSource: DragSource | null;
         sourceScope: DragSourceScope;
         targetLineNumber: number;
         slotContext: InsertionSlotContext | null;
@@ -322,7 +322,7 @@ export class DropPlanner {
         const inPlaceStartedAt = this.now();
         const inPlaceValidation = validateInPlaceDrop({
             doc: this.view.state.doc,
-            sourceBlock: dragSource,
+            source: dragSource,
             targetLineNumber,
             parseLineWithQuote: this.deps.parseLineWithQuote,
             getListContext: this.deps.getListContext,
@@ -343,7 +343,7 @@ export class DropPlanner {
 
     private computeVerticalTarget(
         info: { clientX: number; clientY: number },
-        dragSource: BlockInfo | null
+        dragSource: DragSource | null
     ): {
         line: { number: number; text: string; from: number; to: number };
         targetLineNumber: number;
@@ -359,7 +359,7 @@ export class DropPlanner {
         }
 
         const line = this.view.state.doc.line(lineNumber);
-        const allowListChildIntent = !!dragSource && dragSource.type === BlockType.ListItem;
+        const allowListChildIntent = !!dragSource && dragSource.primaryBlock.type === BlockType.ListItem;
         const lineBoundsForSnap = this.deps.listDropPlanner.getListMarkerBounds(line.number);
         const lineParsedForSnap = this.deps.parseLineWithQuote(line.text);
         const childIntentOnLine = allowListChildIntent
@@ -445,14 +445,14 @@ export class DropPlanner {
     private buildResolveCacheKey(
         clientX: number,
         clientY: number,
-        dragSource: BlockInfo | null,
+        dragSource: DragSource | null,
         pointerType: string | null,
         sourceScope: DragSourceScope
     ): string {
         if (!dragSource) {
             return `${clientX}|${clientY}|none|${pointerType ?? ''}|${sourceScope}`;
         }
-        const compositeKey = (dragSource.compositeSelection?.ranges ?? [])
+        const rangesKey = dragSource.ranges
             .map((range) => `${range.startLine}-${range.endLine}`)
             .join(',');
         return [
@@ -460,12 +460,12 @@ export class DropPlanner {
             clientY,
             pointerType ?? '',
             sourceScope,
-            dragSource.type,
-            dragSource.startLine,
-            dragSource.endLine,
-            dragSource.from,
-            dragSource.to,
-            compositeKey,
+            dragSource.primaryBlock.type,
+            dragSource.primaryBlock.startLine,
+            dragSource.primaryBlock.endLine,
+            dragSource.primaryBlock.from,
+            dragSource.primaryBlock.to,
+            rangesKey,
         ].join('|');
     }
 

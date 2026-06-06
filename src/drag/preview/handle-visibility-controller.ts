@@ -71,12 +71,22 @@ export class HandleVisibilityController {
         this.setGrabbedLineRanges([{ startLineNumber, endLineNumber }]);
     }
 
+    enterGrabVisualState(
+        ranges: GrabLineRange[],
+        handle: HTMLElement | null
+    ): void {
+        this.setActiveVisibleHandle(handle);
+        this.setGrabbedLineRanges(ranges);
+    }
+
     enterGrabVisualStateForBlock(
         blockInfo: BlockInfo,
         handle: HTMLElement | null
     ): void {
-        this.setActiveVisibleHandle(handle);
-        this.setGrabbedLineRanges(this.resolveGrabLineRanges(blockInfo));
+        this.enterGrabVisualState([{
+            startLineNumber: blockInfo.startLine + 1,
+            endLineNumber: blockInfo.endLine + 1,
+        }], handle);
     }
 
     setActiveVisibleHandle(handle: HTMLElement | null): void {
@@ -99,7 +109,7 @@ export class HandleVisibilityController {
         handle.classList.add('is-visible');
     }
 
-    enterGrabVisualState(
+    enterGrabVisualStateForRange(
         startLineNumber: number,
         endLineNumber: number,
         handle: HTMLElement | null
@@ -196,20 +206,6 @@ export class HandleVisibilityController {
         if (lineNumber === from) return DRAG_SOURCE_LINE_FIRST_CLASS;
         if (lineNumber === to) return DRAG_SOURCE_LINE_LAST_CLASS;
         return DRAG_SOURCE_LINE_MIDDLE_CLASS;
-    }
-
-    private resolveGrabLineRanges(blockInfo: BlockInfo): GrabLineRange[] {
-        const composite = blockInfo.compositeSelection?.ranges ?? [];
-        if (composite.length === 0) {
-            return [{
-                startLineNumber: blockInfo.startLine + 1,
-                endLineNumber: blockInfo.endLine + 1,
-            }];
-        }
-        return composite.map((range) => ({
-            startLineNumber: range.startLine + 1,
-            endLineNumber: range.endLine + 1,
-        }));
     }
 
     private applyGrabbedEmbedVisualState(): void {

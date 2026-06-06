@@ -5,6 +5,7 @@ import type { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
 import { parseLineWithQuote } from '../../domain/markdown/line-parser';
+import { createDragSource } from '../../shared/types/drag';
 import { DropPlanner, type DropPlannerDeps } from './drop-planner';
 
 function originalElementFromPoint(this: void, x: number, y: number): Element | null {
@@ -92,6 +93,21 @@ function createSourceBlock(content = 'source', startLine = 0, endLine = 0): Bloc
     };
 }
 
+function createSource(content = 'source', startLine = 0, endLine = 0) {
+    const block = createSourceBlock(content, startLine, endLine);
+    return createDragSource(block, [{ startLine: block.startLine, endLine: block.endLine }]);
+}
+
+function createOutOfDocumentSource(content = 'source') {
+    const block = createSourceBlock(content, 0, 0);
+    return createDragSource(block, [{ startLine: block.startLine, endLine: block.endLine }]);
+}
+
+function createListSource(content = '- item', startLine = 0, endLine = 0) {
+    const block = createListSourceBlock(content, startLine, endLine);
+    return createDragSource(block, [{ startLine: block.startLine, endLine: block.endLine }]);
+}
+
 function createListSourceBlock(content = '- item', startLine = 0, endLine = 0): BlockInfo {
     return {
         type: BlockType.ListItem,
@@ -140,7 +156,7 @@ describe('DropPlanner', () => {
         const validation = calculator.resolveValidatedDropTarget({
             clientX: 40,
             clientY: 5,
-            dragSource: createSourceBlock(),
+            dragSource: createSource(),
         });
 
         expect(validation.allowed).toBe(false);
@@ -154,7 +170,7 @@ describe('DropPlanner', () => {
         const validation = calculator.resolveValidatedDropTarget({
             clientX: 40,
             clientY: 5,
-            dragSource: createSourceBlock('outside', 5, 5),
+            dragSource: createSource('outside', 5, 5),
         });
 
         expect(validation.allowed).toBe(true);
@@ -178,7 +194,7 @@ describe('DropPlanner', () => {
         const validation = calculator.resolveValidatedDropTarget({
             clientX: 20,
             clientY: 8,
-            dragSource: createSourceBlock(),
+            dragSource: createSource(),
         });
 
         expect(validation.allowed).toBe(false);
@@ -198,7 +214,7 @@ describe('DropPlanner', () => {
         const validation = calculator.resolveValidatedDropTarget({
             clientX: 40,
             clientY: 5,
-            dragSource: createListSourceBlock('- first', 0, 0),
+            dragSource: createListSource('- first', 0, 0),
         });
 
         expect(validation.allowed).toBe(false);
@@ -213,7 +229,7 @@ describe('DropPlanner', () => {
         const validation = calculator.resolveValidatedDropTarget({
             clientX: 40,
             clientY: 5,
-            dragSource: createListSourceBlock('- first', 0, 0),
+            dragSource: createListSource('- first', 0, 0),
             sourceScope: 'cross_editor',
         });
 
@@ -231,7 +247,8 @@ describe('DropPlanner', () => {
         const validation = calculator.resolveValidatedDropTarget({
             clientX: 40,
             clientY: 5,
-            dragSource: createSourceBlock('outside', 4, 4),
+            dragSource: createOutOfDocumentSource('outside'),
+            sourceScope: 'cross_editor',
         });
 
         expect(validation.allowed).toBe(false);
@@ -281,7 +298,8 @@ describe('DropPlanner', () => {
         const validation = calculator.resolveValidatedDropTarget({
             clientX: 120,
             clientY: 89,
-            dragSource: createSourceBlock('outside', 8, 8),
+            dragSource: createOutOfDocumentSource('outside'),
+            sourceScope: 'cross_editor',
         });
 
         expect(validation.allowed).toBe(true);
@@ -299,7 +317,7 @@ describe('DropPlanner', () => {
             resolveDropRuleAtInsertion,
         }));
 
-        const source = createSourceBlock('outside', 4, 4);
+        const source = createSource('outside', 4, 4);
         const first = calculator.resolveValidatedDropTarget({
             clientX: 40,
             clientY: 5,
@@ -373,7 +391,8 @@ describe('DropPlanner', () => {
         const validation = calculator.resolveValidatedDropTarget({
             clientX: 120,
             clientY: 55,
-            dragSource: createSourceBlock('outside', 9, 9),
+            dragSource: createOutOfDocumentSource('outside'),
+            sourceScope: 'cross_editor',
         });
 
         expect(validation.allowed).toBe(true);

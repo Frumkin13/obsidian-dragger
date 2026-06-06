@@ -27,7 +27,7 @@ function getCommittedSelectionAnchorMaxX(
 ): number | null {
     let maxX: number | null = null;
     const segments = groupSelectedBlocksIntoSegments(
-        committedSelection.selectedBlock.endLine + 1,
+        committedSelection.source.primaryBlock.endLine + 1,
         committedSelection.blocks
     );
     for (const segment of segments) {
@@ -92,7 +92,7 @@ export function isCommittedSelectionGripHit(options: IsCommittedSelectionGripHit
     }
 
     const segments = groupSelectedBlocksIntoSegments(
-        committedSelection.selectedBlock.endLine + 1,
+        committedSelection.source.primaryBlock.endLine + 1,
         committedSelection.blocks
     );
     for (const segment of segments) {

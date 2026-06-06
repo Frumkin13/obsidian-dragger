@@ -1,13 +1,13 @@
 import { EditorView } from '@codemirror/view';
-import { BlockInfo } from '../../domain/block/block-types';
+import { DragSource } from '../../shared/types/drag';
 import { DropPlan } from '../../shared/types/protocol-types';
-import { DropValidationResult } from './drop-planner';
+import { DropValidationResult } from '../drop/drop-planner';
 import { DROP_INDICATOR_CLASS, DROP_HIGHLIGHT_CLASS, HIDDEN_CLASS } from '../../shared/dom-selectors';
 
 type DropValidationResolver = (info: {
     clientX: number;
     clientY: number;
-    dragSource: BlockInfo | null;
+    dragSource: DragSource | null;
     pointerType: string | null;
 }) => DropValidationResult;
 
@@ -21,7 +21,7 @@ interface DropIndicatorManagerOptions {
     }) => void;
     recordPerfDuration?: (key: 'drop_indicator_resolve', durationMs: number) => void;
     onDropTargetEvaluated?: (info: {
-        sourceBlock: BlockInfo | null;
+        source: DragSource | null;
         pointerType: string | null;
         validation: DropValidationResult;
     }) => void;
@@ -31,9 +31,9 @@ export class DropIndicatorManager {
     private static readonly instances = new Set<DropIndicatorManager>();
     private readonly indicatorEl: HTMLDivElement;
     private readonly highlightEl: HTMLDivElement;
-    private pendingDragInfo: { x: number; y: number; dragSource: BlockInfo | null; pointerType: string | null } | null = null;
+    private pendingDragInfo: { x: number; y: number; dragSource: DragSource | null; pointerType: string | null } | null = null;
     private rafId: number | null = null;
-    private lastEvaluatedInput: { x: number; y: number; dragSource: BlockInfo | null; pointerType: string | null } | null = null;
+    private lastEvaluatedInput: { x: number; y: number; dragSource: DragSource | null; pointerType: string | null } | null = null;
     private lastDropPlan: DropPlan | null = null;
 
     constructor(
@@ -51,7 +51,7 @@ export class DropIndicatorManager {
         document.body.appendChild(this.highlightEl);
     }
 
-    scheduleFromPoint(clientX: number, clientY: number, dragSource: BlockInfo | null, pointerType: string | null): void {
+    scheduleFromPoint(clientX: number, clientY: number, dragSource: DragSource | null, pointerType: string | null): void {
         this.pendingDragInfo = { x: clientX, y: clientY, dragSource, pointerType };
         if (this.rafId !== null) return;
         this.rafId = requestAnimationFrame(() => {
@@ -81,7 +81,7 @@ export class DropIndicatorManager {
         DropIndicatorManager.instances.delete(this);
     }
 
-    private updateFromPoint(info: { x: number; y: number; dragSource: BlockInfo | null; pointerType: string | null }): void {
+    private updateFromPoint(info: { x: number; y: number; dragSource: DragSource | null; pointerType: string | null }): void {
         if (this.shouldReuseLastResult(info)) {
             const reused = this.lastDropPlan !== null;
             if (this.lastDropPlan) {
@@ -110,7 +110,7 @@ export class DropIndicatorManager {
         const durationMs = this.now() - startedAt;
         this.options?.recordPerfDuration?.('drop_indicator_resolve', durationMs);
         this.options?.onDropTargetEvaluated?.({
-            sourceBlock: info.dragSource,
+            source: info.dragSource,
             pointerType: info.pointerType,
             validation,
         });
@@ -167,23 +167,26 @@ export class DropIndicatorManager {
         }
     }
 
-    private shouldReuseLastResult(info: { x: number; y: number; dragSource: BlockInfo | null; pointerType: string | null }): boolean {
+    private shouldReuseLastResult(info: { x: number; y: number; dragSource: DragSource | null; pointerType: string | null }): boolean {
         if (!this.lastEvaluatedInput) return false;
         if (this.lastEvaluatedInput.pointerType !== info.pointerType) return false;
-        if (!this.isSameSourceBlock(this.lastEvaluatedInput.dragSource, info.dragSource)) return false;
+        if (!this.isSameSource(this.lastEvaluatedInput.dragSource, info.dragSource)) return false;
         const dx = Math.abs(this.lastEvaluatedInput.x - info.x);
         const dy = Math.abs(this.lastEvaluatedInput.y - info.y);
         return dx + dy < 2;
     }
 
-    private isSameSourceBlock(a: BlockInfo | null, b: BlockInfo | null): boolean {
+    private isSameSource(a: DragSource | null, b: DragSource | null): boolean {
         if (a === b) return true;
         if (!a || !b) return false;
-        return a.type === b.type
-            && a.startLine === b.startLine
-            && a.endLine === b.endLine
-            && a.from === b.from
-            && a.to === b.to;
+        if (a.primaryBlock.type !== b.primaryBlock.type) return false;
+        if (a.primaryBlock.startLine !== b.primaryBlock.startLine) return false;
+        if (a.primaryBlock.endLine !== b.primaryBlock.endLine) return false;
+        if (a.ranges.length !== b.ranges.length) return false;
+        return a.ranges.every((range, index) => (
+            range.startLine === b.ranges[index].startLine
+            && range.endLine === b.ranges[index].endLine
+        ));
     }
 
     private now(): number {
@@ -193,4 +196,3 @@ export class DropIndicatorManager {
         return Date.now();
     }
 }
-

@@ -8,7 +8,7 @@ import { DocLikeWithRange, DropPlan } from '../../shared/types/protocol-types';
 import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
 import { ListRenumberer } from './list-renumberer';
 import { moveBlockAcrossEditors } from './cross-editor-mover';
-import { DragDocumentRelation } from '../../shared/types/drag';
+import { DragDocumentRelation, DragSource } from '../../shared/types/drag';
 import { BlockMoverDeps } from './block-mover-deps';
 import { CapturedBlockFoldState } from './block-fold-state';
 import { resolveInsertionChange } from './document-change';
@@ -26,14 +26,14 @@ export class BlockMover {
     }
 
     moveBlock(params: {
-        sourceBlock: BlockInfo;
+        source: DragSource;
         dropPlan: DropPlan;
         sourceView?: EditorView;
         sourceDocumentRelation?: DragDocumentRelation;
         capturedBlockFoldStateOverride?: CapturedBlockFoldState | null;
     }): void {
         const {
-            sourceBlock,
+            source,
             dropPlan,
             sourceView,
             sourceDocumentRelation,
@@ -41,17 +41,17 @@ export class BlockMover {
         } = params;
         const sourceEditorView = sourceView ?? this.deps.view;
         const sourceDoc = sourceEditorView.state.doc as unknown as DocLikeWithRange;
-        const source = captureMoveSource(sourceDoc, sourceBlock);
-        if (!source) return;
+        const capturedSource = captureMoveSource(sourceDoc, source);
+        if (!capturedSource) return;
 
         if (sourceView && sourceView !== this.deps.view && sourceDocumentRelation !== 'same_document') {
             const capturedBlockFoldState = capturedBlockFoldStateOverride
-                ?? this.captureBlockFoldState(sourceView, source.block);
+                ?? this.captureBlockFoldState(sourceView, capturedSource.block);
             moveBlockAcrossEditors({
                 sourceView,
                 targetView: this.deps.view,
-                sourceBlock: source.block,
-                sourcePayload: source.payload,
+                sourceBlock: capturedSource.block,
+                sourcePayload: capturedSource.payload,
                 dropPlan,
                 capturedBlockFoldState,
                 deps: {
@@ -67,12 +67,12 @@ export class BlockMover {
         }
 
         const capturedBlockFoldState = capturedBlockFoldStateOverride
-            ?? this.captureBlockFoldState(sourceEditorView, source.block);
+            ?? this.captureBlockFoldState(sourceEditorView, capturedSource.block);
         this.moveCapturedSource({
-            source,
+            source: capturedSource,
             dropPlan,
             capturedBlockFoldState,
-            preserveDisplacedTargetFoldState: (sourceBlock.compositeSelection?.ranges?.length ?? 0) <= 1,
+            preserveDisplacedTargetFoldState: source.ranges.length <= 1,
         });
     }
 
@@ -99,7 +99,10 @@ export class BlockMover {
 
         const inPlaceValidation = validateInPlaceDrop({
             doc,
-            sourceBlock,
+            source: {
+                primaryBlock: sourceBlock,
+                ranges: payload.ranges,
+            },
             targetLineNumber,
             parseLineWithQuote: this.deps.parseLineWithQuote,
             getListContext: this.deps.getListContext,

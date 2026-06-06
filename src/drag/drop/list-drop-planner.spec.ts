@@ -2,6 +2,7 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockType } from '../../domain/block/block-types';
+import { createDragSource } from '../../shared/types/drag';
 import { parseLineWithQuote } from '../../domain/markdown/line-parser';
 import { ListDropPlanner } from './list-drop-planner';
 
@@ -40,7 +41,7 @@ describe('ListDropPlanner', () => {
             lineNumber: 1,
             forcedLineNumber: null,
             childIntentOnLine: false,
-            dragSource: {
+            dragSource: createDragSource({
                 type: BlockType.ListItem,
                 startLine: 0,
                 endLine: 0,
@@ -48,7 +49,7 @@ describe('ListDropPlanner', () => {
                 to: 6,
                 indentLevel: 0,
                 content: '- root',
-            },
+            }, [{ startLine: 0, endLine: 0 }]),
             clientX: 20,
         });
 

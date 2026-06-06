@@ -1,11 +1,11 @@
 import { EditorView } from '@codemirror/view';
 import { anchorSelectionBeforeUndoableChange } from '../../move/undo-selection-anchor';
-import { BlockInfo } from '../../../domain/block/block-types';
+import { DragSource } from '../../../shared/types/drag';
 import {
     type CommittedRangeSelection,
     type MouseRangeSelectState,
     type RangeSelectionBoundary,
-    cloneBlockInfo,
+    cloneDragSource,
     resolveBlockBoundaryAtLine,
 } from './selection-model';
 import {
@@ -15,7 +15,7 @@ import {
 } from './selection-state';
 import { autoScrollRangeSelection } from './selection-session-flow';
 import { RangeSelectionVisualManager } from './selection-visual-manager';
-import { InteractionState } from '../drag-interaction-state';
+import { InteractionState } from '../drag-state';
 
 export function autoScrollSelectionRange(view: EditorView, clientY: number): boolean {
     const scroller = view.scrollDOM
@@ -34,7 +34,7 @@ export function updateSelectionFromBoundary(
     const next = computeUpdatedSelectionState(view.state, state, target);
     state.currentLineNumber = next.currentLineNumber;
     state.selectionBlocks = next.selectionBlocks;
-    state.activeSelectionBlock = next.activeSelectionBlock;
+    state.activeSelectionSource = next.activeSelectionSource;
     rangeVisual.render(state.selectionBlocks);
 }
 
@@ -66,7 +66,7 @@ export function commitSelectionRange(
     const committed = buildCommittedRangeSelection(
         view.state.doc,
         state.selectionBlocks,
-        state.anchorSelectionBlock
+        state.anchorSelectionSource.primaryBlock
     );
     if (!committed) {
         rangeVisual.clear();
@@ -94,16 +94,17 @@ export function deleteCommittedSelectionRange(
     const doc = view.state.doc;
     const changes = buildCommittedRangeDeletionChanges(doc, committed.blocks);
     if (changes.length > 0) {
-        anchorSelectionBeforeUndoableChange(view, committed.selectedBlock.from);
+        anchorSelectionBeforeUndoableChange(view, committed.source.primaryBlock.from);
         view.dispatch({ changes });
     }
     rangeVisual.clear();
+
     return null;
 }
 
-export function cloneCommittedSelectionBlock(committed: CommittedRangeSelection | null): BlockInfo | null {
+export function cloneCommittedSelectionSource(committed: CommittedRangeSelection | null): DragSource | null {
     if (!committed) return null;
-    return cloneBlockInfo(committed.selectedBlock);
+    return cloneDragSource(committed.source);
 }
 
 export function refreshSelectionVisual(

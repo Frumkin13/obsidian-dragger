@@ -7,23 +7,24 @@ import {
 import {
     beginDragSession,
     finishDragSession,
-    getActiveDragSourceBlock,
+    getActiveDragSource,
     getActiveDragSourceView,
-} from '../drag/gesture/drag-session';
+} from '../drag/state';
 import { isPosInsideRenderedTableCell } from '../platform/dom/table-guard';
-import { BlockMover } from '../drag/move/block-mover';
-import { DropIndicatorManager } from '../drag/drop/drop-indicator';
-import { DropPlanner } from '../drag/drop/drop-planner';
-import { DragEventHandler } from '../drag/gesture/drag-controller';
-import { getVisibleHandleForBlockStart } from '../drag/source/handle-renderer';
-import { HandleVisibilityController } from '../drag/source/handle-visibility-controller';
+import { BlockMover } from '../drag/move';
+import { DropPlanner } from '../drag/drop';
+import {
+    DropIndicatorManager,
+    getVisibleHandleForBlockStart,
+    HandleVisibilityController,
+} from '../drag/preview';
+import { DragEventHandler } from '../drag/pipeline';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
 import { createEditorContext, EditorContext } from './drag-service-container';
 import { DragLifecycleEmitter } from './drag-lifecycle-emitter';
 import { buildListIntent } from '../shared/utils/drop-protocol';
-import { buildDragTargetChangedLifecycleEvent, buildIdleLifecycleEvent } from '../drag/gesture/drag-lifecycle-flow';
-import { DragInteractionOrchestrator } from '../drag/gesture/interaction-orchestrator';
+import { buildDragTargetChangedLifecycleEvent, buildIdleLifecycleEvent, DragInteractionOrchestrator } from '../drag/pipeline';
 import { DragLifecycleEvent, DragSourceScope } from '../shared/types/drag';
 import { DND_DRAG_SOURCE_HIGHLIGHT_ATTR, DND_DRAG_SOURCE_STYLE_ATTR } from '../shared/dom-attrs';
 import { normalizeDragSourceVisualStyle } from '../plugin/settings';
@@ -93,7 +94,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 this.dropPlanner.resolveValidatedDropTarget({
                     clientX: info.clientX,
                     clientY: info.clientY,
-                    dragSource: info.dragSource ?? getActiveDragSourceBlock(this.view) ?? null,
+                    dragSource: info.dragSource ?? getActiveDragSource(this.view) ?? null,
                     pointerType: info.pointerType ?? null,
                     sourceScope: this.resolveDragSourceScope(),
                 })
@@ -102,10 +103,10 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                     recordPerfDuration: (key, durationMs) => {
                         this.dragPerfManager.recordDuration(key, durationMs);
                     },
-                    onDropTargetEvaluated: ({ sourceBlock, pointerType, validation }) => {
-                        if (!sourceBlock) return;
+                    onDropTargetEvaluated: ({ source, pointerType, validation }) => {
+                        if (!source) return;
                         this.orchestrator.emitDragLifecycle(buildDragTargetChangedLifecycleEvent({
-                            sourceBlock,
+                            source,
                             targetLine: validation.plan?.targetLineNumber ?? null,
                             listIntent: buildListIntent(validation.plan?.listIntent),
                             rejectReason: validation.allowed ? null : (validation.reason ?? null),
@@ -148,8 +149,8 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 scheduleDropIndicatorUpdate: (clientX, clientY, dragSource, pointerType) =>
                     this.dropIndicator.scheduleFromPoint(clientX, clientY, dragSource, pointerType),
                 hideDropIndicator: () => this.dropIndicator.hide(),
-                performDropAtPoint: (sourceBlock, clientX, clientY, pointerType) =>
-                    this.orchestrator.performDropAtPoint(sourceBlock, clientX, clientY, pointerType),
+                performDropAtPoint: (source, clientX, clientY, pointerType) =>
+                    this.orchestrator.performDropAtPoint(source, clientX, clientY, pointerType),
             };
             this.unregisterPointerDragTargetClient = registerPointerDragTargetClient(this.pointerDragTargetClient);
             this.dragEventHandler = new DragEventHandler(this.view, {
@@ -171,9 +172,9 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 isMultiLineSelectionEnabled: () => plugin.settings.enableMultiLineSelection,
                 getMultiLineSelectionLongPressMs: () => plugin.settings.multiLineSelectionLongPressMs,
                 isMobileTextLongPressDragEnabled: () => plugin.settings.enableMobileTextLongPressDrag,
-                beginPointerDragSession: (blockInfo) => {
+                beginPointerDragSession: (source) => {
                     this.orchestrator.ensureDragPerfSession();
-                    beginDragSession(blockInfo, this.view);
+                    beginDragSession(source, this.view);
                 },
                 finishDragSession: () => {
                     this.handleVisibility.clearGrabbedLineNumbers();
@@ -192,10 +193,10 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                         pointerType ?? null
                     ),
                 hideDropIndicator: () => this.dropIndicator.hide(),
-                performDropAtPoint: (sourceBlock, clientX, clientY, pointerType) =>
+                performDropAtPoint: (source, clientX, clientY, pointerType) =>
                     performPointerDropAtPoint(
                         this.pointerDragTargetClient,
-                        sourceBlock,
+                        source,
                         clientX,
                         clientY,
                         pointerType ?? null
@@ -345,8 +346,11 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
 
         private handleSourceVisualByLifecycle(event: DragLifecycleEvent): void {
             if (event.type === 'drag_press_pending') {
-                if (event.pressReady && event.sourceBlock && this.isDragSourceHighlightEnabled()) {
-                    this.handleVisibility.enterGrabVisualStateForBlock(event.sourceBlock, null);
+                if (event.pressReady && event.source && this.isDragSourceHighlightEnabled()) {
+                    this.handleVisibility.enterGrabVisualState(event.source.ranges.map((range) => ({
+                        startLineNumber: range.startLine + 1,
+                        endLineNumber: range.endLine + 1,
+                    })), null);
                 } else {
                     // Pressing should not show drag-source highlight before long-press is ready.
                     this.handleVisibility.clearGrabbedLineNumbers();
@@ -354,15 +358,18 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 return;
             }
             if (event.type === 'drag_started') {
-                if (event.sourceBlock && this.isDragSourceHighlightEnabled()) {
-                    this.handleVisibility.enterGrabVisualStateForBlock(event.sourceBlock, null);
+                if (event.source && this.isDragSourceHighlightEnabled()) {
+                    this.handleVisibility.enterGrabVisualState(event.source.ranges.map((range) => ({
+                        startLineNumber: range.startLine + 1,
+                        endLineNumber: range.endLine + 1,
+                    })), null);
                 } else if (!this.isDragSourceHighlightEnabled()) {
                     this.handleVisibility.clearGrabbedLineNumbers();
                 }
                 return;
             }
             if (event.type === 'drag_cancelled' || event.type === 'drag_idle') {
-                if (getActiveDragSourceBlock(this.view)) return;
+                if (getActiveDragSource(this.view)) return;
                 this.handleVisibility.clearGrabbedLineNumbers();
                 return;
             }
