@@ -7,7 +7,7 @@ import {
     type MouseRangeSelectState,
     type RangeSelectionOperation,
     type SelectedBlockRange,
-} from '../state/selection';
+} from '../state/range-selection-state';
 import {
     shouldClearCommittedSelectionOnPointerDown as shouldClearCommittedSelectionOnPointerDownByGrip,
     isCommittedSelectionGripHit as isCommittedSelectionGripHitByGrip,
@@ -23,17 +23,18 @@ import {
 import {
     renderRangeSelectionPreview,
 } from '../preview/range-selection-visual-manager';
-import { deleteCommittedRangeSelectionFromDocument } from '../move/range-selection-deletion';
+import { deleteCommittedRangeSelectionFromDocument } from '../move/block-mover';
 import { RangeSelectionVisualManager } from '../preview/range-selection-visual-manager';
 import { TouchInteractionController } from '../input/touch-interaction-controller';
-import { PointerSessionController, readFocusInput, readKeyboardInput, readPointerInput, readVisibilityInput } from '../input';
+import { PointerSessionController } from '../input/pointer-session-controller';
+import { readFocusInput, readKeyboardInput, readPointerInput, readVisibilityInput } from '../input/drag-input';
 
 import {
     buildCancelledLifecycleEvent,
     buildDragStartedLifecycleEvent,
     buildIdleLifecycleEvent,
     buildPressPendingLifecycleEvent,
-} from './pipeline-events';
+} from '../../shared/types/drag';
 import {
     beginActiveDrag,
     GestureCancelReason,
@@ -41,9 +42,9 @@ import {
 } from '../state/drag-state';
 import {
     isMobileEnvironment as isMobileEnvironmentByInput,
-} from '../input/pointer-environment';
-import { type DragSourceRequest } from '../source';
-import { cleanupInteractionSession, type DragCleanupOptions } from '../cleanup';
+} from '../input/drag-input';
+import { type DragSourceRequest } from '../source/source';
+import { cleanupInteractionSession, type DragCleanupOptions } from '../cleanup/drag-cleanup';
 import { runPointerMovePipeline } from './pointermove-pipeline';
 import { runPointerCancelPipeline, runPointerUpPipeline } from './pointerup-pipeline';
 import { runDesktopPointerDownPipeline } from './pointerdown-pipeline';

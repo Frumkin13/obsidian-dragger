@@ -1,8 +1,13 @@
 import { EditorView } from '@codemirror/view';
 import { DragSource } from '../../shared/types/drag';
 import { DropPlan } from '../../shared/types/protocol-types';
-import type { DropResult } from '../drop';
 import { DROP_INDICATOR_CLASS, DROP_HIGHLIGHT_CLASS, HIDDEN_CLASS } from '../../shared/dom-selectors';
+
+type DropIndicatorValidation = {
+    allowed: boolean;
+    reason?: string | null;
+    plan?: DropPlan;
+};
 
 interface DropIndicatorManagerOptions {
     isDropHighlightEnabled?: () => boolean;
@@ -16,7 +21,7 @@ interface DropIndicatorManagerOptions {
     onDropTargetEvaluated?: (info: {
         source: DragSource | null;
         pointerType: string | null;
-        validation: DropResult;
+        validation: DropIndicatorValidation;
     }) => void;
 }
 
@@ -24,7 +29,7 @@ export class DropIndicatorManager {
     private static readonly instances = new Set<DropIndicatorManager>();
     private readonly indicatorEl: HTMLDivElement;
     private readonly highlightEl: HTMLDivElement;
-    private pendingDragInfo: { validation: DropResult; dragSource: DragSource | null; pointerType: string | null } | null = null;
+    private pendingDragInfo: { validation: DropIndicatorValidation; dragSource: DragSource | null; pointerType: string | null } | null = null;
     private rafId: number | null = null;
     private lastDropPlan: DropPlan | null = null;
 
@@ -42,7 +47,7 @@ export class DropIndicatorManager {
         document.body.appendChild(this.highlightEl);
     }
 
-    scheduleRender(validation: DropResult, dragSource: DragSource | null, pointerType: string | null): void {
+    scheduleRender(validation: DropIndicatorValidation, dragSource: DragSource | null, pointerType: string | null): void {
         this.pendingDragInfo = { validation, dragSource, pointerType };
         if (this.rafId !== null) return;
         this.rafId = requestAnimationFrame(() => {
@@ -71,7 +76,7 @@ export class DropIndicatorManager {
         DropIndicatorManager.instances.delete(this);
     }
 
-    private renderValidation(info: { validation: DropResult; dragSource: DragSource | null; pointerType: string | null }): void {
+    private renderValidation(info: { validation: DropIndicatorValidation; dragSource: DragSource | null; pointerType: string | null }): void {
         const validation = info.validation;
         const dropPlan = validation.allowed ? validation.plan ?? null : null;
         this.options?.onDropTargetEvaluated?.({

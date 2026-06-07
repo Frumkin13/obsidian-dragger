@@ -3,8 +3,8 @@ import type { EditorView } from '@codemirror/view';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
 import { createDragSource, type DragSource } from '../source/source';
-import type { DragSourceRequest } from '../source';
-import { buildSelectionSourceParts, buildSingleBlockSourceRanges } from '../source/source-ranges';
+import type { DragSourceRequest } from '../source/source';
+import { buildSelectionSourceParts, buildSingleBlockSourceRanges } from '../source/source';
 
 type RectLike = {
     left: number;

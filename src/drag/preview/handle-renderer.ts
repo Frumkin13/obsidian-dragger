@@ -1,6 +1,15 @@
+import { EditorState } from '@codemirror/state';
 import { EditorView, GutterMarker } from '@codemirror/view';
 import { BlockInfo } from '../../domain/block/block-types';
+import { detectBlock } from '../../domain/block/block-detector';
 import { DRAG_HANDLE_CLASS, HANDLE_CORE_CLASS, LINE_HANDLE_CLASS } from '../../shared/dom-selectors';
+
+export function resolveHandleBlockAtLine(state: EditorState, lineNumber: number): BlockInfo | null {
+    const block = detectBlock(state, lineNumber);
+    if (!block) return null;
+    if (block.startLine + 1 !== lineNumber) return null;
+    return block;
+}
 
 export function createLineDragHandleElement(block: Pick<BlockInfo, 'startLine' | 'endLine'>): HTMLElement {
     const handle = document.createElement('div');

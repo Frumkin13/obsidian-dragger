@@ -3,10 +3,10 @@ import type { App, MarkdownView, TFile } from 'obsidian';
 import { createLineParsingContext } from '../../domain/markdown/line-parsing-service';
 import { DocLikeWithRange } from '../../shared/types/protocol-types';
 import { getCodeMirrorView } from '../../platform/obsidian/editor-view';
-import { ListRenumberer } from './list-renumberer';
+import { ListRenumberer } from './block-mover';
 import { DragSource } from '../../shared/types/drag';
-import { captureSourcePayload, SourcePayload } from './source-payload';
-import { TextChange } from './document-change';
+import { captureSourcePayload, SourcePayload } from './block-mover';
+import { TextChange } from '../../domain/mutation/document-change';
 import { anchorSelectionBeforeUndoableChange } from '../../platform/codemirror/undo-selection-anchor';
 
 type MarkdownViewWithFile = MarkdownView & {

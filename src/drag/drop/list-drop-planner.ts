@@ -7,9 +7,31 @@ import {
     LineMap,
 } from '../../domain/markdown/line-map';
 import { getCoordsAtPos } from '../../platform/codemirror/rect-calculator';
-import { DocLike, ParsedLine } from '../../shared/types/protocol-types';
+import { DocLike, ListDropIntent, ParsedLine } from '../../shared/types/protocol-types';
 import { DragSource, DragSourceScope } from '../../shared/types/drag';
-import { ListDropPlanContribution } from './list-drop-planner-port';
+
+export type ListDropPlanContribution = {
+    listIntent?: ListDropIntent;
+    highlightRect?: { top: number; left: number; width: number; height: number };
+    lineRectSourceLineNumber?: number;
+};
+
+export interface ListDropPlannerPort {
+    getListMarkerBounds(
+        lineNumber: number,
+        options?: { memo?: unknown; lineMap?: LineMap }
+    ): { markerStartX: number; contentStartX: number } | null;
+    computeListTarget(params: {
+        targetLineNumber: number;
+        lineNumber: number;
+        forcedLineNumber: number | null;
+        childIntentOnLine: boolean;
+        dragSource: DragSource | null;
+        sourceScope?: 'same_editor' | 'cross_editor';
+        clientX: number;
+        lineMap?: LineMap;
+    }): ListDropPlanContribution;
+}
 
 export interface ListDropPlannerDeps {
     parseLineWithQuote: (line: string) => ParsedLine;

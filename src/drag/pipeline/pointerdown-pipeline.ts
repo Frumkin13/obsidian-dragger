@@ -1,11 +1,39 @@
 import type { EditorView } from '@codemirror/view';
 import type { DragSource } from '../../shared/types/drag';
+import type { DragIntent } from '../intent/drag-intent';
+import type { DragSourceRequest } from '../source/source';
 import type { DragEventHandlerDeps } from './drag-controller';
-import type { PointerSessionController } from '../input';
-import type { CommittedRangeSelection, RangeSelectionOperation } from '../state/selection';
-import { decideDesktopPointerDownIntent } from '../intent/pointer-intent';
-import { isSourceIntent } from '../intent';
-import { executeDragIntent } from './pointerdown-intent-runner';
+import type { PointerSessionController } from '../input/pointer-session-controller';
+import type { CommittedRangeSelection, RangeSelectionOperation } from '../state/range-selection-state';
+import { decideDesktopPointerDownIntent } from '../intent/drag-intent';
+import { isSourceIntent } from '../intent/drag-intent';
+import type { RangeSelectionOptions } from '../intent/drag-intent';
+
+export type DragIntentExecutorHost = {
+    resolveDragSource(request: DragSourceRequest): DragSource | null;
+    isBlockInsideRenderedTableCell(source: DragSource): boolean;
+    startRangeSelectionFromSource(source: DragSource, options?: RangeSelectionOptions): void;
+    startDragFromSource(source: DragSource): void;
+};
+
+function executeDragIntent(host: DragIntentExecutorHost, intent: DragIntent): boolean {
+    switch (intent.type) {
+        case 'ignore':
+            return false;
+        case 'start_range_selection': {
+            const source = host.resolveDragSource(intent.sourceRequest);
+            if (!source || host.isBlockInsideRenderedTableCell(source)) return true;
+            host.startRangeSelectionFromSource(source, intent.options);
+            return true;
+        }
+        case 'start_drag': {
+            const source = host.resolveDragSource(intent.sourceRequest);
+            if (!source || host.isBlockInsideRenderedTableCell(source)) return true;
+            host.startDragFromSource(source);
+            return true;
+        }
+    }
+}
 
 export interface PointerDownPipelineHost {
     readonly view: EditorView;

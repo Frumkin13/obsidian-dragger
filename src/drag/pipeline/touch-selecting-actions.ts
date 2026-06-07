@@ -16,15 +16,15 @@ import {
     CommittedRangeSelection,
     RangeSelectionBoundary,
     resolveBlockBoundaryAtLine,
-} from '../state/selection/selection-model';
-import { resolveRangeBoundaryAtPoint } from '../input/range-boundary-hit';
+} from '../state/range-selection-state';
+import { resolveRangeBoundaryAtPoint } from '../input/drag-input';
 import {
     isSelectedBlockCoveredByBlocks,
     mergeSelectedBlocks,
     SelectedBlockRange,
     subtractSelectedBlocks,
 } from '../../shared/utils/block-ranges';
-import { autoScrollEditorNearViewportEdge } from '../input/editor-auto-scroll';
+import { autoScrollEditorNearViewportEdge } from '../input/drag-input';
 import { updateMouseRangeSelection } from './pointer-selecting-actions';
 import {
     InteractionState,
@@ -32,8 +32,8 @@ import {
     MobileSelectionResizeHandle,
     PointerTerminalMode,
 } from '../state/drag-state';
-import { shouldStartMobilePressDrag as shouldStartMobilePressDragByInput } from '../input/pointer-environment';
-import type { DragSourceRequest } from '../source';
+import { shouldStartMobilePressDrag as shouldStartMobilePressDragByInput } from '../input/drag-input';
+import type { DragSourceRequest } from '../source/source';
 
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
 

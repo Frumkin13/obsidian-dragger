@@ -11,18 +11,17 @@ import {
     getActiveDragSourceView,
 } from './active-drag-registry';
 import { isPosInsideRenderedTableCell } from '../platform/dom/table-guard';
-import { BlockMover } from '../drag/move';
-import { DropPlanner } from '../drag/drop';
-import {
-    DropIndicatorManager,
-    getVisibleHandleForBlockStart,
-    HandleVisibilityController,
-} from '../drag/preview';
-import { DragEventHandler, DropCommitPipeline } from '../drag/pipeline';
+import { BlockMover } from '../drag/move/block-mover';
+import { DropPlanner } from '../drag/drop/drop-planner';
+import { DropIndicatorManager } from '../drag/preview/drop-indicator';
+import { getVisibleHandleForBlockStart } from '../drag/preview/handle-renderer';
+import { HandleVisibilityController } from '../drag/preview/handle-visibility-controller';
+import { DragEventHandler } from '../drag/pipeline/drag-controller';
+import { DropCommitPipeline } from '../drag/pipeline/drop-commit-pipeline';
 import {
     buildDragTargetChangedLifecycleEvent,
     buildIdleLifecycleEvent,
-} from '../drag/pipeline/pipeline-events';
+} from '../shared/types/drag';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
 import { createEditorContext, EditorContext } from './drag-service-container';

@@ -12,8 +12,23 @@ import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
 import { getRenderedMainLineNumberAtPoint } from '../../platform/dom/line-hit';
 
 import { DragSource, DragSourceScope } from '../../shared/types/drag';
-import { ListDropPlannerPort } from './list-drop-planner-port';
-import type { DropRejectReason, DropResult } from './drop-result';
+import { ListDropPlannerPort } from './list-drop-planner';
+import type { InsertionRuleRejectReason } from '../../domain/rules/insertion-rules';
+
+type DropRejectReason =
+    | 'table_cell'
+    | 'no_target'
+    | 'no_anchor'
+    | 'self_range_blocked'
+    | 'self_embedding'
+    | InsertionRuleRejectReason
+    | 'container_policy';
+
+export type DropResult = {
+    allowed: boolean;
+    reason?: DropRejectReason;
+    plan?: DropPlan;
+};
 
 type PerfDurationKey =
     | 'resolve_total'

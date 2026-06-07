@@ -1,24 +1,24 @@
 import type { EditorView } from '@codemirror/view';
 import type { DragSource } from '../../shared/types/drag';
 import type { RangeSelectionOperation } from '../../shared/types/drag';
-import type { DragSourceRequest } from '../source';
+import type { DragSourceRequest } from '../source/source';
 import { cloneSelectedBlocks } from '../../shared/utils/block-ranges';
 import type {
     CommittedRangeSelection,
     MouseRangeSelectState,
     RangeSelectionBoundary,
-} from '../state/selection/selection-model';
+} from '../state/range-selection-state';
 import {
     createInitialRangeSelectionState,
     resolveRangeSelectConfig,
-} from '../state/selection/selection-session-flow';
+} from '../state/range-selection-state';
 import {
     buildCommittedRangeSelection,
     computeUpdatedSelectionState,
-} from '../state/selection/selection-state';
+} from '../state/range-selection-state';
 import {
     resolveBlockBoundaryAtLine,
-} from '../state/selection/selection-model';
+} from '../state/range-selection-state';
 import { RangeSelectionVisualManager } from '../preview/range-selection-visual-manager';
 import type { InteractionState } from '../state/drag-state';
 

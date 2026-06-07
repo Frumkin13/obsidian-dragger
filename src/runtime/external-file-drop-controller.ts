@@ -5,7 +5,7 @@ import { FILE_DROP_TARGET_CLASS } from '../shared/dom-selectors';
 import {
     getActiveDragSourceView,
 } from './active-drag-registry';
-import { FileBlockMover } from '../drag/move';
+import { FileBlockMover } from '../drag/move/file-mover';
 import { DragSource } from '../shared/types/drag';
 import {
     PointerDragTargetClient,

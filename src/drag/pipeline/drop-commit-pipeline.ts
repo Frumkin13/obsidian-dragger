@@ -5,11 +5,19 @@ import {
     DragSource,
     DragSourceScope,
 } from '../../shared/types/drag';
-import { buildCancelledLifecycleEvent, buildDropCommitLifecycleEvent } from './pipeline-events';
+import { buildCancelledLifecycleEvent, buildDropCommitLifecycleEvent } from '../../shared/types/drag';
 import { buildListIntent } from '../../shared/utils/drop-protocol';
 import { BlockMover } from '../move/block-mover';
 import { DropPlanner } from '../drop/drop-planner';
-import { DragPerfSessionPort, SemanticRefreshPort } from './drop-commit-ports';
+
+export interface SemanticRefreshPort {
+    ensureSemanticReadyForInteraction(): void;
+}
+
+export interface DragPerfSessionPort {
+    ensure(): void;
+    flush(reason: string): void;
+}
 
 export type DragLifecycleSink = {
     emit(event: DragLifecycleEvent): void;

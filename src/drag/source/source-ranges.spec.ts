@@ -2,7 +2,7 @@ import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
 import { BlockType } from '../../domain/block/block-types';
 import { createDragSource } from './source';
-import { buildSelectionSourceParts } from './source-ranges';
+import { buildSelectionSourceParts } from './source';
 
 function templateForLine(state: EditorState, lineNumber: number) {
     const line = state.doc.line(lineNumber);

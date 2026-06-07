@@ -1,13 +1,13 @@
 import { DragSource } from '../../shared/types/drag';
 import { DRAG_HANDLE_CLASS, EMBED_HANDLE_CLASS } from '../../shared/dom-selectors';
-import { readPointerInput } from '../input';
-import { resolveRangeBoundaryAtPoint } from '../input/range-boundary-hit';
-import { autoScrollEditorNearViewportEdge } from '../input/editor-auto-scroll';
+import { readPointerInput } from '../input/drag-input';
+import { resolveRangeBoundaryAtPoint } from '../input/drag-input';
+import { autoScrollEditorNearViewportEdge } from '../input/drag-input';
 import {
     buildRangeSelectionBoundaryFromBlock,
     type MouseRangeSelectState,
     type RangeSelectionBoundary,
-} from '../state/selection';
+} from '../state/range-selection-state';
 import { handleMobileSelectingPointerMove } from './touch-selecting-actions';
 import type { DragEventHandler } from './drag-controller';
 

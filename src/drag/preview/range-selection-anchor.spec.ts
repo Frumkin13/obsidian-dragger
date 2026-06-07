@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
     buildAnchorSnapshot,
     resolveAnchorSpan,
-} from './range-selection-anchor';
+} from './range-selection-visual-manager';
 
 function createHandle(lineNumber: number, top: number, calls: { count: number }): HTMLElement {
     const marker = document.createElement('div');

@@ -1,7 +1,9 @@
 import { EditorView } from '@codemirror/view';
 import { getPreviousNonEmptyLineNumber } from '../domain/rules/container-policy';
-import { DropPlannerDeps, DropPlannerSharedDeps, ListDropPlanner } from '../drag/drop';
-import { BlockFoldStateManager, BlockMoverDeps } from '../drag/move';
+import { DropPlannerDeps, DropPlannerSharedDeps } from '../drag/drop/drop-planner';
+import { ListDropPlanner } from '../drag/drop/list-drop-planner';
+import type { BlockFoldStateManager } from '../drag/move/block-fold-state';
+import type { BlockMoverDeps } from '../drag/move/block-mover';
 import { EditorContext } from './drag-service-container';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
 

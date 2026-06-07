@@ -106,11 +106,7 @@ describe('drag architecture boundaries', () => {
         expect(pipelineFiles).toEqual([
             'drag-controller.ts',
             'drop-commit-pipeline.ts',
-            'drop-commit-ports.ts',
-            'index.ts',
-            'pipeline-events.ts',
             'pointer-selecting-actions.ts',
-            'pointerdown-intent-runner.ts',
             'pointerdown-pipeline.ts',
             'pointermove-pipeline.ts',
             'pointerup-pipeline.ts',

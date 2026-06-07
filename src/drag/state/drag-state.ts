@@ -1,5 +1,5 @@
 import { DragSource } from '../../shared/types/drag';
-import { MouseRangeSelectState, RangeSelectionBoundary } from './selection/selection-model';
+import { MouseRangeSelectState, RangeSelectionBoundary } from './range-selection-state';
 import { SelectedBlockRange } from '../../shared/utils/block-ranges';
 
 export type ActiveDrag = PointerDragData;
