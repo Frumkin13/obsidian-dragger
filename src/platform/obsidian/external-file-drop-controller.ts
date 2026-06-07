@@ -4,7 +4,7 @@ import type DragNDropPlugin from '../../plugin/main';
 import { FILE_DROP_TARGET_CLASS } from '../../shared/dom-selectors';
 import {
     getActiveDragSourceView,
-} from '../../drag/state';
+} from '../../drag/runtime/active-drag-registry';
 import { FileBlockMover } from '../../drag/move';
 import { DragSource } from '../../shared/types/drag';
 import {
@@ -32,7 +32,7 @@ export class ExternalFileDropController {
 
     private readonly pointerDragTargetClient: PointerDragTargetClient = {
         containsPoint: (clientX, clientY) => this.resolveDropTargetAtPoint(clientX, clientY) !== null,
-        scheduleDropIndicatorUpdate: (clientX, clientY) => {
+        renderDropPreviewAtPoint: (clientX, clientY) => {
             const target = this.resolveDropTargetAtPoint(clientX, clientY);
             if (!target) {
                 this.clearHighlight();

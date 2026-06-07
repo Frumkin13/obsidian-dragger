@@ -2,8 +2,8 @@ import {
     CODEMIRROR_GUTTER_ELEMENT_SELECTOR,
     HANDLE_CORE_CLASS,
     HANDLE_GUTTER_MARKER_CLASS,
-} from '../../../shared/dom-selectors';
-import type { BlockSelectionSegment } from './block-selection';
+} from '../../shared/dom-selectors';
+import type { BlockSelectionSegment } from '../state/selection/block-selection';
 
 export type RangeAnchorPoint = {
     x: number;

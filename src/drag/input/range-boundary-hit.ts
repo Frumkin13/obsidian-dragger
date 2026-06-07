@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
-import { BlockInfo } from '../../../domain/block/block-types';
-import { buildRangeSelectionBoundaryFromBlock, type RangeSelectionBoundary } from './selection-model';
+import { BlockInfo } from '../../domain/block/block-types';
+import { buildRangeSelectionBoundaryFromBlock, type RangeSelectionBoundary } from '../state/selection/selection-model';
 
 function safeGetBlockInfoAtPoint(
     getBlockInfoAtPoint: (clientX: number, clientY: number) => BlockInfo | null,

@@ -9,7 +9,7 @@ import {
     finishDragSession,
     getActiveDragSource,
     getActiveDragSourceView,
-} from '../drag/state';
+} from '../drag/runtime/active-drag-registry';
 import { isPosInsideRenderedTableCell } from '../platform/dom/table-guard';
 import { BlockMover } from '../drag/move';
 import { DropPlanner } from '../drag/drop';
@@ -18,13 +18,17 @@ import {
     getVisibleHandleForBlockStart,
     HandleVisibilityController,
 } from '../drag/preview';
-import { DragEventHandler } from '../drag/pipeline';
+import { DragEventHandler, DropCommitPipeline } from '../drag/pipeline';
+import {
+    buildDragTargetChangedLifecycleEvent,
+    buildIdleLifecycleEvent,
+} from '../drag/pipeline/pipeline-events';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
 import { createEditorContext, EditorContext } from './drag-service-container';
 import { DragLifecycleEmitter } from './drag-lifecycle-emitter';
 import { buildListIntent } from '../shared/utils/drop-protocol';
-import { buildDragTargetChangedLifecycleEvent, buildIdleLifecycleEvent, DragInteractionOrchestrator } from '../drag/pipeline';
+
 import { DragLifecycleEvent, DragSourceScope } from '../shared/types/drag';
 import { DND_DRAG_SOURCE_HIGHLIGHT_ATTR, DND_DRAG_SOURCE_STYLE_ATTR } from '../shared/dom-attrs';
 import { normalizeDragSourceVisualStyle } from '../plugin/settings';
@@ -47,7 +51,7 @@ import {
     performPointerDropAtPoint,
     PointerDragTargetClient,
     registerPointerDragTargetClient,
-    schedulePointerDropIndicatorFromPoint,
+    renderPointerDropPreviewAtPoint,
 } from './pointer-drag-target-router';
 import { openBlockTypeMenu } from '../plugin/block-type-menu';
 
@@ -60,7 +64,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
         private readonly dropPlanner: DropPlanner;
         private readonly dragEventHandler: DragEventHandler;
         private readonly handleVisibility: HandleVisibilityController;
-        private readonly orchestrator: DragInteractionOrchestrator;
+        private readonly orchestrator: DropCommitPipeline;
         private readonly lifecycleEmitter = new DragLifecycleEmitter(
             (event) => plugin.emitDragLifecycleEvent(event)
         );
@@ -120,21 +124,19 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                     parseLineWithQuote: this.context.parseLineWithQuote,
                 }),
             }));
-            this.orchestrator = new DragInteractionOrchestrator({
+            this.orchestrator = new DropCommitPipeline({
                 view: this.view,
                 blockMover: this.blockMover,
                 dropPlanner: this.dropPlanner,
-                handleVisibility: this.handleVisibility,
                 dragPerfManager: this.dragPerfManager,
                 lifecycleEmitter: this.lifecycleEmitter,
                 getSemanticRefreshScheduler: () => this.semanticRefreshScheduler,
-                refreshDecorationsAndEmbeds: () => this.refreshDecorationsAndEmbeds(),
                 resolveEditorDocumentKey: (editorView) => resolveEditorDocumentKey(plugin.app, editorView),
                 allowCrossDocumentDrop: () => plugin.settings.enableCrossFileDrag === true,
             });
             this.pointerDragTargetClient = {
                 containsPoint: (clientX, clientY) => this.containsPoint(clientX, clientY),
-                scheduleDropIndicatorUpdate: (clientX, clientY, dragSource, pointerType) => {
+                renderDropPreviewAtPoint: (clientX, clientY, dragSource, pointerType) => {
                     const source = dragSource ?? getActiveDragSource(this.view) ?? null;
                     const startedAt = performance.now();
                     const validation = this.dropPlanner.resolveValidatedDropTarget({
@@ -173,8 +175,8 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                     this.orchestrator.flushDragPerfSession('finish_drag_session');
                     this.refreshDecorationsAndEmbeds();
                 },
-                scheduleDropIndicatorUpdate: (clientX, clientY, dragSource, pointerType) =>
-                    schedulePointerDropIndicatorFromPoint(
+                renderDropPreviewAtPoint: (clientX, clientY, dragSource, pointerType) =>
+                    renderPointerDropPreviewAtPoint(
                         this.pointerDragTargetClient,
                         clientX,
                         clientY,

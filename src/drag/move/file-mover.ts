@@ -7,7 +7,7 @@ import { ListRenumberer } from './list-renumberer';
 import { DragSource } from '../../shared/types/drag';
 import { captureSourcePayload, SourcePayload } from './source-payload';
 import { TextChange } from './document-change';
-import { anchorSelectionBeforeUndoableChange } from './undo-selection-anchor';
+import { anchorSelectionBeforeUndoableChange } from '../../platform/codemirror/undo-selection-anchor';
 
 type MarkdownViewWithFile = MarkdownView & {
     file?: TFile | null;

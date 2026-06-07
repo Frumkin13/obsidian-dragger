@@ -2,70 +2,65 @@ import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../domain/block/block-types';
 import { DragLifecycleEvent, DragSource } from '../../shared/types/drag';
 import {
-    DRAG_HANDLE_CLASS,
-    EMBED_HANDLE_CLASS,
-} from '../../shared/dom-selectors';
-import { RangeSelectionVisualManager } from '../state/selection/selection-visual-manager';
-import { MobileGestureController } from '../state/mobile-gesture-controller';
-import { PointerSessionController } from '../input/pointer-session-controller';
-import {
     type RangeSelectionBoundary,
     type CommittedRangeSelection,
     type MouseRangeSelectState,
     type RangeSelectionOperation,
-    buildRangeSelectionBoundaryFromBlock,
-} from '../state/selection/selection-model';
-import { resolveRangeBoundaryAtPoint } from '../state/selection/hit-boundary';
+    type SelectedBlockRange,
+} from '../state/selection';
 import {
     shouldClearCommittedSelectionOnPointerDown as shouldClearCommittedSelectionOnPointerDownByGrip,
     isCommittedSelectionGripHit as isCommittedSelectionGripHitByGrip,
-} from '../state/selection/selection-grip-hit';
+} from '../input/selection-grip-hit';
 import {
-    resolveRangeSelectConfig,
-    createInitialRangeSelectionState,
-} from '../state/selection/selection-session-flow';
+    activateMouseRangeSelectInterception as activateMouseRangeSelectInterceptionAction,
+    beginRangeSelectionSessionAction,
+    clearMouseRangeSelectState as clearMouseRangeSelectStateAction,
+    updateMouseRangeSelection as updateMouseRangeSelectionAction,
+    updateMouseRangeSelectionFromLine as updateMouseRangeSelectionFromLineAction,
+} from '../selection';
 import {
-    GestureCancelReason,
-    InteractionState,
-    PointerTerminalMode,
-} from '../state/drag-state';
-import {
-    autoScrollSelectionRange as autoScrollSelectionRangeByFlow,
     clearCommittedSelectionRange as clearCommittedSelectionRangeByFlow,
     commitSelectionRange as commitSelectionRangeByFlow,
     deleteCommittedSelectionRange as deleteCommittedSelectionRangeByFlow,
     refreshSelectionVisual as refreshSelectionVisualByFlow,
-    updateSelectionFromBoundary as updateSelectionFromBoundaryByFlow,
-    updateSelectionFromLine as updateSelectionFromLineByFlow,
-} from '../state/selection/selection-flow';
-import { cloneSelectedBlocks, type SelectedBlockRange } from '../state/selection/block-selection';
+} from '../selection';
+import { RangeSelectionVisualManager } from '../preview/range-selection-visual-manager';
+import { TouchInteractionController } from '../input/touch-interaction-controller';
+import { PointerSessionController, readFocusInput, readKeyboardInput, readPointerInput, readVisibilityInput } from '../input';
+
 import {
     buildCancelledLifecycleEvent,
     buildDragStartedLifecycleEvent,
     buildIdleLifecycleEvent,
     buildPressPendingLifecycleEvent,
-} from './drag-lifecycle-flow';
+} from './pipeline-events';
 import {
-    isMobileEnvironment as isMobileEnvironmentByFlow,
-} from '../intent/drag-pointer-flow';
+    beginActiveDrag,
+    GestureCancelReason,
+    InteractionState,
+} from '../state/drag-state';
+import {
+    isMobileEnvironment as isMobileEnvironmentByInput,
+} from '../input/pointer-environment';
 import { type DragSourceRequest } from '../source';
-import { runDesktopPointerDownPipeline } from './desktop-pointerdown-runner';
+import { cleanupInteractionSession, type DragCleanupOptions } from '../cleanup';
+import { runPointerMovePipeline } from './pointermove-pipeline';
+import { runPointerCancelPipeline, runPointerUpPipeline } from './pointerup-pipeline';
+import { runDesktopPointerDownPipeline } from './pointerdown-pipeline';
 import {
     enterMobileSelectionMode,
     finishMobileSelectionPointer,
     getMobileSelectionTemplateBlock,
-    handleMobileSelectingPointerMove,
-    runMobilePointerDownPipeline,
-} from './mobile-selection-runner';
+    handleMobilePointerDown,
+} from '../selection';
 
 const MOBILE_DRAG_LONG_PRESS_MS = 200;
-const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
 const MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX = 12;
 const TOUCH_RANGE_SELECT_LONG_PRESS_MS = 900;
 const MIN_TOUCH_RANGE_SELECT_LONG_PRESS_MS = 300;
 const MAX_TOUCH_RANGE_SELECT_LONG_PRESS_MS = 2000;
 const MOUSE_RANGE_SELECT_LONG_PRESS_MS = 260;
-const MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX = 4;
 
 export interface DragEventHandlerDeps {
     resolveDragSource: (request: DragSourceRequest) => DragSource | null;
@@ -76,7 +71,7 @@ export interface DragEventHandlerDeps {
     isMobileTextLongPressDragEnabled?: () => boolean;
     beginPointerDragSession: (source: DragSource) => void;
     finishDragSession: () => void;
-    scheduleDropIndicatorUpdate: (clientX: number, clientY: number, source: DragSource | null, pointerType: string | null) => void;
+    renderDropPreviewAtPoint: (clientX: number, clientY: number, source: DragSource | null, pointerType: string | null) => void;
     hideDropIndicator: () => void;
     performDropAtPoint: (source: DragSource, clientX: number, clientY: number, pointerType: string | null) => void;
     onDragLifecycleEvent?: (event: DragLifecycleEvent) => void;
@@ -87,17 +82,18 @@ export class DragEventHandler {
     gesture: InteractionState = { phase: 'idle' };
     committedRangeSelection: CommittedRangeSelection | null = null;
     readonly rangeVisual: RangeSelectionVisualManager;
-    readonly mobile: MobileGestureController;
+    readonly mobile: TouchInteractionController;
     readonly pointer: PointerSessionController;
 
     private readonly onEditorPointerDown = (e: PointerEvent) => {
-        const target = e.target instanceof HTMLElement ? e.target : null;
+        const input = readPointerInput('down', e);
+        const target = input.target;
         if (!target) return;
 
         this.runPointerDownPrelude(e, target);
 
         if (this.resolvePointerDownMode(e) === 'mobile') {
-            runMobilePointerDownPipeline(this, e, target);
+            handleMobilePointerDown(this, e, target);
             return;
         }
 
@@ -118,7 +114,7 @@ export class DragEventHandler {
             (blockStart) => this.deps.getVisibleHandleForBlockStart?.(blockStart) ?? null,
             this.handleSelectionOverlayAction
         );
-        this.mobile = new MobileGestureController(this.view, (e) => this.handleDocumentFocusIn(e));
+        this.mobile = new TouchInteractionController(this.view, (e) => this.handleDocumentFocusIn(e));
         this.pointer = new PointerSessionController(this.view, {
             onPointerMove: (e) => this.handlePointerMove(e),
             onPointerUp: (e) => this.handlePointerUp(e),
@@ -182,7 +178,7 @@ export class DragEventHandler {
     }
 
     private isMobileEnvironment(): boolean {
-        return isMobileEnvironmentByFlow();
+        return isMobileEnvironmentByInput();
     }
 
     beginRangeSelectionSession(
@@ -191,101 +187,12 @@ export class DragEventHandler {
         handle: HTMLElement | null,
         options?: { skipLongPress?: boolean; initialOperation?: RangeSelectionOperation }
     ): void {
-        const blockInfo = source.primaryBlock;
-        const committedBlocksSnapshot = cloneSelectedBlocks(this.committedRangeSelection?.blocks ?? []);
-        const pointerType = e.pointerType || null;
-        const skipLongPress = options?.skipLongPress === true;
-        const config = resolveRangeSelectConfig(
-            pointerType,
-            MOUSE_RANGE_SELECT_LONG_PRESS_MS,
-            () => this.getTouchRangeSelectLongPressMs()
-        );
-        const shouldDeferInterception = pointerType === 'mouse' && !skipLongPress;
-        const initialRangeSelectState = createInitialRangeSelectionState({
-            blockInfo,
-            doc: this.view.state.doc,
-            committedBlocksSnapshot,
-            pointerId: e.pointerId,
-            startX: e.clientX,
-            startY: e.clientY,
-            pointerType,
-            initialOperation: options?.initialOperation,
-        });
-        if (!initialRangeSelectState) return;
-        const preferLongPressDrag = (
-            pointerType === 'mouse'
-            && skipLongPress
-            && initialRangeSelectState.operation === 'remove'
-            && !!this.committedRangeSelection
-        );
-        initialRangeSelectState.preferLongPressDrag = preferLongPressDrag;
-        if (preferLongPressDrag) {
-            initialRangeSelectState.dragReady = false;
-        }
-        initialRangeSelectState.longPressReady = skipLongPress;
-
-        let dragTimeoutId: number | null = null;
-        if (pointerType !== 'mouse') {
-            dragTimeoutId = window.setTimeout(() => {
-                if (!(this.gesture.phase === 'selecting' && this.gesture.selection.mode === 'range')) return;
-                const state = this.gesture.selection.rangeSelect;
-                const source = this.resolveDragSource(this.buildDirectRangeSelectionSourceRequest(state));
-                if (!source) return;
-                if (state.pointerId !== e.pointerId) return;
-                state.dragReady = true;
-                this.emitPressPendingLifecycle(source, state.pointerType, true);
-            }, MOBILE_DRAG_LONG_PRESS_MS);
-        } else if (preferLongPressDrag) {
-            dragTimeoutId = window.setTimeout(() => {
-                if (!(this.gesture.phase === 'selecting' && this.gesture.selection.mode === 'range')) return;
-                const state = this.gesture.selection.rangeSelect;
-                if (state.pointerId !== e.pointerId) return;
-                if (!state.preferLongPressDrag || state.selectionGestureStarted) return;
-                state.dragReady = true;
-                const source = this.resolveDragSource(this.buildActiveRangeSelectionSourceRequest(state));
-                if (!source) return;
-                this.emitPressPendingLifecycle(source, state.pointerType, true);
-            }, MOUSE_RANGE_SELECT_LONG_PRESS_MS);
-        }
-        if (!shouldDeferInterception) {
-            e.preventDefault();
-            e.stopPropagation();
-            this.pointer.tryCapturePointer(e);
-        }
-
-        const timeoutId = skipLongPress
-            ? null
-            : window.setTimeout(() => {
-                if (!(this.gesture.phase === 'selecting' && this.gesture.selection.mode === 'range')) return;
-                const state = this.gesture.selection.rangeSelect;
-                if (state.pointerId !== e.pointerId) return;
-                state.longPressReady = true;
-                const source = this.resolveDragSource(this.buildActiveRangeSelectionSourceRequest(state));
-                if (source) this.emitPressPendingLifecycle(source, state.pointerType, true);
-                this.activateMouseRangeSelectInterception(state);
-                this.updateMouseRangeSelectionFromLine(state, state.currentLineNumber);
-            }, config.longPressMs);
-
-        initialRangeSelectState.isIntercepting = !shouldDeferInterception;
-        initialRangeSelectState.timeoutId = timeoutId;
-        initialRangeSelectState.dragTimeoutId = dragTimeoutId;
-        this.gesture = {
-            phase: 'selecting',
-            selection: { mode: 'range', rangeSelect: initialRangeSelectState },
-        };
-        this.pointer.attachPointerListeners();
-        const isPressReady = skipLongPress && !preferLongPressDrag;
-        const initialSource = this.resolveDragSource(this.buildActiveRangeSelectionSourceRequest(initialRangeSelectState));
-        if (initialSource) this.emitPressPendingLifecycle(initialSource, pointerType, isPressReady);
-        if (skipLongPress && !preferLongPressDrag) {
-            this.updateMouseRangeSelectionFromLine(initialRangeSelectState, initialRangeSelectState.currentLineNumber);
-        }
+        void handle;
+        beginRangeSelectionSessionAction(this, source, e, options);
     }
 
-    private activateMouseRangeSelectInterception(state: MouseRangeSelectState): void {
-        this.pointer.tryCapturePointerById(state.pointerId);
-        if (state.isIntercepting) return;
-        state.isIntercepting = true;
+    activateMouseRangeSelectInterception(state: MouseRangeSelectState): void {
+        activateMouseRangeSelectInterceptionAction(this, state);
     }
 
     beginPressPendingDrag(
@@ -329,7 +236,7 @@ export class DragEventHandler {
             }, longPressMs);
         const startMoveThresholdPx = skipLongPress
             ? 2
-            : (pointerType === 'mouse' ? 4 : MOBILE_DRAG_START_MOVE_THRESHOLD_PX);
+            : (pointerType === 'mouse' ? 4 : 8);
 
         this.gesture = { phase: 'press_pending', press: {
             source,
@@ -349,7 +256,7 @@ export class DragEventHandler {
         this.emitPressPendingLifecycle(source, pointerType, skipLongPress);
     }
 
-    private clearPointerPressState(): void {
+    clearPointerPressState(): void {
         if (this.gesture.phase !== 'press_pending') return;
         const state = this.gesture.press;
         if (state.timeoutId !== null) {
@@ -358,25 +265,8 @@ export class DragEventHandler {
         this.gesture = { phase: 'idle' };
     }
 
-    private clearMouseRangeSelectState(options?: { preserveVisual?: boolean }): void {
-        if (!(this.gesture.phase === 'selecting' && this.gesture.selection.mode === 'range')) return;
-        const state = this.gesture.selection.rangeSelect;
-        if (state.timeoutId !== null) {
-            window.clearTimeout(state.timeoutId);
-        }
-        if (state.dragTimeoutId !== null) {
-            window.clearTimeout(state.dragTimeoutId);
-        }
-        this.gesture = { phase: 'idle' };
-        if (!options?.preserveVisual) {
-            if (this.committedRangeSelection) {
-                this.rangeVisual.render(
-                    this.committedRangeSelection.blocks
-                );
-            } else {
-                this.rangeVisual.clear();
-            }
-        }
+    clearMouseRangeSelectState(options?: { preserveVisual?: boolean }): void {
+        clearMouseRangeSelectStateAction(this, options);
     }
 
     enterDraggingState(
@@ -396,231 +286,36 @@ export class DragEventHandler {
         this.pointer.attachPointerListeners();
         this.gesture = {
             phase: 'dragging',
-            drag: {
+            drag: beginActiveDrag({
                 source,
                 pointerId,
-                latestX: clientX,
-                latestY: clientY,
+                clientX,
+                clientY,
                 pointerType,
-                autoScrollFrameId: null,
-            },
+            }),
         };
         this.deps.beginPointerDragSession(source);
-        this.deps.scheduleDropIndicatorUpdate(clientX, clientY, source, pointerType);
+        this.deps.renderDropPreviewAtPoint(clientX, clientY, source, pointerType);
         this.emitDragStartedLifecycle(source, pointerType);
     }
 
 
     private handlePointerMove(e: PointerEvent): void {
-        switch (this.gesture.phase) {
-            case 'dragging':
-                this.handleDraggingPointerMove(e);
-                return;
-            case 'selecting':
-                if (this.gesture.selection.mode === 'range') {
-                    this.handleRangeSelectingPointerMove(e);
-                } else {
-                    handleMobileSelectingPointerMove(this, e);
-                }
-                return;
-            case 'press_pending':
-                this.handlePressPendingPointerMove(e);
-                return;
-            default:
-                return;
-        }
+        runPointerMovePipeline(this, e);
     }
 
-    private handleDraggingPointerMove(e: PointerEvent): void {
-        if (this.gesture.phase !== 'dragging') return;
-        const dragState = this.gesture.drag;
-        if (e.pointerId !== dragState.pointerId) return;
-        dragState.latestX = e.clientX;
-        dragState.latestY = e.clientY;
-        dragState.pointerType = e.pointerType || dragState.pointerType;
-        e.preventDefault();
-        e.stopPropagation();
-        this.deps.scheduleDropIndicatorUpdate(e.clientX, e.clientY, dragState.source, e.pointerType || null);
-        if (this.autoScrollDrag(dragState)) {
-            this.scheduleDragAutoScroll(dragState);
-        }
-    }
-
-    private autoScrollDrag(dragState: { latestX: number; latestY: number; source: DragSource; pointerType: string | null }): boolean {
-        const didScroll = autoScrollSelectionRangeByFlow(this.view, dragState.latestY);
-        if (didScroll) {
-            this.deps.scheduleDropIndicatorUpdate(dragState.latestX, dragState.latestY, dragState.source, dragState.pointerType);
-        }
-        return didScroll;
-    }
-
-    private scheduleDragAutoScroll(dragState: { autoScrollFrameId: number | null }): void {
-        if (dragState.autoScrollFrameId !== null) return;
-        dragState.autoScrollFrameId = window.requestAnimationFrame(() => {
-            if (this.gesture.phase !== 'dragging') return;
-            const state = this.gesture.drag;
-            state.autoScrollFrameId = null;
-            if (!this.autoScrollDrag(state)) return;
-            this.scheduleDragAutoScroll(state);
-        });
-    }
-
-    private cancelDragAutoScroll(dragState: { autoScrollFrameId: number | null }): void {
+    cancelDragAutoScroll(dragState: { autoScrollFrameId: number | null }): void {
         if (dragState.autoScrollFrameId === null) return;
         window.cancelAnimationFrame(dragState.autoScrollFrameId);
         dragState.autoScrollFrameId = null;
     }
 
-    private handleRangeSelectingPointerMove(e: PointerEvent): void {
-        if (!(this.gesture.phase === 'selecting' && this.gesture.selection.mode === 'range')) return;
-        const rangeState = this.gesture.selection.rangeSelect;
-        if (rangeState.pointerId !== -1 && e.pointerId !== rangeState.pointerId) return;
-        this.handleRangeSelectionPointerMove(e, rangeState);
-    }
-
-    private handlePressPendingPointerMove(e: PointerEvent): void {
-        if (this.gesture.phase !== 'press_pending') return;
-        const pressState = this.gesture.press;
-        if (e.pointerId !== pressState.pointerId) return;
-
-        pressState.latestX = e.clientX;
-        pressState.latestY = e.clientY;
-
-        const dx = e.clientX - pressState.startX;
-        const dy = e.clientY - pressState.startY;
-        const distance = Math.hypot(dx, dy);
-
-        if (!pressState.longPressReady) {
-            if (distance > pressState.cancelMoveThresholdPx) {
-                this.abortForGestureCancel('press_cancelled', e.pointerType || null);
-            }
-            return;
-        }
-
-        if (distance < pressState.startMoveThresholdPx) return;
-
-        e.preventDefault();
-        e.stopPropagation();
-        const source = pressState.source;
-        const pointerId = pressState.pointerId;
-        this.clearCommittedRangeSelection();
-        this.clearPointerPressState();
-        this.enterDraggingState(source, pointerId, e.clientX, e.clientY, e.pointerType || null);
-    }
-
-    private handleRangeSelectionPointerMove(e: PointerEvent, state: MouseRangeSelectState): void {
-        state.latestX = e.clientX;
-        state.latestY = e.clientY;
-        const pointerType = state.pointerType ?? (e.pointerType || null);
-        const distance = Math.hypot(e.clientX - state.startX, e.clientY - state.startY);
-        const dx = e.clientX - state.startX;
-        const dy = e.clientY - state.startY;
-
-        if (state.pointerId === -1 && pointerType !== 'mouse' && this.mobile.isMostlyVerticalScrollGesture(dx, dy)) {
-            this.commitRangeSelection(state);
-            this.finishRangeSelectionSession();
-            return;
-        }
-
-        if (!state.longPressReady) {
-            if (pointerType === 'mouse') {
-                if (distance >= MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const source = this.resolveDragSource(this.buildDirectRangeSelectionSourceRequest(state));
-                    if (!source) return;
-                    const pointerId = state.pointerId;
-                    this.clearCommittedRangeSelection();
-                    this.clearMouseRangeSelectState();
-                    this.enterDraggingState(source, pointerId, e.clientX, e.clientY, pointerType);
-                }
-            } else {
-                if (!state.dragReady) {
-                    if (distance > MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX) {
-                        this.abortForGestureCancel('press_cancelled', pointerType);
-                    }
-                    return;
-                }
-                if (distance >= MOBILE_DRAG_START_MOVE_THRESHOLD_PX) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const source = this.resolveDragSource(this.buildDirectRangeSelectionSourceRequest(state));
-                    if (!source) return;
-                    const pointerId = state.pointerId;
-                    this.clearCommittedRangeSelection();
-                    this.clearMouseRangeSelectState();
-                    this.enterDraggingState(source, pointerId, e.clientX, e.clientY, pointerType);
-                }
-            }
-            return;
-        }
-
-        if (
-            pointerType === 'mouse'
-            && state.preferLongPressDrag
-            && !state.selectionGestureStarted
-        ) {
-            if (!state.dragReady) {
-                if (distance < MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX) {
-                    return;
-                }
-            } else {
-                if (distance < MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX) {
-                    return;
-                }
-                e.preventDefault();
-                e.stopPropagation();
-                const source = this.getCommittedSelectionSource() ?? this.resolveDragSource(this.buildActiveRangeSelectionSourceRequest(state));
-                if (!source) return;
-                const pointerId = state.pointerId;
-                this.clearCommittedRangeSelection();
-                this.clearMouseRangeSelectState();
-                this.enterDraggingState(source, pointerId, e.clientX, e.clientY, pointerType);
-                return;
-            }
-        }
-
-        this.activateMouseRangeSelectInterception(state);
-        e.preventDefault();
-        e.stopPropagation();
-
-        const targetBoundary = this.resolveHandleRangeBoundaryAtPoint(e.clientX, e.clientY)
-            ?? resolveRangeBoundaryAtPoint(this.view, e.clientX, e.clientY, (x, y) => this.resolveDragSource({ kind: 'point', clientX: x, clientY: y })?.primaryBlock ?? null);
-        if (targetBoundary) {
-            this.updateMouseRangeSelection(state, targetBoundary);
-        }
-
-        this.maybeAutoScrollRangeSelection(e.clientY);
-    }
-
-    private maybeAutoScrollRangeSelection(clientY: number): void {
-        autoScrollSelectionRangeByFlow(this.view, clientY);
-    }
-
     private updateMouseRangeSelectionFromLine(state: MouseRangeSelectState, lineNumber: number): void {
-        updateSelectionFromLineByFlow(this.view, state, lineNumber, this.rangeVisual);
-        state.selectionGestureStarted = true;
+        updateMouseRangeSelectionFromLineAction(this, state, lineNumber);
     }
 
-    private updateMouseRangeSelection(state: MouseRangeSelectState, target: RangeSelectionBoundary): void {
-        updateSelectionFromBoundaryByFlow(this.view, state, target, this.rangeVisual);
-        state.selectionGestureStarted = true;
-    }
-
-    private resolveHandleRangeBoundaryAtPoint(clientX: number, clientY: number): RangeSelectionBoundary | null {
-        if (typeof document === 'undefined' || typeof document.elementFromPoint !== 'function') {
-            return null;
-        }
-        const hit = document.elementFromPoint(clientX, clientY);
-        if (!(hit instanceof HTMLElement)) return null;
-
-        const handle = hit.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`);
-        if (!handle || handle.classList.contains(EMBED_HANDLE_CLASS)) return null;
-        if (!this.view.dom.contains(handle)) return null;
-
-        const source = this.resolveDragSource({ kind: 'handle', handle });
-        if (!source) return null;
-        return buildRangeSelectionBoundaryFromBlock(this.view.state.doc, source.primaryBlock);
+    updateMouseRangeSelection(state: MouseRangeSelectState, target: RangeSelectionBoundary): void {
+        updateMouseRangeSelectionAction(this, state, target);
     }
 
     private retargetMobileRangeSelection(e: PointerEvent): void {
@@ -665,7 +360,7 @@ export class DragEventHandler {
         return true;
     }
 
-    private commitRangeSelection(state: MouseRangeSelectState): void {
+    commitRangeSelection(state: MouseRangeSelectState): void {
         this.committedRangeSelection = commitSelectionRangeByFlow(this.view, state, this.rangeVisual);
     }
 
@@ -743,7 +438,7 @@ export class DragEventHandler {
         refreshSelectionVisualByFlow(this.gesture, this.committedRangeSelection, this.rangeVisual);
     }
 
-    private finishRangeSelectionSession(): void {
+    finishRangeSelectionSession(): void {
         this.clearMouseRangeSelectState({ preserveVisual: true });
         this.pointer.detachPointerListeners();
         this.pointer.releasePointerCapture();
@@ -785,32 +480,20 @@ export class DragEventHandler {
         });
     }
 
-    private finishPointerDrag(e: PointerEvent, shouldDrop: boolean): void {
-        if (this.gesture.phase !== 'dragging') return;
-        const state = this.gesture.drag;
-        if (e.pointerId !== state.pointerId) return;
-        e.preventDefault();
-        e.stopPropagation();
-        if (shouldDrop) {
-            this.deps.performDropAtPoint(state.source, e.clientX, e.clientY, e.pointerType || null);
-        }
-        this.resetInteractionSession({
-            shouldFinishDragSession: true,
-            shouldHideDropIndicator: true,
-            cancelReason: shouldDrop ? null : 'pointer_cancelled',
-            pointerType: e.pointerType || null,
-        });
+    cleanupAfterPointerDrag(options?: DragCleanupOptions): void {
+        this.resetInteractionSession(options);
     }
 
     private handlePointerUp(e: PointerEvent): void {
-        this.handlePointerTerminalEvent(e, 'up');
+        runPointerUpPipeline(this, e);
     }
 
     private handlePointerCancel(e: PointerEvent): void {
-        this.handlePointerTerminalEvent(e, 'cancel');
+        runPointerCancelPipeline(this, e);
     }
 
     private handleLostPointerCapture(e: PointerEvent): void {
+        readPointerInput('lost_capture', e);
         if (!this.hasActivePointerSession()) return;
         if (this.gesture.phase === 'selecting' && this.gesture.selection.mode === 'mobile') {
             finishMobileSelectionPointer(this, e, 'cancel');
@@ -820,18 +503,21 @@ export class DragEventHandler {
     }
 
     private handleWindowBlur(): void {
+        readFocusInput('blur', new FocusEvent('blur'));
         if (!this.hasActivePointerSession()) return;
         this.abortForSessionInterrupted(null);
     }
 
-    private handleDocumentVisibilityChange(): void {
-        if (document.visibilityState !== 'hidden') return;
+    private handleDocumentVisibilityChange(e: Event = new Event('visibilitychange')): void {
+        const input = readVisibilityInput(e);
+        if (input.visibilityState !== 'hidden') return;
         if (!this.hasActivePointerSession()) return;
         this.abortForSessionInterrupted(null);
     }
 
     private handleWindowKeyDown(e: KeyboardEvent): void {
-        if (e.key !== 'Escape') return;
+        const input = readKeyboardInput('keydown', e);
+        if (input.key !== 'Escape') return;
         if (!this.clearRangeSelectionForEscape()) return;
         e.preventDefault();
         e.stopPropagation();
@@ -855,72 +541,7 @@ export class DragEventHandler {
         return false;
     }
 
-    private handlePointerTerminalEvent(e: PointerEvent, mode: PointerTerminalMode): void {
-        switch (this.gesture.phase) {
-            case 'dragging':
-                this.handleDraggingPointerTerminalEvent(e, mode);
-                return;
-            case 'selecting':
-                if (this.gesture.selection.mode === 'range') {
-                    this.handleRangeSelectingPointerTerminalEvent(e, mode);
-                } else {
-                    finishMobileSelectionPointer(this, e, mode);
-                }
-                return;
-            case 'press_pending':
-                this.handlePressPendingPointerTerminalEvent(e, mode);
-                return;
-            default:
-                return;
-        }
-    }
-
-    private handleDraggingPointerTerminalEvent(e: PointerEvent, mode: PointerTerminalMode): void {
-        this.finishPointerDrag(e, mode === 'up');
-    }
-
-    private handleRangeSelectingPointerTerminalEvent(e: PointerEvent, mode: PointerTerminalMode): void {
-        if (!(this.gesture.phase === 'selecting' && this.gesture.selection.mode === 'range')) return;
-        const rangeState = this.gesture.selection.rangeSelect;
-        if (rangeState.pointerId !== -1 && e.pointerId !== rangeState.pointerId) return;
-        if (mode === 'cancel') {
-            this.abortForGestureCancel('pointer_cancelled', e.pointerType || null);
-            return;
-        }
-        if (!rangeState.longPressReady) {
-            if (mode === 'up' && rangeState.pointerType === 'mouse') {
-                e.preventDefault();
-                e.stopPropagation();
-                const source = this.resolveDragSource(this.buildActiveRangeSelectionSourceRequest(rangeState));
-                if (source) this.deps.openBlockTypeMenu?.(source.primaryBlock, e);
-                this.finishRangeSelectionSession();
-                return;
-            }
-            this.abortForGestureCancel('press_cancelled', e.pointerType || null);
-            return;
-        }
-        if (
-            rangeState.preferLongPressDrag
-            && rangeState.dragReady
-            && !rangeState.selectionGestureStarted
-        ) {
-            this.finishRangeSelectionSession();
-            return;
-        }
-        e.preventDefault();
-        e.stopPropagation();
-        this.commitRangeSelection(rangeState);
-        this.finishRangeSelectionSession();
-    }
-
-    private handlePressPendingPointerTerminalEvent(e: PointerEvent, mode: PointerTerminalMode): void {
-        if (this.gesture.phase !== 'press_pending') return;
-        const pressState = this.gesture.press;
-        if (e.pointerId !== pressState.pointerId) return;
-        this.abortForGestureCancel(mode === 'up' ? 'press_cancelled' : 'pointer_cancelled', e.pointerType || null);
-    }
-
-    private abortForGestureCancel(
+    abortForGestureCancel(
         cancelReason: GestureCancelReason,
         pointerType: string | null
     ): void {
@@ -946,12 +567,13 @@ export class DragEventHandler {
     }
 
     private handleDocumentFocusIn(e: FocusEvent): void {
+        const input = readFocusInput('focusin', e);
         if (
             this.committedRangeSelection
             && !(this.gesture.phase === 'selecting' && this.gesture.selection.mode === 'mobile')
             && this.isMobileEnvironment()
-            && e.target instanceof HTMLElement
-            && this.mobile.shouldSuppressFocusTarget(e.target)
+            && input.target instanceof HTMLElement
+            && this.mobile.shouldSuppressFocusTarget(input.target)
         ) {
             this.clearCommittedRangeSelection();
         }
@@ -995,72 +617,19 @@ export class DragEventHandler {
         }
     }
 
-    private resetInteractionSession(options?: {
-        shouldFinishDragSession?: boolean;
-        shouldHideDropIndicator?: boolean;
-        cancelReason?: string | null;
-        pointerType?: string | null;
-    }): void {
-        const { source, hadDrag } = this.resolveSessionResetContext();
-        const shouldFinishDragSession = options?.shouldFinishDragSession ?? hadDrag;
-        const shouldHideDropIndicator = options?.shouldHideDropIndicator ?? hadDrag;
-        const cancelReason = options?.cancelReason ?? null;
-        const pointerType = options?.pointerType ?? null;
-
-        this.gesture = { phase: 'idle' };
-        this.pointer.detachPointerListeners();
-        this.pointer.releasePointerCapture();
-        this.mobile.unlockMobileInteraction();
-        this.mobile.detachFocusGuard();
-
-        if (shouldHideDropIndicator) {
-            this.deps.hideDropIndicator();
-        }
-        if (hadDrag && shouldFinishDragSession) {
-            this.deps.finishDragSession();
-        }
-        if (cancelReason && source) {
-            this.emitCancelledLifecycle(source, cancelReason, pointerType);
-        }
-        this.emitIdleLifecycle();
+    private resetInteractionSession(options?: DragCleanupOptions): void {
+        cleanupInteractionSession(this, options);
     }
 
-    private resolveSessionResetContext(): { source: DragSource | null; hadDrag: boolean } {
-        const gesture = this.gesture;
-        switch (gesture.phase) {
-            case 'dragging':
-                this.cancelDragAutoScroll(gesture.drag);
-                return {
-                    source: gesture.drag.source,
-                    hadDrag: true,
-                };
-            case 'press_pending':
-                this.clearPointerPressState();
-                return {
-                    source: gesture.press.source,
-                    hadDrag: false,
-                };
-            case 'selecting':
-                if (gesture.selection.mode === 'range') {
-                    const source = this.resolveDragSource(this.buildActiveRangeSelectionSourceRequest(gesture.selection.rangeSelect));
-                    this.clearMouseRangeSelectState();
-                    return {
-                        source,
-                        hadDrag: false,
-                    };
-                }
-                const mobileSource = this.buildMobileSelectionSourceRequest(gesture.selection.mobileSelect);
-                this.clearCommittedRangeSelection();
-                return {
-                    source: mobileSource ? this.resolveDragSource(mobileSource) : null,
-                    hadDrag: false,
-                };
-            default:
-                return {
-                    source: null,
-                    hadDrag: false,
-                };
-        }
+    resolveActiveRangeSelectionSource(): DragSource | null {
+        if (!(this.gesture.phase === 'selecting' && this.gesture.selection.mode === 'range')) return null;
+        return this.resolveDragSource(this.buildActiveRangeSelectionSourceRequest(this.gesture.selection.rangeSelect));
+    }
+
+    resolveMobileSelectionSource(): DragSource | null {
+        if (!(this.gesture.phase === 'selecting' && this.gesture.selection.mode === 'mobile')) return null;
+        const request = this.buildMobileSelectionSourceRequest(this.gesture.selection.mobileSelect);
+        return request ? this.resolveDragSource(request) : null;
     }
 
     private emitLifecycle(event: DragLifecycleEvent): void {
@@ -1079,7 +648,7 @@ export class DragEventHandler {
         this.emitLifecycle(buildDragStartedLifecycleEvent(source, pointerType));
     }
 
-    private emitCancelledLifecycle(
+    emitCancelledLifecycle(
         source: DragSource,
         rejectReason: string,
         pointerType: string | null
@@ -1100,7 +669,7 @@ export class DragEventHandler {
         return this.deps.isMultiLineSelectionEnabled();
     }
 
-    private getTouchRangeSelectLongPressMs(): number {
+    getTouchRangeSelectLongPressMs(): number {
         if (!this.deps.getMultiLineSelectionLongPressMs) {
             return TOUCH_RANGE_SELECT_LONG_PRESS_MS;
         }

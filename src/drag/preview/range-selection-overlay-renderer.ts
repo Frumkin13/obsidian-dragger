@@ -3,14 +3,14 @@ import {
     MOBILE_SELECTION_RESIZE_HANDLE_BOTTOM_CLASS,
     MOBILE_SELECTION_RESIZE_HANDLE_CLASS,
     MOBILE_SELECTION_RESIZE_HANDLE_TOP_CLASS,
-} from '../../../shared/dom-selectors';
+} from '../../shared/dom-selectors';
 import { viewportXToEditorLocalX, viewportYToEditorLocalY } from './editor-local-coordinates';
-import { safeCoordsAtPos } from '../../../platform/dom/element-probe';
-import { RangeAnchorSpan } from './selection-anchor';
+import { safeCoordsAtPos } from '../../platform/dom/element-probe';
+import { RangeAnchorSpan } from './range-selection-anchor';
 import {
     type BlockSelectionSegment,
     type SelectedBlockRange,
-} from './block-selection';
+} from '../state/selection/block-selection';
 
 export class RangeSelectionOverlayRenderer {
     private readonly topResizeHandleEl: HTMLElement;

@@ -4,21 +4,21 @@ import {
     EMBED_HANDLE_CLASS,
     RANGE_SELECTED_HANDLE_CLASS,
     RANGE_SELECTED_LINE_CLASS,
-} from '../../../shared/dom-selectors';
+} from '../../shared/dom-selectors';
 import {
     groupSegments,
     mergeSelectedBlocks,
     type BlockSelectionSegment,
     type SelectedBlockRange,
-} from './block-selection';
+} from '../state/selection/block-selection';
 import {
     buildAnchorSnapshot,
     emptyAnchorSnapshot,
     resolveAnchorSpan,
     type RangeAnchorSpan,
     type AnchorSnapshot,
-} from './selection-anchor';
-import { RangeSelectionOverlayRenderer } from './selection-overlay-renderer';
+} from './range-selection-anchor';
+import { RangeSelectionOverlayRenderer } from './range-selection-overlay-renderer';
 
 export class RangeSelectionVisualManager {
     private static readonly selectedCheckboxClass = 'dnd-selection-checkbox';

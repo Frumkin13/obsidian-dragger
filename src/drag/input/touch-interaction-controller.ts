@@ -9,7 +9,7 @@ const MOBILE_LINE_HIT_Y_TOLERANCE_PX = 8;
 const MOBILE_EMBED_HIT_PADDING_PX = 6;
 const MOBILE_RANGE_SELECT_SCROLL_CANCEL_THRESHOLD_PX = 14;
 
-export class MobileGestureController {
+export class TouchInteractionController {
     private mobileInteractionLocked = false;
     private focusGuardAttached = false;
     private readonly onDocumentFocusIn: (e: FocusEvent) => void;

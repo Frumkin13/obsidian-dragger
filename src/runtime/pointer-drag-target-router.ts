@@ -2,7 +2,7 @@ import { DragSource } from '../shared/types/drag';
 
 export interface PointerDragTargetClient {
     containsPoint: (clientX: number, clientY: number) => boolean;
-    scheduleDropIndicatorUpdate: (
+    renderDropPreviewAtPoint: (
         clientX: number,
         clientY: number,
         source: DragSource | null,
@@ -45,7 +45,7 @@ export function registerPointerDragTargetClient(client: PointerDragTargetClient)
     };
 }
 
-export function schedulePointerDropIndicatorFromPoint(
+export function renderPointerDropPreviewAtPoint(
     fallbackClient: PointerDragTargetClient,
     clientX: number,
     clientY: number,
@@ -54,7 +54,7 @@ export function schedulePointerDropIndicatorFromPoint(
 ): void {
     const targetClient = resolveClientAtPoint(clientX, clientY) ?? fallbackClient;
     setActiveClient(targetClient);
-    targetClient.scheduleDropIndicatorUpdate(clientX, clientY, source, pointerType);
+    targetClient.renderDropPreviewAtPoint(clientX, clientY, source, pointerType);
 }
 
 export function performPointerDropAtPoint(

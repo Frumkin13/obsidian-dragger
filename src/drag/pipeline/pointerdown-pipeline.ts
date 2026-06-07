@@ -1,13 +1,13 @@
 import type { EditorView } from '@codemirror/view';
 import type { DragSource } from '../../shared/types/drag';
 import type { DragEventHandlerDeps } from './drag-controller';
-import type { PointerSessionController } from '../input/pointer-session-controller';
-import type { CommittedRangeSelection, RangeSelectionOperation } from '../state/selection/selection-model';
+import type { PointerSessionController } from '../input';
+import type { CommittedRangeSelection, RangeSelectionOperation } from '../state/selection';
 import { decideDesktopPointerDownIntent } from '../intent/pointer-intent';
 import { isSourceIntent } from '../intent';
-import { executeDragIntent } from './drag-intent-executor';
+import { executeDragIntent } from './pointerdown-intent-runner';
 
-export interface DesktopGesturePipelineHost {
+export interface PointerDownPipelineHost {
     readonly view: EditorView;
     readonly deps: DragEventHandlerDeps;
     readonly pointer: PointerSessionController;
@@ -32,7 +32,7 @@ export interface DesktopGesturePipelineHost {
 }
 
 export function runDesktopPointerDownPipeline(
-    host: DesktopGesturePipelineHost,
+    host: PointerDownPipelineHost,
     e: PointerEvent,
     target: HTMLElement
 ): boolean {

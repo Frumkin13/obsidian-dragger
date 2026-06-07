@@ -2,7 +2,7 @@ import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { detectBlock } from '../domain/block/block-detector';
 import { resolveDeleteRange } from '../drag/move/document-change';
-import { anchorSelectionBeforeUndoableChange } from '../drag/move/undo-selection-anchor';
+import { anchorSelectionBeforeUndoableChange } from '../platform/codemirror/undo-selection-anchor';
 
 export type BlockTypeConversion =
     | 'paragraph'

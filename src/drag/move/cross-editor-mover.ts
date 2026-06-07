@@ -8,7 +8,7 @@ import { SourcePayload } from './source-payload';
 import { resolveInsertionChange } from './document-change';
 import { ListRenumberer } from './list-renumberer';
 import { BlockFoldStateManager, CapturedBlockFoldState } from './block-fold-state';
-import { anchorSelectionBeforeUndoableChange } from './undo-selection-anchor';
+import { anchorSelectionBeforeUndoableChange } from '../../platform/codemirror/undo-selection-anchor';
 
 export interface CrossEditorMoveDeps {
     resolveDropRuleAtInsertion: (

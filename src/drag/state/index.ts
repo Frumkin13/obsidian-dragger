@@ -1,14 +1,6 @@
-export {
-    beginDragSession,
-    clearActiveDragSource,
-    clearAllActiveDragSources,
-    finishDragSession,
-    getActiveDragSource,
-    getActiveDragSourceEntry,
-    getActiveDragSourceView,
-    setActiveDragSource,
-} from './active-drag-registry';
 export type {
+    ActiveDrag,
+    BeginActiveDragInput,
     GestureCancelReason,
     InteractionState,
     MobileSelectionData,
@@ -17,3 +9,4 @@ export type {
     PointerPressData,
     PointerTerminalMode,
 } from './drag-state';
+export { beginActiveDrag } from './drag-state';

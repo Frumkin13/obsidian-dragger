@@ -26,7 +26,7 @@ describe('DragEventHandler', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -69,7 +69,7 @@ describe('DragEventHandler', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint,
         });
@@ -106,7 +106,7 @@ describe('DragEventHandler', () => {
         expect(line).not.toBeNull();
         const sourceBlock = createBlock('- item', 0, 0);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
         const performDropAtPoint = vi.fn();
         const finishDragSession = vi.fn();
 
@@ -116,7 +116,7 @@ describe('DragEventHandler', () => {
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession,
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint,
         });
@@ -143,7 +143,7 @@ describe('DragEventHandler', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 10, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(90, 10, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 0,
                 endLine: 0,
@@ -161,7 +161,7 @@ describe('DragEventHandler', () => {
         expect(line).not.toBeNull();
         const sourceBlock = createBlock('- item', 0, 0);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
         const performDropAtPoint = vi.fn();
         const blurSpy = vi.spyOn(view.contentDOM, 'blur');
 
@@ -176,7 +176,7 @@ describe('DragEventHandler', () => {
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint,
         });
@@ -199,7 +199,7 @@ describe('DragEventHandler', () => {
         });
 
         expect(beginPointerDragSession).not.toHaveBeenCalled();
-        expect(scheduleDropIndicatorUpdate).not.toHaveBeenCalled();
+        expect(renderDropPreviewAtPoint).not.toHaveBeenCalled();
         expect(performDropAtPoint).not.toHaveBeenCalled();
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
         handler.destroy();
@@ -221,7 +221,7 @@ describe('DragEventHandler', () => {
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -261,7 +261,7 @@ describe('DragEventHandler', () => {
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -307,14 +307,14 @@ describe('DragEventHandler', () => {
 
         const handle = appendHandleForBlockStart(view, 0);
         const sourceBlock = createBlock('- item', 0, 0);
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
             resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -343,7 +343,7 @@ describe('DragEventHandler', () => {
 
         expect(touchMove.defaultPrevented).toBe(true);
         expect(scroller.scrollTop).toBeGreaterThan(40);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenLastCalledWith(12, 196, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenLastCalledWith(12, 196, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 0,
                 endLine: 0,
@@ -379,7 +379,7 @@ describe('DragEventHandler', () => {
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -411,7 +411,7 @@ describe('DragEventHandler', () => {
         expect(line).not.toBeNull();
         const sourceBlock = createBlock('- item', 0, 0);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
@@ -420,7 +420,7 @@ describe('DragEventHandler', () => {
             isMobileTextLongPressDragEnabled: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint,
         });
@@ -447,7 +447,7 @@ describe('DragEventHandler', () => {
         });
 
         expect(beginPointerDragSession).not.toHaveBeenCalled();
-        expect(scheduleDropIndicatorUpdate).not.toHaveBeenCalled();
+        expect(renderDropPreviewAtPoint).not.toHaveBeenCalled();
         expect(performDropAtPoint).not.toHaveBeenCalled();
         handler.destroy();
     });
@@ -466,7 +466,7 @@ describe('DragEventHandler', () => {
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint,
         });
@@ -501,7 +501,7 @@ describe('DragEventHandler', () => {
         const view = createViewStub(6);
         const sourceBlock = createBlock('> [!note] title', 2, 3);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
 
         const callout = document.createElement('div');
         callout.className = 'cm-callout';
@@ -520,7 +520,7 @@ describe('DragEventHandler', () => {
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -547,7 +547,7 @@ describe('DragEventHandler', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(110, 70, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(110, 70, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 2,
                 endLine: 3,
@@ -560,7 +560,7 @@ describe('DragEventHandler', () => {
         const view = createViewStub(6);
         const sourceBlock = createBlock('$$ x^2 $$', 4, 4);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
 
         const mathDisplay = document.createElement('div');
         mathDisplay.className = 'MathJax';
@@ -584,7 +584,7 @@ describe('DragEventHandler', () => {
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -611,7 +611,7 @@ describe('DragEventHandler', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(118, 110, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(118, 110, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 4,
                 endLine: 4,
@@ -633,7 +633,7 @@ describe('DragEventHandler', () => {
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
             onDragLifecycleEvent: (event) => lifecycleEvents.push({
@@ -688,7 +688,7 @@ describe('DragEventHandler', () => {
             isMultiLineSelectionEnabled: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
             onDragLifecycleEvent: (event) => lifecycleEvents.push({

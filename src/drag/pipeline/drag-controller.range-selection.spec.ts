@@ -25,7 +25,7 @@ describe('DragEventHandler Range Selection', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
         const finishDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
         const hideDropIndicator = vi.fn();
         const performDropAtPoint = vi.fn();
         const endBlock = createBlock('line 6', 5, 5);
@@ -35,7 +35,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession,
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator,
             performDropAtPoint,
         });
@@ -97,7 +97,7 @@ describe('DragEventHandler Range Selection', () => {
         const selectedBlock = beginPointerDragSession.mock.calls[0][0] as DragSource;
         expect(selectedBlock.ranges[0].startLine).toBe(1);
         expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(5);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 105, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(90, 105, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 1,
                 endLine: 5,
@@ -127,7 +127,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -189,7 +189,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -241,7 +241,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -286,7 +286,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -325,13 +325,13 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
         const handler = new DragEventHandler(view, {
             resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -380,7 +380,7 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(0);
-        expect(scheduleDropIndicatorUpdate).not.toHaveBeenCalled();
+        expect(renderDropPreviewAtPoint).not.toHaveBeenCalled();
 
         vi.advanceTimersByTime(280);
         dispatchPointer(window, 'pointermove', {
@@ -392,7 +392,7 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 80, expect.any(Object), 'mouse');
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(90, 80, expect.any(Object), 'mouse');
         handler.destroy();
     });
 
@@ -410,7 +410,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -476,14 +476,14 @@ describe('DragEventHandler Range Selection', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const endBlock = createBlock('line 6', 5, 5);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
             resolveDragSource: resolveDragSourceFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -534,7 +534,7 @@ describe('DragEventHandler Range Selection', () => {
         const selectedBlock = beginPointerDragSession.mock.calls[0][0] as DragSource;
         expect(selectedBlock.ranges[0].startLine).toBe(1);
         expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(5);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 105, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(90, 105, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 1,
                 endLine: 5,
@@ -557,7 +557,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint,
         });
@@ -627,14 +627,14 @@ describe('DragEventHandler Range Selection', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const endBlock = createBlock('line 6', 5, 5);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
             resolveDragSource: resolveDragSourceFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -687,7 +687,7 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 105, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(90, 105, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 1,
                 endLine: 5,
@@ -710,7 +710,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -773,7 +773,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -815,7 +815,7 @@ describe('DragEventHandler Range Selection', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
         const finishDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
         const hideDropIndicator = vi.fn();
         const performDropAtPoint = vi.fn();
 
@@ -824,7 +824,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession,
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator,
             performDropAtPoint,
         });
@@ -856,7 +856,7 @@ describe('DragEventHandler Range Selection', () => {
         beginPointerDragSession.mockClear();
         performDropAtPoint.mockClear();
         finishDragSession.mockClear();
-        scheduleDropIndicatorUpdate.mockClear();
+        renderDropPreviewAtPoint.mockClear();
 
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 18,
@@ -881,7 +881,7 @@ describe('DragEventHandler Range Selection', () => {
         const selectedBlock = beginPointerDragSession.mock.calls[0][0] as DragSource;
         expect(selectedBlock.ranges[0].startLine).toBe(1);
         expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(12, 105, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(12, 105, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 1,
                 endLine: 1,
@@ -908,7 +908,7 @@ describe('DragEventHandler Range Selection', () => {
             getMultiLineSelectionLongPressMs: () => 1200,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint,
         });
@@ -952,7 +952,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -1007,7 +1007,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -1040,7 +1040,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -1075,7 +1075,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -1121,7 +1121,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -1188,7 +1188,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -1253,7 +1253,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -1322,14 +1322,14 @@ describe('DragEventHandler Range Selection', () => {
             content: '- parent\n  - child',
         };
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
             resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 20 ? listParentBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -1388,7 +1388,7 @@ describe('DragEventHandler Range Selection', () => {
         const selectedBlock = beginPointerDragSession.mock.calls[0][0] as DragSource;
         expect(selectedBlock.ranges[0].startLine).toBe(0);
         expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(2); // list child line must be included
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 25, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(90, 25, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 0,
                 endLine: 2,
@@ -1413,7 +1413,7 @@ describe('DragEventHandler Range Selection', () => {
         const sourceBlock = createBlock('anchor', 1, 1);
         const calloutBlock = createBlock('> [!note] title\n> body', 4, 5);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
 
         const embed = document.createElement('div');
         embed.className = 'cm-callout';
@@ -1456,7 +1456,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -1515,7 +1515,7 @@ describe('DragEventHandler Range Selection', () => {
         const selectedBlock = beginPointerDragSession.mock.calls[0][0] as DragSource;
         expect(selectedBlock.ranges[0].startLine).toBe(1);
         expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(5);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 92, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(90, 92, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 1,
                 endLine: 5,
@@ -1532,7 +1532,7 @@ describe('DragEventHandler Range Selection', () => {
         const blockA = createBlock('line 2', 1, 1);
         const blockB = createBlock('line 8', 7, 7);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
@@ -1547,7 +1547,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint,
         });
@@ -1627,7 +1627,7 @@ describe('DragEventHandler Range Selection', () => {
             { startLine: 1, endLine: 1 },
             { startLine: 7, endLine: 7 },
         ]);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 80, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(90, 80, expect.objectContaining({
             ranges: [
                 { startLine: 1, endLine: 1 },
                 { startLine: 7, endLine: 7 },
@@ -1658,7 +1658,7 @@ describe('DragEventHandler Range Selection', () => {
         view.dom.appendChild(handle);
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
@@ -1666,7 +1666,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint,
         });
@@ -1695,8 +1695,8 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(120, 30, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledTimes(1);
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(120, 30, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 1,
                 endLine: 1,
@@ -1715,7 +1715,7 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock();
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
         const vibrate = vi.fn();
         Object.defineProperty(window.navigator, 'vibrate', {
             configurable: true,
@@ -1728,7 +1728,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -1754,7 +1754,7 @@ describe('DragEventHandler Range Selection', () => {
             clientY: 12,
         });
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(45, 12, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(45, 12, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 0,
                 endLine: 0,
@@ -1768,13 +1768,13 @@ describe('DragEventHandler Range Selection', () => {
         const view = createViewStub(8);
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
         const handler = new DragEventHandler(view, {
             resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -1797,7 +1797,7 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(80, 60, expect.any(Object), 'touch');
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(80, 60, expect.any(Object), 'touch');
         handler.destroy();
     });
 
@@ -1809,7 +1809,7 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
         const performDropAtPoint = vi.fn();
         const finishDragSession = vi.fn();
         const handler = new DragEventHandler(view, {
@@ -1818,7 +1818,7 @@ describe('DragEventHandler Range Selection', () => {
             isMultiLineSelectionEnabled: () => false,
             beginPointerDragSession,
             finishDragSession,
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint,
         });
@@ -1845,13 +1845,13 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(12, 30, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(12, 30, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 1,
                 endLine: 1,
             })],
             }), 'mouse');
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(12, 90, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(12, 90, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 1,
                 endLine: 1,
@@ -1871,7 +1871,7 @@ describe('DragEventHandler Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
         const performDropAtPoint = vi.fn();
         const finishDragSession = vi.fn();
 
@@ -1881,7 +1881,7 @@ describe('DragEventHandler Range Selection', () => {
             isMultiLineSelectionEnabled: () => false,
             beginPointerDragSession,
             finishDragSession,
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint,
         });
@@ -1908,7 +1908,7 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(90, 80, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(90, 80, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 1,
                 endLine: 1,
@@ -1934,7 +1934,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -1989,7 +1989,7 @@ describe('DragEventHandler Range Selection', () => {
         const sourceBlock = createBlock('- item', 0, 0);
         const beginPointerDragSession = vi.fn();
         const finishDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
         const performDropAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
@@ -1997,7 +1997,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession,
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint,
         });
@@ -2024,7 +2024,7 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(12, 30, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(12, 30, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 0,
                 endLine: 0,
@@ -2050,14 +2050,14 @@ describe('DragEventHandler Range Selection', () => {
         const handle = appendHandleForBlockStart(view, 0);
         const sourceBlock = createBlock('- item', 0, 0);
         const beginPointerDragSession = vi.fn();
-        const scheduleDropIndicatorUpdate = vi.fn();
+        const renderDropPreviewAtPoint = vi.fn();
 
         const handler = new DragEventHandler(view, {
             resolveDragSource: resolveDragSourceFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate,
+            renderDropPreviewAtPoint,
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -2089,7 +2089,7 @@ describe('DragEventHandler Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(12, 30, expect.objectContaining({
+        expect(renderDropPreviewAtPoint).toHaveBeenCalledWith(12, 30, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 0,
                 endLine: 0,
@@ -2126,7 +2126,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -2233,7 +2233,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -2315,7 +2315,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -2351,7 +2351,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator: vi.fn(),
             performDropAtPoint: vi.fn(),
         });
@@ -2403,7 +2403,7 @@ describe('DragEventHandler Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            scheduleDropIndicatorUpdate: vi.fn(),
+            renderDropPreviewAtPoint: vi.fn(),
             hideDropIndicator,
             performDropAtPoint: vi.fn(),
         });

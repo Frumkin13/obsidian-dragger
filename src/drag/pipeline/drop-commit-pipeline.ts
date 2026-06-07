@@ -5,49 +5,42 @@ import {
     DragSource,
     DragSourceScope,
 } from '../../shared/types/drag';
-import { buildCancelledLifecycleEvent, buildDropCommitLifecycleEvent } from './drag-lifecycle-flow';
+import { buildCancelledLifecycleEvent, buildDropCommitLifecycleEvent } from './pipeline-events';
 import { DragLifecycleEmitter } from '../../runtime/drag-lifecycle-emitter';
 import { buildListIntent } from '../../shared/utils/drop-protocol';
 import { BlockMover } from '../move/block-mover';
 import { DropPlanner } from '../drop/drop-planner';
-import { HandleVisibilityController } from '../preview/handle-visibility-controller';
-import { DragPerfSessionPort, SemanticRefreshPort } from './interaction-orchestrator-ports';
-import { getActiveDragSourceView } from '../state/active-drag-registry';
+import { DragPerfSessionPort, SemanticRefreshPort } from './drop-commit-ports';
+import { getActiveDragSourceView } from '../runtime/active-drag-registry';
 
-export interface DragInteractionOrchestratorDeps {
+export interface DropCommitPipelineDeps {
     view: EditorView;
     blockMover: BlockMover;
     dropPlanner: DropPlanner;
-    handleVisibility: HandleVisibilityController;
     dragPerfManager: DragPerfSessionPort;
     lifecycleEmitter: DragLifecycleEmitter;
     getSemanticRefreshScheduler: () => SemanticRefreshPort;
-    refreshDecorationsAndEmbeds: () => void;
     resolveEditorDocumentKey?: (view: EditorView) => string | null;
     allowCrossDocumentDrop?: () => boolean;
 }
 
-export class DragInteractionOrchestrator {
+export class DropCommitPipeline {
     private readonly view: EditorView;
     private readonly blockMover: BlockMover;
     private readonly dropPlanner: DropPlanner;
-    private readonly handleVisibility: HandleVisibilityController;
     private readonly dragPerfManager: DragPerfSessionPort;
     private readonly lifecycleEmitter: DragLifecycleEmitter;
     private readonly getSemanticRefreshScheduler: () => SemanticRefreshPort;
-    private readonly refreshDecorationsAndEmbeds: () => void;
     private readonly resolveEditorDocumentKey?: (view: EditorView) => string | null;
     private readonly allowCrossDocumentDrop?: () => boolean;
 
-    constructor(deps: DragInteractionOrchestratorDeps) {
+    constructor(deps: DropCommitPipelineDeps) {
         this.view = deps.view;
         this.blockMover = deps.blockMover;
         this.dropPlanner = deps.dropPlanner;
-        this.handleVisibility = deps.handleVisibility;
         this.dragPerfManager = deps.dragPerfManager;
         this.lifecycleEmitter = deps.lifecycleEmitter;
         this.getSemanticRefreshScheduler = deps.getSemanticRefreshScheduler;
-        this.refreshDecorationsAndEmbeds = deps.refreshDecorationsAndEmbeds;
         this.resolveEditorDocumentKey = deps.resolveEditorDocumentKey;
         this.allowCrossDocumentDrop = deps.allowCrossDocumentDrop;
     }

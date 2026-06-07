@@ -12,3 +12,9 @@ export type CleanupResult = {
     cleaned: true;
     reason: CleanupReason;
 };
+
+export {
+    cleanupInteractionSession,
+    type DragCleanupHost,
+    type DragCleanupOptions,
+} from './drag-cleanup';

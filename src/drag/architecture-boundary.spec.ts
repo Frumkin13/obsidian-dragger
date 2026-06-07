@@ -62,4 +62,45 @@ describe('drag architecture boundaries', () => {
             .map((file) => file.rel);
         expect(offenders).toEqual([]);
     });
+
+    it('keeps state as pure interaction state without DOM, timers, rendering, or document mutation', () => {
+        const forbidden = /\b(?:document|window)\.|\b(?:PointerEvent|MouseEvent|KeyboardEvent|FocusEvent|TouchEvent|HTMLElement|DOMRect)\b|\bEditorView\b|view\.dispatch|\.dispatch\(|rangeVisual|\.render\(|getBoundingClientRect|querySelector|classList|addEventListener|removeEventListener|setTimeout|clearTimeout|requestAnimationFrame|cancelAnimationFrame/;
+        const offenders = readProductionFiles()
+            .filter((file) => file.rel.startsWith('src/drag/state/'))
+            .filter((file) => forbidden.test(file.text))
+            .map((file) => file.rel);
+        expect(offenders).toEqual([]);
+    });
+
+    it('keeps state from importing business stages or platform/input/preview/pipeline helpers', () => {
+        const forbiddenImport = /from ['"](?:\.\.\/)*(?:input|preview|pipeline|move|drop|cleanup|platform|runtime)\//;
+        const offenders = readProductionFiles()
+            .filter((file) => file.rel.startsWith('src/drag/state/'))
+            .filter((file) => forbiddenImport.test(file.text))
+            .map((file) => file.rel);
+        expect(offenders).toEqual([]);
+    });
+
+    it('keeps pipeline as orchestration files instead of lifecycle/mobile business buckets', () => {
+        const pipelineFiles = readProductionFiles()
+            .filter((file) => file.rel.startsWith('src/drag/pipeline/'))
+            .map((file) => file.rel.replace('src/drag/pipeline/', ''))
+            .sort();
+        expect(pipelineFiles).toEqual([
+            'drag-controller.ts',
+            'drop-commit-pipeline.ts',
+            'drop-commit-ports.ts',
+            'index.ts',
+            'pipeline-events.ts',
+            'pointerdown-intent-runner.ts',
+            'pointerdown-pipeline.ts',
+            'pointermove-pipeline.ts',
+            'pointerup-pipeline.ts',
+        ]);
+
+        const forbiddenNames = pipelineFiles.filter((file) => (
+            /gesture|orchestrator|lifecycle|mobile-selection|touch-selection|range-selection|desktop-pointerdown|drag-intent-executor/.test(file)
+        ));
+        expect(forbiddenNames).toEqual([]);
+    });
 });

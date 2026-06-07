@@ -5,14 +5,14 @@ import {
     performPointerDropAtPoint,
     registerPointerDragTargetClient,
     resetPointerDragTargetRouterForTests,
-    schedulePointerDropIndicatorFromPoint,
+    renderPointerDropPreviewAtPoint,
     type PointerDragTargetClient,
 } from './pointer-drag-target-router';
 
 function createClient(name: string, hitRect: { left: number; top: number; right: number; bottom: number }): PointerDragTargetClient {
     return {
         containsPoint: (x, y) => x >= hitRect.left && x <= hitRect.right && y >= hitRect.top && y <= hitRect.bottom,
-        scheduleDropIndicatorUpdate: vi.fn(),
+        renderDropPreviewAtPoint: vi.fn(),
         hideDropIndicator: vi.fn(),
         performDropAtPoint: vi.fn(),
     } satisfies PointerDragTargetClient & { name?: string };
@@ -31,13 +31,13 @@ describe('pointer-drag-target-router', () => {
         registerPointerDragTargetClient(fallback);
         registerPointerDragTargetClient(other);
 
-        schedulePointerDropIndicatorFromPoint(fallback, 10, 10, sourceBlock, 'mouse');
-        expect(fallback.scheduleDropIndicatorUpdate).toHaveBeenCalledWith(10, 10, sourceBlock, 'mouse');
-        expect(other.scheduleDropIndicatorUpdate).not.toHaveBeenCalled();
+        renderPointerDropPreviewAtPoint(fallback, 10, 10, sourceBlock, 'mouse');
+        expect(fallback.renderDropPreviewAtPoint).toHaveBeenCalledWith(10, 10, sourceBlock, 'mouse');
+        expect(other.renderDropPreviewAtPoint).not.toHaveBeenCalled();
 
-        schedulePointerDropIndicatorFromPoint(fallback, 220, 10, sourceBlock, 'mouse');
+        renderPointerDropPreviewAtPoint(fallback, 220, 10, sourceBlock, 'mouse');
         expect(fallback.hideDropIndicator).toHaveBeenCalledTimes(1);
-        expect(other.scheduleDropIndicatorUpdate).toHaveBeenCalledWith(220, 10, sourceBlock, 'mouse');
+        expect(other.renderDropPreviewAtPoint).toHaveBeenCalledWith(220, 10, sourceBlock, 'mouse');
     });
 
     it('uses the active target for drop when the pointer leaves registered editors', () => {
@@ -46,7 +46,7 @@ describe('pointer-drag-target-router', () => {
         registerPointerDragTargetClient(fallback);
         registerPointerDragTargetClient(other);
 
-        schedulePointerDropIndicatorFromPoint(fallback, 220, 10, sourceBlock, 'mouse');
+        renderPointerDropPreviewAtPoint(fallback, 220, 10, sourceBlock, 'mouse');
         performPointerDropAtPoint(fallback, sourceBlock, 500, 500, 'mouse');
 
         expect(other.performDropAtPoint).toHaveBeenCalledWith(sourceBlock, 500, 500, 'mouse');

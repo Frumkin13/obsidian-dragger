@@ -2,6 +2,8 @@ import { DragSource } from '../../shared/types/drag';
 import { MouseRangeSelectState, RangeSelectionBoundary } from './selection/selection-model';
 import { SelectedBlockRange } from './selection/block-selection';
 
+export type ActiveDrag = PointerDragData;
+
 export type PointerDragData = {
     source: DragSource;
     pointerId: number;
@@ -10,6 +12,25 @@ export type PointerDragData = {
     pointerType: string | null;
     autoScrollFrameId: number | null;
 };
+
+export type BeginActiveDragInput = {
+    source: DragSource;
+    pointerId: number;
+    clientX: number;
+    clientY: number;
+    pointerType: string | null;
+};
+
+export function beginActiveDrag(input: BeginActiveDragInput): ActiveDrag {
+    return {
+        source: input.source,
+        pointerId: input.pointerId,
+        latestX: input.clientX,
+        latestY: input.clientY,
+        pointerType: input.pointerType,
+        autoScrollFrameId: null,
+    };
+}
 
 export type PointerPressData = {
     source: DragSource;

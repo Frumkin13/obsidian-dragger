@@ -7,10 +7,9 @@ import {
     MOBILE_SELECTION_RESIZE_HANDLE_CLASS,
 } from '../../shared/dom-selectors';
 import { safePosAtCoords, resolveLineNumberFromPos } from '../../platform/dom/element-probe';
-import type { DragEventHandlerDeps } from './drag-controller';
-import { MobileGestureController } from '../state/mobile-gesture-controller';
+import { TouchInteractionController } from '../input/touch-interaction-controller';
 import { PointerSessionController } from '../input/pointer-session-controller';
-import { RangeSelectionVisualManager } from '../state/selection/selection-visual-manager';
+import { RangeSelectionVisualManager } from '../preview/range-selection-visual-manager';
 import {
     buildRangeSelectionBoundaryFromBlock,
     collectSelectedBlocksBetween,
@@ -19,7 +18,7 @@ import {
     RangeSelectionOperation,
     resolveBlockBoundaryAtLine,
 } from '../state/selection/selection-model';
-import { resolveRangeBoundaryAtPoint } from '../state/selection/hit-boundary';
+import { resolveRangeBoundaryAtPoint } from '../input/range-boundary-hit';
 import {
     isSelectedBlockCoveredByBlocks,
     mergeSelectedBlocks,
@@ -29,23 +28,28 @@ import {
 import {
     autoScrollSelectionRange as autoScrollSelectionRangeByFlow,
     updateSelectionFromBoundary as updateSelectionFromBoundaryByFlow,
-} from '../state/selection/selection-flow';
+} from './range-selection-flow';
 import {
     InteractionState,
     MobileSelectionData,
     MobileSelectionResizeHandle,
     PointerTerminalMode,
 } from '../state/drag-state';
-import { shouldStartMobilePressDrag as shouldStartMobilePressDragByFlow } from '../intent/drag-pointer-flow';
+import { shouldStartMobilePressDrag as shouldStartMobilePressDragByInput } from '../input/pointer-environment';
 import type { DragSourceRequest } from '../source';
 
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
 
-export interface MobileGesturePipelineHost {
+export interface MobileSelectionActionDeps {
+    isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
+    isMobileTextLongPressDragEnabled?: () => boolean;
+}
+
+export interface MobileSelectionActionHost {
     readonly view: EditorView;
-    readonly deps: DragEventHandlerDeps;
+    readonly deps: MobileSelectionActionDeps;
     readonly rangeVisual: RangeSelectionVisualManager;
-    readonly mobile: MobileGestureController;
+    readonly mobile: TouchInteractionController;
     readonly pointer: PointerSessionController;
     gesture: InteractionState;
     committedRangeSelection: CommittedRangeSelection | null;
@@ -79,8 +83,8 @@ export interface MobileGesturePipelineHost {
     isMultiLineSelectionEnabled(): boolean;
 }
 
-export function runMobilePointerDownPipeline(
-    host: MobileGesturePipelineHost,
+export function handleMobilePointerDown(
+    host: MobileSelectionActionHost,
     e: PointerEvent,
     target: HTMLElement
 ): boolean {
@@ -93,7 +97,7 @@ export function runMobilePointerDownPipeline(
 }
 
 function tryStartMobileSelectionResize(
-    host: MobileGesturePipelineHost,
+    host: MobileSelectionActionHost,
     e: PointerEvent,
     target: HTMLElement
 ): boolean {
@@ -124,7 +128,7 @@ function tryStartMobileSelectionResize(
 }
 
 function tryStartMobileHandleInteraction(
-    host: MobileGesturePipelineHost,
+    host: MobileSelectionActionHost,
     e: PointerEvent,
     target: HTMLElement
 ): boolean {
@@ -149,7 +153,7 @@ function tryStartMobileHandleInteraction(
 }
 
 function tryStartMobileSelectionDrag(
-    host: MobileGesturePipelineHost,
+    host: MobileSelectionActionHost,
     handleEl: HTMLElement,
     e: PointerEvent
 ): boolean {
@@ -180,7 +184,7 @@ function tryStartMobileSelectionDrag(
 }
 
 function tryRetargetActiveMobileRangeSelectionFromHandle(
-    host: MobileGesturePipelineHost,
+    host: MobileSelectionActionHost,
     handle: HTMLElement,
     e: PointerEvent
 ): boolean {
@@ -205,14 +209,14 @@ function tryRetargetActiveMobileRangeSelectionFromHandle(
     return true;
 }
 
-function tryHandleActiveMobileSelection(host: MobileGesturePipelineHost, e: PointerEvent): boolean {
+function tryHandleActiveMobileSelection(host: MobileSelectionActionHost, e: PointerEvent): boolean {
     if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile')) return false;
     handleMobileSelectionTextPointerDown(host, e);
     return true;
 }
 
 function tryStartMobileTextLongPressDrag(
-    host: MobileGesturePipelineHost,
+    host: MobileSelectionActionHost,
     e: PointerEvent,
     target: HTMLElement
 ): boolean {
@@ -236,7 +240,7 @@ function tryStartMobileTextLongPressDrag(
     return true;
 }
 
-export function handleMobileSelectingPointerMove(host: MobileGesturePipelineHost, e: PointerEvent): void {
+export function handleMobileSelectingPointerMove(host: MobileSelectionActionHost, e: PointerEvent): void {
     if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile')) return;
     const state = host.gesture.selection.mobileSelect;
     const interaction = state.activeInteraction;
@@ -266,7 +270,7 @@ export function handleMobileSelectingPointerMove(host: MobileGesturePipelineHost
 }
 
 export function finishMobileSelectionPointer(
-    host: MobileGesturePipelineHost,
+    host: MobileSelectionActionHost,
     e: PointerEvent,
     mode: PointerTerminalMode
 ): void {
@@ -285,7 +289,7 @@ export function finishMobileSelectionPointer(
     }
 }
 
-export function enterMobileSelectionMode(host: MobileGesturePipelineHost, e: Event): void {
+export function enterMobileSelectionMode(host: MobileSelectionActionHost, e: Event): void {
     if (!host.mobile.isMobileEnvironment()) return;
     if (!host.isMultiLineSelectionEnabled()) return;
     if (host.gesture.phase !== 'idle') return;
@@ -334,7 +338,7 @@ export function enterMobileSelectionMode(host: MobileGesturePipelineHost, e: Eve
 }
 
 export function getMobileSelectionTemplateBlock(
-    host: MobileGesturePipelineHost,
+    host: MobileSelectionActionHost,
     state: { activeMovingBoundary: RangeSelectionBoundary }
 ): BlockInfo {
     const line = host.view.state.doc.line(state.activeMovingBoundary.representativeLineNumber);
@@ -350,7 +354,7 @@ export function getMobileSelectionTemplateBlock(
         };
 }
 
-function handleMobileSelectionTextPointerDown(host: MobileGesturePipelineHost, e: PointerEvent): boolean {
+function handleMobileSelectionTextPointerDown(host: MobileSelectionActionHost, e: PointerEvent): boolean {
     if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile')) return false;
     const state = host.gesture.selection.mobileSelect;
     const source = host.resolveDragSource({ kind: 'point', clientX: e.clientX, clientY: e.clientY });
@@ -387,7 +391,7 @@ function handleMobileSelectionTextPointerDown(host: MobileGesturePipelineHost, e
 }
 
 function startMobileSelectionResize(
-    host: MobileGesturePipelineHost,
+    host: MobileSelectionActionHost,
     state: MobileSelectionData,
     handle: MobileSelectionResizeHandle
 ): void {
@@ -401,7 +405,7 @@ function startMobileSelectionResize(
 }
 
 function updateMobileSelectionResize(
-    host: MobileGesturePipelineHost,
+    host: MobileSelectionActionHost,
     state: MobileSelectionData,
     movingBoundary: RangeSelectionBoundary
 ): void {
@@ -438,14 +442,14 @@ function buildMobileSelectionResizeBoundary(block: SelectedBlockRange): RangeSel
     };
 }
 
-function finishNativeMobileSelectionSession(host: MobileGesturePipelineHost): void {
+function finishNativeMobileSelectionSession(host: MobileSelectionActionHost): void {
     host.pointer.detachPointerListeners();
     host.pointer.releasePointerCapture();
     host.mobile.unlockMobileInteraction();
     host.mobile.detachFocusGuard();
 }
 
-function exitMobileSelectionMode(host: MobileGesturePipelineHost): void {
+function exitMobileSelectionMode(host: MobileSelectionActionHost): void {
     if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile')) return;
     host.gesture.selection.mobileSelect.activeInteraction = null;
     finishNativeMobileSelectionSession(host);
@@ -454,13 +458,13 @@ function exitMobileSelectionMode(host: MobileGesturePipelineHost): void {
     host.emitIdleLifecycle();
 }
 
-function hasMobileSelection(host: MobileGesturePipelineHost): boolean {
+function hasMobileSelection(host: MobileSelectionActionHost): boolean {
     return host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile'
         && host.gesture.selection.mobileSelect.selectedBlocks.length > 0;
 }
 
 function resolveMobileSelectionBoundaryAtPoint(
-    host: MobileGesturePipelineHost,
+    host: MobileSelectionActionHost,
     clientX: number,
     clientY: number
 ): RangeSelectionBoundary | null {
@@ -499,7 +503,7 @@ function resolveMobileSelectionProbeXs(clientX: number, contentRect: DOMRect): n
 }
 
 function resolveLineNumberAtMobileSelectionPoint(
-    host: MobileGesturePipelineHost,
+    host: MobileSelectionActionHost,
     clientX: number,
     clientY: number,
     contentRect: DOMRect
@@ -514,7 +518,7 @@ function resolveLineNumberAtMobileSelectionPoint(
 }
 
 function buildCommittedSelectionFromBlocks(
-    host: MobileGesturePipelineHost,
+    host: MobileSelectionActionHost,
     blocks: SelectedBlockRange[],
     template: BlockInfo
 ): CommittedRangeSelection | null {
@@ -526,11 +530,11 @@ function buildCommittedSelectionFromBlocks(
     };
 }
 
-function renderMobileSelection(host: MobileGesturePipelineHost, blocks: SelectedBlockRange[]): void {
+function renderMobileSelection(host: MobileSelectionActionHost, blocks: SelectedBlockRange[]): void {
     host.rangeVisual.render(blocks, { highlightLines: true, showMobileResizeHandles: true });
 }
 
-function retargetMobileRangeSelection(host: MobileGesturePipelineHost, e: PointerEvent): void {
+function retargetMobileRangeSelection(host: MobileSelectionActionHost, e: PointerEvent): void {
     if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'range')) return;
     const state = host.gesture.selection.rangeSelect;
     if (state.pointerType === 'mouse') return;
@@ -551,14 +555,14 @@ function retargetMobileRangeSelection(host: MobileGesturePipelineHost, e: Pointe
     host.pointer.tryCapturePointer(e);
 }
 
-function shouldStartMobilePressDrag(host: MobileGesturePipelineHost, e: PointerEvent): boolean {
+function shouldStartMobilePressDrag(host: MobileSelectionActionHost, e: PointerEvent): boolean {
     if (host.gesture.phase !== 'idle') return false;
     if (!host.mobile.isMobileEnvironment()) return false;
-    return shouldStartMobilePressDragByFlow(e);
+    return shouldStartMobilePressDragByInput(e);
 }
 
 function shouldDismissMobileEditorInputStateForPointerDown(
-    host: MobileGesturePipelineHost,
+    host: MobileSelectionActionHost,
     target: HTMLElement | null
 ): boolean {
     if (!shouldDisableMobileTextLongPressDragInInputState(host)) return false;
@@ -566,22 +570,22 @@ function shouldDismissMobileEditorInputStateForPointerDown(
     return host.view.dom.contains(target);
 }
 
-function shouldDisableMobileTextLongPressDragInInputState(host: MobileGesturePipelineHost): boolean {
+function shouldDisableMobileTextLongPressDragInInputState(host: MobileSelectionActionHost): boolean {
     if (!host.view.hasFocus) return false;
     return host.view.state.selection.main.empty;
 }
 
-function dismissMobileEditorInputState(host: MobileGesturePipelineHost): void {
+function dismissMobileEditorInputState(host: MobileSelectionActionHost): void {
     if (!host.view.hasFocus) return;
     host.view.contentDOM.blur();
 }
 
-function isMobileTextLongPressDragEnabled(host: MobileGesturePipelineHost): boolean {
+function isMobileTextLongPressDragEnabled(host: MobileSelectionActionHost): boolean {
     if (!host.deps.isMobileTextLongPressDragEnabled) return true;
     return host.deps.isMobileTextLongPressDragEnabled();
 }
 
-function resolveLineClientY(host: MobileGesturePipelineHost, lineNumber: number): number {
+function resolveLineClientY(host: MobileSelectionActionHost, lineNumber: number): number {
     const line = host.view.state.doc.line(Math.max(1, Math.min(host.view.state.doc.lines, lineNumber)));
     const coords = host.view.coordsAtPos(line.from, 1);
     return coords ? ((coords.top + coords.bottom) / 2) : 0;

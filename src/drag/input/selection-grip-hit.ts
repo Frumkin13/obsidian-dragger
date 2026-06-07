@@ -1,14 +1,14 @@
-import type { CommittedRangeSelection } from './selection-model';
+import type { CommittedRangeSelection } from '../state/selection/selection-model';
 import {
     CODEMIRROR_CONTENT_SELECTOR,
     CODEMIRROR_GUTTERS_SELECTOR,
     DRAG_HANDLE_CLASS,
     RANGE_SELECTED_HANDLE_CLASS,
-} from '../../../shared/dom-selectors';
+} from '../../shared/dom-selectors';
 import {
     groupSelectedBlocksIntoSegments,
     type BlockSelectionSegment,
-} from './block-selection';
+} from '../state/selection/block-selection';
 
 export const RANGE_SELECTION_GRIP_HIT_PADDING_PX = 20;
 export const RANGE_SELECTION_GRIP_HIT_X_PADDING_PX = 28;

@@ -1,26 +1,26 @@
 import { EditorView } from '@codemirror/view';
-import { anchorSelectionBeforeUndoableChange } from '../../move/undo-selection-anchor';
+import { anchorSelectionBeforeUndoableChange } from '../../platform/codemirror/undo-selection-anchor';
 import {
     type CommittedRangeSelection,
     type MouseRangeSelectState,
     type RangeSelectionBoundary,
     resolveBlockBoundaryAtLine,
-} from './selection-model';
+} from '../state/selection/selection-model';
 import {
     buildCommittedRangeSelection,
     buildCommittedRangeDeletionChanges,
     computeUpdatedSelectionState,
-} from './selection-state';
-import { autoScrollRangeSelection } from './selection-session-flow';
-import { RangeSelectionVisualManager } from './selection-visual-manager';
-import { InteractionState } from '../drag-state';
+} from '../state/selection/selection-state';
+import { autoScrollNearViewportEdge } from '../input/auto-scroll';
+import { RangeSelectionVisualManager } from '../preview/range-selection-visual-manager';
+import { InteractionState } from '../state/drag-state';
 
 export function autoScrollSelectionRange(view: EditorView, clientY: number): boolean {
     const scroller = view.scrollDOM
         ?? view.dom.querySelector<HTMLElement>('.cm-scroller')
         ?? null;
     if (!scroller) return false;
-    return autoScrollRangeSelection(scroller, clientY);
+    return autoScrollNearViewportEdge(scroller, clientY);
 }
 
 export function updateSelectionFromBoundary(
