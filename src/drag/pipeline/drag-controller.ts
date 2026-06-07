@@ -22,7 +22,7 @@ import {
 } from './pointer-selecting-actions';
 import {
     renderRangeSelectionPreview,
-} from '../preview/range-selection-preview';
+} from '../preview/range-selection-visual-manager';
 import { deleteCommittedRangeSelectionFromDocument } from '../move/range-selection-deletion';
 import { RangeSelectionVisualManager } from '../preview/range-selection-visual-manager';
 import { TouchInteractionController } from '../input/touch-interaction-controller';

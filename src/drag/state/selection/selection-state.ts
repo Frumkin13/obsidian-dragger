@@ -4,7 +4,7 @@ import {
     mergeSelectedBlocks,
     subtractSelectedBlocks,
     type SelectedBlockRange,
-} from './block-selection';
+} from '../../../shared/utils/block-ranges';
 import {
     type RangeSelectionBoundary,
     type MouseRangeSelectState,

@@ -3,7 +3,7 @@ export { resolveHandleBlockAtLine } from './handle-block-resolver';
 export { HandleVisibilityController } from './handle-visibility-controller';
 export { HandleGutterLineMarker, createLineDragHandleElement, getVisibleHandleForBlockStart } from './handle-renderer';
 export { RangeSelectionVisualManager } from './range-selection-visual-manager';
-export { autoScrollEditorNearViewportEdge, renderRangeSelectionPreview } from './range-selection-preview';
+export { renderRangeSelectionPreview } from './range-selection-visual-manager';
 export {
     buildAnchorSnapshot,
     emptyAnchorSnapshot,

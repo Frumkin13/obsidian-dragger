@@ -10,7 +10,7 @@ import { RangeAnchorSpan } from './range-selection-anchor';
 import {
     type BlockSelectionSegment,
     type SelectedBlockRange,
-} from '../state/selection/block-selection';
+} from '../../shared/utils/block-ranges';
 
 export class RangeSelectionOverlayRenderer {
     private readonly topResizeHandleEl: HTMLElement;

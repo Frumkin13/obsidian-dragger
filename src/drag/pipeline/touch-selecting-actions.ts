@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo, BlockType } from '../../domain/block/block-types';
-import { DragSource } from '../../shared/types/drag';
+import { DragSource, type RangeSelectionOperation } from '../../shared/types/drag';
 import {
     DRAG_HANDLE_CLASS,
     EMBED_HANDLE_CLASS,
@@ -15,7 +15,6 @@ import {
     collectSelectedBlocksBetween,
     CommittedRangeSelection,
     RangeSelectionBoundary,
-    RangeSelectionOperation,
     resolveBlockBoundaryAtLine,
 } from '../state/selection/selection-model';
 import { resolveRangeBoundaryAtPoint } from '../input/range-boundary-hit';
@@ -24,8 +23,8 @@ import {
     mergeSelectedBlocks,
     SelectedBlockRange,
     subtractSelectedBlocks,
-} from '../state/selection/block-selection';
-import { autoScrollEditorNearViewportEdge } from '../preview/range-selection-preview';
+} from '../../shared/utils/block-ranges';
+import { autoScrollEditorNearViewportEdge } from '../input/editor-auto-scroll';
 import { updateMouseRangeSelection } from './pointer-selecting-actions';
 import {
     InteractionState,

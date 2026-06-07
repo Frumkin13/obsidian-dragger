@@ -1,5 +1,5 @@
 import type { DragSourceRequest } from '../source';
-import type { RangeSelectionOperation } from '../state/selection/selection-model';
+import type { RangeSelectionOperation } from '../../shared/types/drag';
 
 export type RangeSelectionOptions = {
     skipLongPress?: boolean;

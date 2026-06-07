@@ -1,6 +1,6 @@
 import type { Text } from '@codemirror/state';
 import type { BlockInfo } from '../../domain/block/block-types';
-import { groupSelectedBlocksIntoSegments, mergeSelectedBlocks, type SelectedBlockRange } from './selected-blocks';
+import { groupSelectedBlocksIntoSegments, mergeSelectedBlocks, type SelectedBlockRange } from '../../shared/utils/block-ranges';
 import type { DragSourceRange } from './source';
 import { normalizeCompositeRanges } from '../../shared/utils/composite-selection';
 import { clampLineNumber } from '../../shared/utils/line-number';

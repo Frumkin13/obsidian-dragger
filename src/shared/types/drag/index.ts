@@ -1,4 +1,8 @@
 export type {
+    RangeSelectionOperation,
+} from './range-selection';
+
+export type {
     DragSource,
     DragSourceRange,
 } from './source';

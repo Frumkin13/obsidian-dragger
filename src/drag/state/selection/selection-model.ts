@@ -2,18 +2,17 @@ import { EditorState } from '@codemirror/state';
 import { BlockInfo } from '../../../domain/block/block-types';
 import { detectBlock } from '../../../domain/block/block-detector';
 import { clampLineNumber } from '../../../shared/utils/line-number';
+import type { RangeSelectionOperation } from '../../../shared/types/drag';
 import {
     mergeSelectedBlocks,
     type SelectedBlockRange,
-} from './block-selection';
+} from '../../../shared/utils/block-ranges';
 
 export type RangeSelectionBoundary = {
     startLineNumber: number;
     endLineNumber: number;
     representativeLineNumber: number;
 };
-
-export type RangeSelectionOperation = 'add' | 'remove';
 
 export type RangeSelectConfig = {
     longPressMs: number;

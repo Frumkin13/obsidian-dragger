@@ -1,4 +1,6 @@
 import { EditorView } from '@codemirror/view';
+import type { InteractionState } from '../state/drag-state';
+import type { CommittedRangeSelection } from '../state/selection/selection-model';
 import {
     DRAG_HANDLE_CLASS,
     EMBED_HANDLE_CLASS,
@@ -10,7 +12,7 @@ import {
     mergeSelectedBlocks,
     type BlockSelectionSegment,
     type SelectedBlockRange,
-} from '../state/selection/block-selection';
+} from '../../shared/utils/block-ranges';
 import {
     buildAnchorSnapshot,
     emptyAnchorSnapshot,
@@ -19,6 +21,24 @@ import {
     type AnchorSnapshot,
 } from './range-selection-anchor';
 import { RangeSelectionOverlayRenderer } from './range-selection-overlay-renderer';
+
+export function renderRangeSelectionPreview(
+    gesture: InteractionState,
+    committed: CommittedRangeSelection | null,
+    rangeVisual: RangeSelectionVisualManager
+): void {
+    if (gesture.phase === 'selecting' && gesture.selection.mode === 'range') {
+        rangeVisual.render(gesture.selection.rangeSelect.selectionBlocks);
+        return;
+    }
+    if (gesture.phase === 'selecting' && gesture.selection.mode === 'mobile') {
+        rangeVisual.render(gesture.selection.mobileSelect.selectedBlocks, { highlightLines: true, showMobileResizeHandles: true });
+        return;
+    }
+    if (committed) {
+        rangeVisual.render(committed.blocks);
+    }
+}
 
 export class RangeSelectionVisualManager {
     private static readonly selectedCheckboxClass = 'dnd-selection-checkbox';

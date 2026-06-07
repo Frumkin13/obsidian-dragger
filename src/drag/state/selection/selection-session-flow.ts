@@ -5,10 +5,10 @@ import {
     mergeSelectedBlocks,
     subtractSelectedBlocks,
     type SelectedBlockRange,
-} from './block-selection';
+} from '../../../shared/utils/block-ranges';
+import type { RangeSelectionOperation } from '../../../shared/types/drag';
 import {
     type MouseRangeSelectState,
-    type RangeSelectionOperation,
     type RangeSelectConfig,
 } from './selection-model';
 

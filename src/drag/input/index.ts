@@ -25,4 +25,5 @@ export {
     isCommittedSelectionGripHit,
     shouldClearCommittedSelectionOnPointerDown,
 } from './selection-grip-hit';
+export { autoScrollEditorNearViewportEdge } from './editor-auto-scroll';
 export { autoScrollNearViewportEdge } from './auto-scroll';

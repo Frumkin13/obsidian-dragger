@@ -1,12 +1,12 @@
 import type { EditorView } from '@codemirror/view';
 import type { DragSource } from '../../shared/types/drag';
+import type { RangeSelectionOperation } from '../../shared/types/drag';
 import type { DragSourceRequest } from '../source';
-import { cloneSelectedBlocks } from '../state/selection/block-selection';
+import { cloneSelectedBlocks } from '../../shared/utils/block-ranges';
 import type {
     CommittedRangeSelection,
     MouseRangeSelectState,
     RangeSelectionBoundary,
-    RangeSelectionOperation,
 } from '../state/selection/selection-model';
 import {
     createInitialRangeSelectionState,

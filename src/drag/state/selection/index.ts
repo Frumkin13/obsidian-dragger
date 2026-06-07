@@ -1,3 +1,4 @@
+export type { RangeSelectionOperation } from '../../../shared/types/drag';
 export {
     buildRangeSelectionBoundaryFromBlock,
     collectSelectedBlocksBetween,
@@ -5,7 +6,6 @@ export {
     type CommittedRangeSelection,
     type MouseRangeSelectState,
     type RangeSelectionBoundary,
-    type RangeSelectionOperation,
 } from './selection-model';
 export {
     buildCommittedRangeDeletionChanges,
@@ -22,4 +22,4 @@ export {
     mergeSelectedBlocks,
     subtractSelectedBlocks,
     type SelectedBlockRange,
-} from './block-selection';
+} from '../../../shared/utils/block-ranges';

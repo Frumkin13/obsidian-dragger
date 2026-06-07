@@ -2,7 +2,7 @@ import { DragSource } from '../../shared/types/drag';
 import { DRAG_HANDLE_CLASS, EMBED_HANDLE_CLASS } from '../../shared/dom-selectors';
 import { readPointerInput } from '../input';
 import { resolveRangeBoundaryAtPoint } from '../input/range-boundary-hit';
-import { autoScrollEditorNearViewportEdge } from '../preview/range-selection-preview';
+import { autoScrollEditorNearViewportEdge } from '../input/editor-auto-scroll';
 import {
     buildRangeSelectionBoundaryFromBlock,
     type MouseRangeSelectState,

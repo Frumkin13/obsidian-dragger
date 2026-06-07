@@ -8,7 +8,7 @@ import {
 import {
     groupSelectedBlocksIntoSegments,
     type BlockSelectionSegment,
-} from '../state/selection/block-selection';
+} from '../../shared/utils/block-ranges';
 
 export const RANGE_SELECTION_GRIP_HIT_PADDING_PX = 20;
 export const RANGE_SELECTION_GRIP_HIT_X_PADDING_PX = 28;

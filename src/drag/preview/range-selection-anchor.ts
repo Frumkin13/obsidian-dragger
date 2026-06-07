@@ -3,7 +3,7 @@ import {
     HANDLE_CORE_CLASS,
     HANDLE_GUTTER_MARKER_CLASS,
 } from '../../shared/dom-selectors';
-import type { BlockSelectionSegment } from '../state/selection/block-selection';
+import type { BlockSelectionSegment } from '../../shared/utils/block-ranges';
 
 export type RangeAnchorPoint = {
     x: number;
