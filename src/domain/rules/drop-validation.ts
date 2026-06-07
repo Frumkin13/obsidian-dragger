@@ -1,6 +1,6 @@
 import { BlockType } from '../block/block-types';
-import { DragSource } from '../../shared/types/drag';
-import { ListDropIntent } from '../../shared/types/protocol-types';
+import type { BlockSelection } from '../selection/block-selection';
+import type { ListDropTarget } from '../command/drop-target';
 import {
     InsertionRuleRejectReason,
     InsertionSlotContext,
@@ -8,8 +8,8 @@ import {
 } from './insertion-rules';
 import { getLineMetaAt, LineMap } from '../markdown/line-map';
 import { computeListIndentPlan } from '../mutation/list-mutation';
-import { DocLike, ListContext, ParsedLine } from '../../shared/types/protocol-types';
-import { normalizeCompositeRanges } from '../../shared/utils/composite-selection';
+import { DocLike, ListContext, ParsedLine } from '../markdown/document-types';
+import { normalizeCompositeRanges } from '../selection/selection-ranges';
 
 export type InPlaceDropRejectReason =
     | 'self_range_blocked'
@@ -27,12 +27,12 @@ export type InPlaceDropValidationResult = {
 
 function sourceRangesAreListStructured(params: {
     doc: DocLike;
-    source: DragSource;
+    source: BlockSelection;
     parseLineWithQuote: (line: string) => ParsedLine;
     ranges: Array<{ startLine: number; endLine: number }>;
 }): boolean {
     const { doc, source, parseLineWithQuote, ranges } = params;
-    if (source.primaryBlock.type !== BlockType.ListItem) return false;
+    if (source.anchorBlock.type !== BlockType.ListItem) return false;
 
     for (const range of ranges) {
         let foundContent = false;
@@ -50,14 +50,14 @@ function sourceRangesAreListStructured(params: {
 
 export function validateInPlaceDrop(params: {
     doc: DocLike;
-    source: DragSource;
+    source: BlockSelection;
     targetLineNumber: number;
     parseLineWithQuote: (line: string) => ParsedLine;
     getListContext: (doc: DocLike, lineNumber: number) => ListContext;
     getIndentUnitWidth: (sample: string) => number;
     slotContext?: InsertionSlotContext;
     lineMap?: LineMap;
-    listIntent?: ListDropIntent;
+    listIntent?: ListDropTarget;
 }): InPlaceDropValidationResult {
     const {
         doc,
@@ -70,7 +70,7 @@ export function validateInPlaceDrop(params: {
         lineMap,
         listIntent,
     } = params;
-    const sourceBlock = source.primaryBlock;
+    const sourceBlock = source.anchorBlock;
 
     if (typeof slotContext === 'string') {
         const containerRule = resolveInsertionRule({
@@ -101,7 +101,7 @@ export function validateInPlaceDrop(params: {
         return { inSelfRange: false, allowInPlaceIndentChange: false };
     }
 
-    const hasListIntent = listIntent?.targetIndentWidth !== undefined || listIntent?.indentDelta !== undefined;
+    const hasListIntent = listIntent?.targetIndentWidth !== undefined || listIntent?.mode !== undefined;
     if (!hasListIntent) {
         return {
             inSelfRange: true,

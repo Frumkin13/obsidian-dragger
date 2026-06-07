@@ -1,6 +1,6 @@
 import { Plugin } from 'obsidian';
-import { dragHandleExtension } from '../runtime/editor-extension';
-import { ExternalFileDropController } from '../runtime/external-file-drop-controller';
+import { dragHandleExtension } from '../platform/codemirror/extension/editor-extension';
+import { ExternalFileDropController } from '../platform/obsidian/external-file-drop-controller';
 import {
     DEFAULT_HANDLE_SIZE_PX,
     HANDLE_CORE_SIZE_RATIO,
@@ -23,9 +23,9 @@ import {
     HandleVisibilityMode,
     normalizeHandleGutterPosition,
     normalizeMultiLineSelectionLongPressMs,
-    normalizeDragSourceVisualStyle,
+    normalizeBlockSelectionVisualStyle,
 } from './settings';
-import { DragLifecycleEvent, DragLifecycleListener } from '../shared/types/drag';
+import { DragLifecycleEvent, DragLifecycleListener } from '../drag/lifecycle/drag-lifecycle';
 import { registerMobileToolbarCommands } from './mobile-toolbar-commands';
 
 export default class DragNDropPlugin extends Plugin {
@@ -36,7 +36,7 @@ export default class DragNDropPlugin extends Plugin {
 
         await this.loadSettings();
 
-        // 注册编辑器扩展
+        // 注册编辑器扩�?
         this.registerEditorExtension(dragHandleExtension(this));
         registerMobileToolbarCommands(this);
         const externalFileDropController = new ExternalFileDropController(this);
@@ -59,15 +59,15 @@ export default class DragNDropPlugin extends Plugin {
             this.settings.handleVisibility = (saved as { alwaysShowHandles?: boolean }).alwaysShowHandles ? 'always' : 'hover';
         }
         // Legacy migration: old "none" style implied both highlights were effectively off.
-        if (savedRecord.dragSourceVisualStyle === 'none') {
-            if (!('enableDragSourceHighlight' in savedRecord)) {
-                this.settings.enableDragSourceHighlight = false;
+        if (savedRecord.selectionVisualStyle === 'none') {
+            if (!('enableBlockSelectionHighlight' in savedRecord)) {
+                this.settings.enableBlockSelectionHighlight = false;
             }
             if (!('enableListDropHighlight' in savedRecord)) {
                 this.settings.enableListDropHighlight = false;
             }
         }
-        this.settings.enableDragSourceHighlight = this.settings.enableDragSourceHighlight !== false;
+        this.settings.enableBlockSelectionHighlight = this.settings.enableBlockSelectionHighlight !== false;
         this.settings.enableListDropHighlight = this.settings.enableListDropHighlight !== false;
         this.settings.enableCrossFileDrag = this.settings.enableCrossFileDrag === true;
         this.settings.multiLineSelectionLongPressMs = normalizeMultiLineSelectionLongPressMs(
@@ -92,10 +92,10 @@ export default class DragNDropPlugin extends Plugin {
             this.settings.multiLineSelectionLongPressMs
         );
 
-        const dragSourceVisualStyle = normalizeDragSourceVisualStyle(this.settings.dragSourceVisualStyle);
-        this.settings.dragSourceVisualStyle = dragSourceVisualStyle;
-        body.setAttribute(DND_DRAG_SOURCE_STYLE_ATTR, dragSourceVisualStyle);
-        body.setAttribute(DND_DRAG_SOURCE_HIGHLIGHT_ATTR, this.settings.enableDragSourceHighlight ? 'on' : 'off');
+        const selectionVisualStyle = normalizeBlockSelectionVisualStyle(this.settings.selectionVisualStyle);
+        this.settings.selectionVisualStyle = selectionVisualStyle;
+        body.setAttribute(DND_DRAG_SOURCE_STYLE_ATTR, selectionVisualStyle);
+        body.setAttribute(DND_DRAG_SOURCE_HIGHLIGHT_ATTR, this.settings.enableBlockSelectionHighlight ? 'on' : 'off');
         body.setAttribute(DND_LIST_DROP_HIGHLIGHT_ATTR, this.settings.enableListDropHighlight ? 'on' : 'off');
 
         const rawHandleOffset = Number(this.settings.handleHorizontalOffsetPx);

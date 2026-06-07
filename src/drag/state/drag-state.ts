@@ -1,39 +1,33 @@
-import { DragSource } from '../../shared/types/drag';
-import { MouseRangeSelectState, RangeSelectionBoundary } from './range-selection-state';
-import { SelectedBlockRange } from '../../shared/utils/block-ranges';
+import type { BlockSelection } from '../../domain/selection/block-selection';
+import { MouseRangeSelectState, RangeSelectionBoundary } from '../selection/range-selection-state';
+import { SelectedBlockRange } from '../../domain/selection/block-ranges';
 
 export type ActiveDrag = PointerDragData;
 
 export type PointerDragData = {
-    source: DragSource;
+    selection: BlockSelection;
     pointerId: number;
-    latestX: number;
-    latestY: number;
     pointerType: string | null;
     autoScrollFrameId: number | null;
 };
 
-export type BeginActiveDragInput = {
-    source: DragSource;
+export type BeginActiveInteractionInput = {
+    selection: BlockSelection;
     pointerId: number;
-    clientX: number;
-    clientY: number;
     pointerType: string | null;
 };
 
-export function beginActiveDrag(input: BeginActiveDragInput): ActiveDrag {
+export function beginActiveDrag(input: BeginActiveInteractionInput): ActiveDrag {
     return {
-        source: input.source,
+        selection: input.selection,
         pointerId: input.pointerId,
-        latestX: input.clientX,
-        latestY: input.clientY,
         pointerType: input.pointerType,
         autoScrollFrameId: null,
     };
 }
 
 export type PointerPressData = {
-    source: DragSource;
+    selection: BlockSelection;
     pointerId: number;
     startX: number;
     startY: number;
@@ -62,7 +56,7 @@ export type MobileSelectionInteraction =
         pointerId: number;
         startX: number;
         startY: number;
-        source: DragSource;
+        selection: BlockSelection;
     };
 
 export type MobileSelectionData = {

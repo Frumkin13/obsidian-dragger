@@ -8,19 +8,19 @@ import {
 } from '../shared/constants';
 import type {
     DragNDropSettings,
-    DragSourceVisualStyle,
+    BlockSelectionVisualStyle,
     HandleGutterPosition,
     HandleIconStyle,
     HandleVisibilityMode,
-} from '../shared/types/settings-types';
+} from './settings-types';
 
 export type {
     DragNDropSettings,
-    DragSourceVisualStyle,
+    BlockSelectionVisualStyle,
     HandleGutterPosition,
     HandleIconStyle,
     HandleVisibilityMode,
-} from '../shared/types/settings-types';
+} from './settings-types';
 
 export const DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS = 900;
 const MIN_MULTI_LINE_SELECTION_LONG_PRESS_MS = 300;
@@ -48,9 +48,9 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     enableMultiLineSelection: true,
     multiLineSelectionLongPressMs: DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS,
     enableMobileTextLongPressDrag: true,
-    enableDragSourceHighlight: true,
+    enableBlockSelectionHighlight: true,
     enableListDropHighlight: true,
-    dragSourceVisualStyle: 'subtle',
+    selectionVisualStyle: 'subtle',
     handleHorizontalOffsetPx: -8,
     handleGutterPosition: 'left',
 };
@@ -59,7 +59,7 @@ export function normalizeHandleGutterPosition(value: unknown): HandleGutterPosit
     return value === 'right' ? 'right' : 'left';
 }
 
-export function normalizeDragSourceVisualStyle(value: unknown): DragSourceVisualStyle {
+export function normalizeBlockSelectionVisualStyle(value: unknown): BlockSelectionVisualStyle {
     if (value === 'outline' || value === 'subtle' || value === 'filled') {
         return value;
     }
@@ -119,25 +119,25 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName(i.dragSourceVisualStyle)
-            .setDesc(i.dragSourceVisualStyleDesc)
+            .setName(i.selectionVisualStyle)
+            .setDesc(i.selectionVisualStyleDesc)
             .addDropdown(dropdown => dropdown
-                .addOption('outline', i.optionDragSourceVisualOutline)
-                .addOption('subtle', i.optionDragSourceVisualSubtle)
-                .addOption('filled', i.optionDragSourceVisualFilled)
-                .setValue(this.plugin.settings.dragSourceVisualStyle)
-                .onChange(async (value: DragSourceVisualStyle) => {
-                    this.plugin.settings.dragSourceVisualStyle = value;
+                .addOption('outline', i.optionBlockSelectionVisualOutline)
+                .addOption('subtle', i.optionBlockSelectionVisualSubtle)
+                .addOption('filled', i.optionBlockSelectionVisualFilled)
+                .setValue(this.plugin.settings.selectionVisualStyle)
+                .onChange(async (value: BlockSelectionVisualStyle) => {
+                    this.plugin.settings.selectionVisualStyle = value;
                     await this.plugin.saveSettings();
                 }));
 
         new Setting(containerEl)
-            .setName(i.enableDragSourceHighlight)
-            .setDesc(i.enableDragSourceHighlightDesc)
+            .setName(i.enableBlockSelectionHighlight)
+            .setDesc(i.enableBlockSelectionHighlightDesc)
             .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.enableDragSourceHighlight)
+                .setValue(this.plugin.settings.enableBlockSelectionHighlight)
                 .onChange(async (value) => {
-                    this.plugin.settings.enableDragSourceHighlight = value;
+                    this.plugin.settings.enableBlockSelectionHighlight = value;
                     await this.plugin.saveSettings();
                 }));
 

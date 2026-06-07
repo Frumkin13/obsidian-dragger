@@ -1,11 +1,34 @@
-import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
+import type { StateWithDoc } from '../markdown/document-types';
 import { BlockType } from './block-types';
 import { detectBlock, getHeadingSectionRange } from './block-detector';
 import { peekCachedLineMap } from '../markdown/line-map';
 
-function createState(doc: string): EditorState {
-    return EditorState.create({ doc });
+function createState(docText: string): StateWithDoc & { tabSize: number } {
+    const lines = docText.split('\n');
+    const starts: number[] = [];
+    let offset = 0;
+    for (const line of lines) {
+        starts.push(offset);
+        offset += line.length + 1;
+    }
+
+    return {
+        tabSize: 2,
+        doc: {
+            lines: lines.length,
+            line: (n: number) => {
+                const index = n - 1;
+                const text = lines[index] ?? '';
+                const from = starts[index] ?? docText.length;
+                return {
+                    text,
+                    from,
+                    to: from + text.length,
+                };
+            },
+        },
+    };
 }
 
 describe('block-detector', () => {

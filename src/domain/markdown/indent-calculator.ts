@@ -1,4 +1,4 @@
-import { DocLike, ParsedLine } from '../../shared/types/protocol-types';
+import { DocLike, ParsedLine } from './document-types';
 import { parseLineWithQuote as parseLineWithQuoteByTabSize } from './line-parser';
 
 const indentUnitWidthCache = new WeakMap<object, number>();

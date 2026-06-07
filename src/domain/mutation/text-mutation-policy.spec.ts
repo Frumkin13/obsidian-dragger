@@ -1,19 +1,27 @@
-import { EditorState } from '@codemirror/state';
-import type { EditorView } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import { BlockInfo, BlockType } from '../block/block-types';
+import type { DocLike } from '../markdown/document-types';
 import { createLineParsingContext } from '../markdown/line-parsing-service';
 import { buildInsertTextForDrop } from './text-mutation-policy';
 
+function createDoc(docText: string): DocLike {
+    const lines = docText.split('\n');
+    return {
+        lines: lines.length,
+        line: (n: number) => ({
+            text: lines[n - 1] ?? '',
+        }),
+    };
+}
+
 function createPolicy(docText: string) {
-    const state = EditorState.create({ doc: docText });
-    const view = { state } as unknown as EditorView;
-    const lineParsing = createLineParsingContext(view);
+    const doc = createDoc(docText);
+    const lineParsing = createLineParsingContext(4);
     return {
         buildInsertText: (sourceBlock: BlockInfo, targetLineNumber: number, sourceContent: string) =>
             buildInsertTextForDrop({
                 lineParsing,
-                doc: state.doc,
+                doc,
                 sourceBlock,
                 targetLineNumber,
                 sourceContent,

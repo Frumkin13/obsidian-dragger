@@ -4,7 +4,8 @@ import {
     buildInsertText,
     getListContext,
 } from './list-mutation';
-import { DocLike, ListDropIntent } from '../../shared/types/protocol-types';
+import type { ListDropTarget } from '../command/drop-target';
+import { DocLike } from '../markdown/document-types';
 import { LineParsingContext } from '../markdown/line-parsing-service';
 
 export function buildInsertTextForDrop(params: {
@@ -13,7 +14,7 @@ export function buildInsertTextForDrop(params: {
     sourceBlock: BlockInfo;
     targetLineNumber: number;
     sourceContent: string;
-    listIntent?: ListDropIntent;
+    listIntent?: ListDropTarget;
 }): string {
     const {
         lineParsing,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDragSource } from '../../drag/source/source';
+import { createBlockSelection } from '../../domain/selection/block-selection';
 import { BlockType, type BlockInfo } from '../block/block-types';
 import { validateInPlaceDrop } from './drop-validation';
 import { getLineMap } from '../markdown/line-map';
@@ -24,8 +24,8 @@ function createBlock(type: BlockType, startLine: number, endLine: number, conten
     };
 }
 
-function sourceFromBlock(block: BlockInfo, ranges = [{ startLine: block.startLine, endLine: block.endLine }]) {
-    return createDragSource(block, ranges);
+function selectionFromBlock(block: BlockInfo, ranges = [{ startLine: block.startLine, endLine: block.endLine }]) {
+    return createBlockSelection(block, ranges);
 }
 
 describe('drop-validation', () => {
@@ -33,7 +33,7 @@ describe('drop-validation', () => {
         const sourceBlock = createBlock(BlockType.Paragraph, 0, 0, 'plain');
         const result = validateInPlaceDrop({
             doc: createDoc(['- list item']),
-            source: sourceFromBlock(sourceBlock),
+            source: selectionFromBlock(sourceBlock),
             targetLineNumber: 1,
             parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
             getListContext: () => null,
@@ -48,7 +48,7 @@ describe('drop-validation', () => {
     it('keeps result stable when lineMap is provided', () => {
         const state = { doc: createDoc(['- root', '  - child', 'tail']) };
         const sourceBlock = createBlock(BlockType.ListItem, 0, 1, '- root\n  - child');
-        const source = sourceFromBlock(sourceBlock);
+        const source = selectionFromBlock(sourceBlock);
         const withoutMap = validateInPlaceDrop({
             doc: state.doc,
             source,
@@ -58,8 +58,8 @@ describe('drop-validation', () => {
             getIndentUnitWidth: () => 2,
             slotContext: 'inside_list',
             listIntent: {
+                mode: 'sibling',
                 contextLineNumber: 1,
-                indentDelta: 0,
                 targetIndentWidth: 0,
             },
         });
@@ -73,8 +73,8 @@ describe('drop-validation', () => {
             slotContext: 'inside_list',
             lineMap: getLineMap(state),
             listIntent: {
+                mode: 'sibling',
                 contextLineNumber: 1,
-                indentDelta: 0,
                 targetIndentWidth: 0,
             },
         });
@@ -84,7 +84,7 @@ describe('drop-validation', () => {
 
     it('treats disjoint source gaps as valid drop targets', () => {
         const sourceBlock = createBlock(BlockType.ListItem, 1, 6, '- a\n- z');
-        const source = sourceFromBlock(sourceBlock, [
+        const source = selectionFromBlock(sourceBlock, [
             { startLine: 1, endLine: 1 },
             { startLine: 6, endLine: 6 },
         ]);
@@ -114,7 +114,7 @@ describe('drop-validation', () => {
 
     it('treats contiguous ranges like a single block for in-place indent changes', () => {
         const sourceBlock = createBlock(BlockType.ListItem, 0, 1, '- root\n  - child');
-        const source = sourceFromBlock(sourceBlock, [
+        const source = selectionFromBlock(sourceBlock, [
             { startLine: 0, endLine: 0 },
             { startLine: 1, endLine: 1 },
         ]);
@@ -139,7 +139,7 @@ describe('drop-validation', () => {
 
     it('blocks in-place list indent when a source contains non-list content', () => {
         const sourceBlock = createBlock(BlockType.ListItem, 0, 2, '- root\nparagraph\n- child');
-        const source = sourceFromBlock(sourceBlock, [
+        const source = selectionFromBlock(sourceBlock, [
             { startLine: 0, endLine: 0 },
             { startLine: 1, endLine: 1 },
             { startLine: 2, endLine: 2 },

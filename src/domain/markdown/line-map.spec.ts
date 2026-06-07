@@ -1,11 +1,93 @@
-import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
+import type { DocLikeWithRange, StateWithDoc } from './document-types';
 import {
     buildLineMap,
     getLineMap,
     getLineMetaAt,
     primeLineMapFromTransition,
 } from './line-map';
+
+type TestDoc = DocLikeWithRange & {
+    lineAt: (pos: number) => { number: number };
+    text: string;
+};
+
+type TestState = StateWithDoc & {
+    doc: TestDoc;
+};
+
+type TestChangeDesc = {
+    iterChanges(
+        callback: (
+            fromA: number,
+            toA: number,
+            fromB: number,
+            toB: number,
+            inserted: unknown
+        ) => void
+    ): void;
+};
+
+function createDoc(text: string): TestDoc {
+    const lines = text.split('\n');
+    const starts: number[] = [];
+    let offset = 0;
+    for (const line of lines) {
+        starts.push(offset);
+        offset += line.length + 1;
+    }
+
+    return {
+        text,
+        lines: lines.length,
+        length: text.length,
+        line: (n: number) => {
+            const index = n - 1;
+            const lineText = lines[index] ?? '';
+            const from = starts[index] ?? text.length;
+            return {
+                text: lineText,
+                from,
+                to: from + lineText.length,
+            };
+        },
+        lineAt: (pos: number) => {
+            const clamped = Math.max(0, Math.min(text.length, pos));
+            let lineNumber = 1;
+            for (let i = 0; i < starts.length; i++) {
+                if (starts[i] > clamped) break;
+                lineNumber = i + 1;
+            }
+            return { number: lineNumber };
+        },
+        sliceString: (from: number, to: number) => text.slice(from, to),
+    };
+}
+
+function createState(docText: string): TestState {
+    return { doc: createDoc(docText) };
+}
+
+function updateState(
+    state: TestState,
+    change: { from: number; to: number; insert: string }
+): { state: TestState; changes: TestChangeDesc } {
+    const nextText = `${state.doc.text.slice(0, change.from)}${change.insert}${state.doc.text.slice(change.to)}`;
+    return {
+        state: createState(nextText),
+        changes: {
+            iterChanges: (callback) => {
+                callback(
+                    change.from,
+                    change.to,
+                    change.from,
+                    change.from + change.insert.length,
+                    change.insert
+                );
+            },
+        },
+    };
+}
 
 function nowMs(): number {
     if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
@@ -37,9 +119,7 @@ function summarizeDurations(samples: number[]): {
 
 describe('line-map', () => {
     it('builds line metadata and non-empty indexes', () => {
-        const state = EditorState.create({
-            doc: '> [!note] title\n> body\n\n- item\n---\n| a |',
-        });
+        const state = createState('> [!note] title\n> body\n\n- item\n---\n| a |');
         const lineMap = getLineMap(state);
 
         expect(getLineMetaAt(lineMap, 1)).toEqual(expect.objectContaining({
@@ -64,9 +144,7 @@ describe('line-map', () => {
     });
 
     it('builds list parent/subtree indexes', () => {
-        const state = EditorState.create({
-            doc: '- root\n  - child\n    detail\n- sibling\nafter',
-        });
+        const state = createState('- root\n  - child\n    detail\n- sibling\nafter');
         const lineMap = getLineMap(state);
 
         expect(lineMap.listParentLine[1]).toBe(0);
@@ -78,29 +156,25 @@ describe('line-map', () => {
     });
 
     it('reuses cached line map across states sharing the same doc', () => {
-        const stateA = EditorState.create({ doc: '- item' });
+        const stateA = createState('- item');
         const first = getLineMap(stateA);
-        const stateB = EditorState.create({ doc: stateA.doc });
+        const stateB = { doc: stateA.doc };
         const second = getLineMap(stateB);
-        const stateC = EditorState.create({ doc: '- item\n- next' });
+        const stateC = createState('- item\n- next');
 
         expect(first).toBe(second);
         expect(getLineMap(stateC)).not.toBe(first);
     });
 
     it('primes next line map from transition changes and matches full build output', () => {
-        const previousState = EditorState.create({
-            doc: '- root\n- sibling\nplain',
-        });
+        const previousState = createState('- root\n- sibling\nplain');
         const previousMap = getLineMap(previousState);
         expect(previousMap.doc.lines).toBe(3);
 
-        const tr = previousState.update({
-            changes: {
-                from: previousState.doc.line(2).to,
-                to: previousState.doc.line(2).to,
-                insert: '\n  - child',
-            },
+        const tr = updateState(previousState, {
+            from: previousState.doc.line(2).to,
+            to: previousState.doc.line(2).to,
+            insert: '\n  - child',
         });
         const nextState = tr.state;
 
@@ -122,16 +196,12 @@ describe('line-map', () => {
     });
 
     it('reuses index arrays when typing does not change structural metadata', () => {
-        const previousState = EditorState.create({
-            doc: '- item\nplain text\n> quote',
-        });
+        const previousState = createState('- item\nplain text\n> quote');
         const previous = getLineMap(previousState);
-        const tr = previousState.update({
-            changes: {
-                from: previousState.doc.line(2).to,
-                to: previousState.doc.line(2).to,
-                insert: '!',
-            },
+        const tr = updateState(previousState, {
+            from: previousState.doc.line(2).to,
+            to: previousState.doc.line(2).to,
+            insert: '!',
         });
         const next = primeLineMapFromTransition({
             previousState,
@@ -163,7 +233,7 @@ describe('line-map', () => {
             }
         }
 
-        let state = EditorState.create({ doc: sourceLines.join('\n') });
+        let state = createState(sourceLines.join('\n'));
         getLineMap(state);
 
         const totalDurations: number[] = [];
@@ -175,12 +245,10 @@ describe('line-map', () => {
             const line = state.doc.line(lineNumber);
             const insert = i % 2 === 0 ? 'a' : 'b';
             const totalStartedAt = nowMs();
-            const tr = state.update({
-                changes: {
-                    from: line.to,
-                    to: line.to,
-                    insert,
-                },
+            const tr = updateState(state, {
+                from: line.to,
+                to: line.to,
+                insert,
             });
 
             const primeStartedAt = nowMs();

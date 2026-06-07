@@ -1,6 +1,4 @@
-import { EditorState } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
-import { DocLike, ParsedLine } from '../../shared/types/protocol-types';
+import { DocLike, ParsedLine } from './document-types';
 import {
     buildIndentStringFromSample,
     getIndentUnitWidth,
@@ -17,8 +15,9 @@ export interface LineParsingContext {
     buildIndentStringFromSample: (sample: string, width: number) => string;
 }
 
-export function createLineParsingContext(view: EditorView): LineParsingContext {
-    const getTabSize = () => normalizeTabSize(view.state.facet(EditorState.tabSize));
+export function createLineParsingContext(tabSize: number): LineParsingContext {
+    const normalizedTabSize = normalizeTabSize(tabSize);
+    const getTabSize = () => normalizedTabSize;
     const parseLine = (line: string) => parseLineWithQuote(line, getTabSize());
     return {
         getTabSize,

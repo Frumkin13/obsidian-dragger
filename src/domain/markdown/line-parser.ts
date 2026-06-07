@@ -1,4 +1,4 @@
-import { ParsedLine, ParsedListLine } from '../../shared/types/protocol-types';
+import { ParsedLine, ParsedListLine } from './document-types';
 
 export function getIndentWidthFromIndentRaw(indentRaw: string, tabSize: number): number {
     const safeTabSize = tabSize > 0 ? tabSize : 4;

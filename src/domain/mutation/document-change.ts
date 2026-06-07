@@ -1,4 +1,4 @@
-import { DocLikeWithRange } from '../../shared/types/protocol-types';
+import { DocLikeWithRange } from '../markdown/document-types';
 
 export type TextChange = {
     from: number;

@@ -1,5 +1,6 @@
 import { BlockType } from '../block/block-types';
-import { DocLike, ListContext, ListContextValue, ListDropIntent, ParsedLine } from '../../shared/types/protocol-types';
+import type { ListDropTarget } from '../command/drop-target';
+import { DocLike, ListContext, ListContextValue, ParsedLine } from '../markdown/document-types';
 
 export function getListContext(
     doc: DocLike,
@@ -117,7 +118,7 @@ export function computeListIndentPlan(params: {
     parseLineWithQuote: (line: string) => ParsedLine;
     getIndentUnitWidth: (sample: string) => number;
     getListContext?: (doc: DocLike, lineNumber: number) => ListContext;
-    listIntent?: ListDropIntent;
+    listIntent?: ListDropTarget;
 }): ListIndentPlan {
     const {
         doc,
@@ -136,7 +137,12 @@ export function computeListIndentPlan(params: {
     const indentSample = targetContext ? targetContext.indentRaw : sourceBase.indentRaw;
     const indentUnitWidth = getIndentUnitWidthFn(indentSample || sourceBase.indentRaw);
     const indentDeltaBase = (targetContext ? targetContext.indentWidth : 0) - sourceBase.indentWidth;
-    let indentDelta = indentDeltaBase + ((listIntent?.indentDelta ?? 0) * indentUnitWidth);
+    const intentIndentDelta = listIntent?.mode === 'child'
+        ? 1
+        : listIntent?.mode === 'outdent'
+            ? -1
+            : 0;
+    let indentDelta = indentDeltaBase + (intentIndentDelta * indentUnitWidth);
 
     if (typeof listIntent?.targetIndentWidth === 'number') {
         indentDelta = listIntent.targetIndentWidth - sourceBase.indentWidth;
@@ -161,7 +167,7 @@ export function adjustListToTargetContext(params: {
     getIndentUnitWidth: (sample: string) => number;
     buildIndentStringFromSample: (sample: string, width: number) => string;
     getListContext?: (doc: DocLike, lineNumber: number) => ListContext;
-    listIntent?: ListDropIntent;
+    listIntent?: ListDropTarget;
 }): string {
     const {
         doc,

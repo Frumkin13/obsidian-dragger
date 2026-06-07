@@ -2,12 +2,12 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const dragRoot = join(process.cwd(), 'src', 'drag');
+const srcRoot = join(process.cwd(), 'src');
+const dragRoot = join(srcRoot, 'drag');
 
 function collectTsFiles(dir: string): string[] {
-    const entries = readdirSync(dir);
     const files: string[] = [];
-    for (const entry of entries) {
+    for (const entry of readdirSync(dir)) {
         const path = join(dir, entry);
         const stat = statSync(path);
         if (stat.isDirectory()) {
@@ -21,101 +21,67 @@ function collectTsFiles(dir: string): string[] {
     return files;
 }
 
-function readProductionFiles(): Array<{ path: string; rel: string; text: string }> {
+function readDragProductionFiles(): Array<{ rel: string; text: string }> {
     return collectTsFiles(dragRoot).map((path) => ({
-        path,
         rel: relative(process.cwd(), path).replace(/\\/g, '/'),
         text: readFileSync(path, 'utf8'),
     }));
 }
 
-describe('drag architecture boundaries', () => {
-    it('keeps drag top-level folders aligned with PRD stages', () => {
+describe('headless drag architecture boundaries', () => {
+    it('keeps drag as headless interaction use-case folders', () => {
         const topLevelDirs = readdirSync(dragRoot)
             .filter((entry) => statSync(join(dragRoot, entry)).isDirectory())
             .sort();
         expect(topLevelDirs).toEqual([
-            'cleanup',
             'drop',
-            'input',
+            'effects',
             'intent',
-            'move',
+            'lifecycle',
             'pipeline',
-            'preview',
-            'source',
+            'selection',
             'state',
         ]);
     });
 
-    it('keeps DragSource construction inside source stage', () => {
-        const offenders = readProductionFiles()
-            .filter((file) => !file.rel.startsWith('src/drag/source/'))
-            .filter((file) => /\bcreateDragSource\s*\(/.test(file.text))
+    it('does not import host/platform/plugin APIs from drag production code', () => {
+        const offenders = readDragProductionFiles()
+            .filter((file) => /from ['"](?:@codemirror\/|obsidian|\.\.\/\.\.\/platform\/|\.\.\/platform\/|\.\.\/\.\.\/plugin\/|\.\.\/plugin\/)/.test(file.text))
             .map((file) => file.rel);
         expect(offenders).toEqual([]);
     });
 
-    it('keeps intent pure and free of state/source/drop side effects', () => {
-        const forbidden = /createDragSource|beginPressPendingDrag|enterDraggingState|beginRangeSelectionSession|performDropAtPoint|host\.|gesture\s*=/;
-        const offenders = readProductionFiles()
-            .filter((file) => file.rel.startsWith('src/drag/intent/'))
+    it('does not keep host DOM/event types in drag production code', () => {
+        const forbidden = /\b(?:EditorView|HTMLElement|PointerEvent|MouseEvent|KeyboardEvent|FocusEvent|TouchEvent|DOMRect|clientX|clientY)\b|\b(?:document|window)\.|view\.dispatch|\bdispatch\s*\(|addEventListener|removeEventListener|querySelector|classList|getBoundingClientRect/;
+        const offenders = readDragProductionFiles()
             .filter((file) => forbidden.test(file.text))
             .map((file) => file.rel);
         expect(offenders).toEqual([]);
     });
 
-    it('keeps preview independent from drop planner implementation', () => {
-        const offenders = readProductionFiles()
-            .filter((file) => file.rel.startsWith('src/drag/preview/'))
-            .filter((file) => /drop-planner|DropPlanner|resolveValidatedDropTarget/.test(file.text))
-            .map((file) => file.rel);
-        expect(offenders).toEqual([]);
-    });
-
-    it('does not keep legacy source models or handle-to-point fallback paths', () => {
-        const forbidden = /compositeSelection|DragSourceSelection|getActiveDragSourceBlock|fromBlockInfo|toLegacyBlockInfo|sourceBlock\.compositeSelection|drag\/gesture|range_selecting|mobile_selecting|resolveInteractionBlockInfo|getBlockInfoForHandle\([^\n]*\)\s*\?\?|buildDragSourceFromBlocks|buildDragSourceFromBlock|cloneDragSource|cloneCommittedSelectionSource|activeSelectionSource|directDragSource|anchorSelectionSource/;
-        const offenders = readProductionFiles()
+    it('keeps platform resolution and command execution contracts out of drag', () => {
+        const forbidden = /\b(?:DropResolution|DropPreview|DropValidationResult|MoveBlockCommand|BlockTransaction|applyMoveCommand|applyBlockTransaction|renderDropPreviewAtPoint|performDropAtPoint)\b/;
+        const offenders = readDragProductionFiles()
             .filter((file) => forbidden.test(file.text))
             .map((file) => file.rel);
         expect(offenders).toEqual([]);
     });
 
-    it('keeps state as pure interaction state without DOM, timers, rendering, or document mutation', () => {
-        const forbidden = /\b(?:document|window)\.|\b(?:PointerEvent|MouseEvent|KeyboardEvent|FocusEvent|TouchEvent|HTMLElement|DOMRect)\b|\bEditorView\b|view\.dispatch|\.dispatch\(|rangeVisual|\.render\(|getBoundingClientRect|querySelector|classList|addEventListener|removeEventListener|setTimeout|clearTimeout|requestAnimationFrame|cancelAnimationFrame/;
-        const offenders = readProductionFiles()
-            .filter((file) => file.rel.startsWith('src/drag/state/'))
-            .filter((file) => forbidden.test(file.text))
-            .map((file) => file.rel);
-        expect(offenders).toEqual([]);
-    });
-
-    it('keeps state from importing business stages or platform/input/preview/pipeline helpers', () => {
-        const forbiddenImport = /from ['"](?:\.\.\/)*(?:input|preview|pipeline|move|drop|cleanup|platform|runtime)\//;
-        const offenders = readProductionFiles()
-            .filter((file) => file.rel.startsWith('src/drag/state/'))
-            .filter((file) => forbiddenImport.test(file.text))
-            .map((file) => file.rel);
-        expect(offenders).toEqual([]);
-    });
-
-    it('keeps pipeline as orchestration files instead of lifecycle/mobile business buckets', () => {
-        const pipelineFiles = readProductionFiles()
-            .filter((file) => file.rel.startsWith('src/drag/pipeline/'))
-            .map((file) => file.rel.replace('src/drag/pipeline/', ''))
-            .sort();
-        expect(pipelineFiles).toEqual([
-            'drag-controller.ts',
-            'drop-commit-pipeline.ts',
-            'pointer-selecting-actions.ts',
-            'pointerdown-pipeline.ts',
-            'pointermove-pipeline.ts',
-            'pointerup-pipeline.ts',
-            'touch-selecting-actions.ts',
-        ]);
-
-        const forbiddenNames = pipelineFiles.filter((file) => (
-            /gesture|orchestrator|lifecycle|mobile-selection|touch-selection|range-selection|desktop-pointerdown|drag-intent-executor/.test(file)
-        ));
-        expect(forbiddenNames).toEqual([]);
+    it('does not keep old UI/source/move folders under drag', () => {
+        const forbidden = [
+            'cleanup',
+            'input',
+            'preview',
+            'source',
+            'move',
+        ];
+        const existing = forbidden.filter((dir) => {
+            try {
+                return statSync(join(dragRoot, dir)).isDirectory();
+            } catch {
+                return false;
+            }
+        });
+        expect(existing).toEqual([]);
     });
 });

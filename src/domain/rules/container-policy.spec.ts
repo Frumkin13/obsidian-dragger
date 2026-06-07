@@ -6,7 +6,7 @@ import {
     type DetectBlockFn,
 } from './container-policy';
 import { getLineMap } from '../markdown/line-map';
-import { DocLike, StateWithDoc } from '../../shared/types/protocol-types';
+import { DocLike, StateWithDoc } from '../markdown/document-types';
 
 function createDoc(lines: string[]): DocLike {
     const fromOffsets: number[] = [];

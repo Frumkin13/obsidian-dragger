@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DocLike } from '../../shared/types/protocol-types';
+import type { DocLike } from '../markdown/document-types';
 import { buildIndentStringFromSample } from '../markdown/indent-calculator';
 import { parseLineWithQuote } from '../markdown/line-parser';
 import {
@@ -41,7 +41,7 @@ describe('list-mutation', () => {
             targetLineNumber: 2,
             parseLineWithQuote: parse,
             getIndentUnitWidth: () => 2,
-            listIntent: { indentDelta: 1 },
+            listIntent: { mode: 'child' },
         });
 
         expect(plan.targetIndentWidth).toBe(2);

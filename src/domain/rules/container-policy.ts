@@ -6,7 +6,7 @@ import {
     InsertionSlotContext,
     resolveInsertionRule,
 } from './insertion-rules';
-import { DocLike, StateWithDoc } from '../../shared/types/protocol-types';
+import { DocLike, StateWithDoc } from '../markdown/document-types';
 import { isBlockquoteLine, isHorizontalRuleLine } from '../block/block-guards';
 
 type ContainerType = BlockType.ListItem | BlockType.Blockquote | BlockType.Callout;

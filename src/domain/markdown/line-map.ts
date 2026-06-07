@@ -1,9 +1,13 @@
-import { EditorState } from '@codemirror/state';
 import { parseLineWithQuote } from './line-parser';
-import { DocLike, StateWithDoc } from '../../shared/types/protocol-types';
+import { DocLike, StateWithDoc } from './document-types';
 import { isHorizontalRuleLine, isCalloutLine } from '../block/block-guards';
-import { nowMs } from '../../shared/utils/timing';
 import { normalizeTabSize } from './indent-calculator';
+
+function nowMs(): number {
+    return typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : Date.now();
+}
 
 export interface LineMeta {
     isEmpty: boolean;
@@ -75,15 +79,10 @@ export function setLineMapPerfRecorder(
 
 function resolveStateTabSize(state: unknown): number {
     if (!state || typeof state !== 'object') return 4;
-    try {
-        const withFacet = state as EditorState;
-        if (typeof withFacet.facet === 'function') {
-            return normalizeTabSize(withFacet.facet(EditorState.tabSize));
-        }
-    } catch {
-        // ignore tab size extraction failures on non-EditorState stubs
-    }
-    return 4;
+    const maybeTabSize = (state as { tabSize?: unknown }).tabSize;
+    return typeof maybeTabSize === 'number' && Number.isFinite(maybeTabSize)
+        ? normalizeTabSize(maybeTabSize)
+        : 4;
 }
 
 function createLineMetaFromText(text: string, tabSize: number): LineMeta {

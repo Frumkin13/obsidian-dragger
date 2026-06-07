@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
-import { clampLineNumber } from '../../shared/utils/line-number';
-import { getCoordsAtPos } from '../codemirror/rect-calculator';
+import { clampLineNumber } from '../../domain/markdown/line-number';
+import { getCoordsAtPos } from '../codemirror/selection/rect-calculator';
 
 type ContentRect = Pick<DOMRect | DOMRectReadOnly, 'left' | 'right' | 'top' | 'bottom'>;
 

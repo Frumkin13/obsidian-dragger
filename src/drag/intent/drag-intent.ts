@@ -1,41 +1,32 @@
-import { DRAG_HANDLE_CLASS, EMBED_HANDLE_CLASS } from '../../shared/dom-selectors';
-import type { RangeSelectionOperation } from '../../shared/types/drag';
-import type { DragSourceRequest } from '../source/source';
+import type { BlockSelection } from '../../domain/selection/block-selection';
+import type { GestureCancelReason } from '../state/drag-state';
+import type { RangeSelectionOperation } from '../selection/range-selection-state';
 
-export type RangeSelectionOptions = {
-    skipLongPress?: boolean;
-    initialOperation?: RangeSelectionOperation;
+export type RangeSelectionSeed = {
+    selection: BlockSelection;
+    operation?: RangeSelectionOperation;
 };
 
 export type DragIntent =
     | { type: 'ignore' }
-    | { type: 'start_drag'; sourceRequest: DragSourceRequest }
-    | { type: 'start_range_selection'; sourceRequest: DragSourceRequest; options?: RangeSelectionOptions };
+    | { type: 'start_drag'; selection: BlockSelection }
+    | { type: 'start_range_selection'; selectionSeed: RangeSelectionSeed }
+    | { type: 'commit_selection' }
+    | { type: 'cancel'; reason: GestureCancelReason };
 
-export function isSourceIntent(intent: DragIntent): intent is Extract<DragIntent, { sourceRequest: DragSourceRequest }> {
-    return 'sourceRequest' in intent;
-}
+export type DragIntentFacts = {
+    disabled?: boolean;
+    selection?: BlockSelection | null;
+    rangeSelectionSeed?: RangeSelectionSeed | null;
+    shouldCommitSelection?: boolean;
+    cancelReason?: GestureCancelReason | null;
+};
 
-export function decideDesktopPointerDownIntent(params: {
-    target: HTMLElement;
-    event: PointerEvent;
-    hasCommittedSelection: boolean;
-    multiLineSelectionEnabled: boolean;
-}): DragIntent {
-    const handle = params.target.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`);
-    if (!handle || handle.classList.contains(EMBED_HANDLE_CLASS)) return { type: 'ignore' };
-    if (params.event.button !== 0) return { type: 'ignore' };
-
-    const sourceRequest = { kind: 'handle' as const, handle };
-    if (params.multiLineSelectionEnabled) {
-        return {
-            type: 'start_range_selection',
-            sourceRequest,
-            options: params.hasCommittedSelection || params.event.shiftKey
-                ? { skipLongPress: true }
-                : undefined,
-        };
-    }
-
-    return { type: 'start_drag', sourceRequest };
+export function decideDragIntent(facts: DragIntentFacts): DragIntent {
+    if (facts.disabled) return { type: 'ignore' };
+    if (facts.cancelReason) return { type: 'cancel', reason: facts.cancelReason };
+    if (facts.shouldCommitSelection) return { type: 'commit_selection' };
+    if (facts.rangeSelectionSeed) return { type: 'start_range_selection', selectionSeed: facts.rangeSelectionSeed };
+    if (facts.selection) return { type: 'start_drag', selection: facts.selection };
+    return { type: 'ignore' };
 }
