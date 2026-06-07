@@ -6,19 +6,22 @@ import {
     DragSourceScope,
 } from '../../shared/types/drag';
 import { buildCancelledLifecycleEvent, buildDropCommitLifecycleEvent } from './pipeline-events';
-import { DragLifecycleEmitter } from '../../runtime/drag-lifecycle-emitter';
 import { buildListIntent } from '../../shared/utils/drop-protocol';
 import { BlockMover } from '../move/block-mover';
 import { DropPlanner } from '../drop/drop-planner';
 import { DragPerfSessionPort, SemanticRefreshPort } from './drop-commit-ports';
-import { getActiveDragSourceView } from '../runtime/active-drag-registry';
+
+export type DragLifecycleSink = {
+    emit(event: DragLifecycleEvent): void;
+};
 
 export interface DropCommitPipelineDeps {
     view: EditorView;
     blockMover: BlockMover;
     dropPlanner: DropPlanner;
     dragPerfManager: DragPerfSessionPort;
-    lifecycleEmitter: DragLifecycleEmitter;
+    lifecycleEmitter: DragLifecycleSink;
+    getActiveDragSourceView: () => EditorView | null;
     getSemanticRefreshScheduler: () => SemanticRefreshPort;
     resolveEditorDocumentKey?: (view: EditorView) => string | null;
     allowCrossDocumentDrop?: () => boolean;
@@ -29,7 +32,8 @@ export class DropCommitPipeline {
     private readonly blockMover: BlockMover;
     private readonly dropPlanner: DropPlanner;
     private readonly dragPerfManager: DragPerfSessionPort;
-    private readonly lifecycleEmitter: DragLifecycleEmitter;
+    private readonly lifecycleEmitter: DragLifecycleSink;
+    private readonly getActiveDragSourceView: () => EditorView | null;
     private readonly getSemanticRefreshScheduler: () => SemanticRefreshPort;
     private readonly resolveEditorDocumentKey?: (view: EditorView) => string | null;
     private readonly allowCrossDocumentDrop?: () => boolean;
@@ -40,6 +44,7 @@ export class DropCommitPipeline {
         this.dropPlanner = deps.dropPlanner;
         this.dragPerfManager = deps.dragPerfManager;
         this.lifecycleEmitter = deps.lifecycleEmitter;
+        this.getActiveDragSourceView = deps.getActiveDragSourceView;
         this.getSemanticRefreshScheduler = deps.getSemanticRefreshScheduler;
         this.resolveEditorDocumentKey = deps.resolveEditorDocumentKey;
         this.allowCrossDocumentDrop = deps.allowCrossDocumentDrop;
@@ -48,7 +53,7 @@ export class DropCommitPipeline {
     performDropAtPoint(source: DragSource, clientX: number, clientY: number, pointerType: string | null): void {
         this.ensureDragPerfSession();
         const view = this.view;
-        const sourceView = getActiveDragSourceView();
+        const sourceView = this.getActiveDragSourceView();
         const sourceScope: DragSourceScope = sourceView && sourceView !== view
             ? 'cross_editor'
             : 'same_editor';

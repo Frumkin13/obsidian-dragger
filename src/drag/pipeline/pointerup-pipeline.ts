@@ -1,6 +1,6 @@
 import { readPointerInput } from '../input';
 import type { PointerTerminalMode } from '../state';
-import { finishMobileSelectionPointer } from '../selection';
+import { finishMobileSelectionPointer } from './touch-selecting-actions';
 import type { DragEventHandler } from './drag-controller';
 
 export function runPointerUpPipeline(host: DragEventHandler, e: PointerEvent): void {

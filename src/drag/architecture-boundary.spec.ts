@@ -30,6 +30,23 @@ function readProductionFiles(): Array<{ path: string; rel: string; text: string 
 }
 
 describe('drag architecture boundaries', () => {
+    it('keeps drag top-level folders aligned with PRD stages', () => {
+        const topLevelDirs = readdirSync(dragRoot)
+            .filter((entry) => statSync(join(dragRoot, entry)).isDirectory())
+            .sort();
+        expect(topLevelDirs).toEqual([
+            'cleanup',
+            'drop',
+            'input',
+            'intent',
+            'move',
+            'pipeline',
+            'preview',
+            'source',
+            'state',
+        ]);
+    });
+
     it('keeps DragSource construction inside source stage', () => {
         const offenders = readProductionFiles()
             .filter((file) => !file.rel.startsWith('src/drag/source/'))
@@ -92,10 +109,12 @@ describe('drag architecture boundaries', () => {
             'drop-commit-ports.ts',
             'index.ts',
             'pipeline-events.ts',
+            'pointer-selecting-actions.ts',
             'pointerdown-intent-runner.ts',
             'pointerdown-pipeline.ts',
             'pointermove-pipeline.ts',
             'pointerup-pipeline.ts',
+            'touch-selecting-actions.ts',
         ]);
 
         const forbiddenNames = pipelineFiles.filter((file) => (

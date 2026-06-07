@@ -1,6 +1,6 @@
 import { Plugin } from 'obsidian';
 import { dragHandleExtension } from '../runtime/editor-extension';
-import { ExternalFileDropController } from '../platform/obsidian/external-file-drop-controller';
+import { ExternalFileDropController } from '../runtime/external-file-drop-controller';
 import {
     DEFAULT_HANDLE_SIZE_PX,
     HANDLE_CORE_SIZE_RATIO,

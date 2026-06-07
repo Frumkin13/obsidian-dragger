@@ -6,7 +6,7 @@ import {
     getNearestListLineAtOrBefore,
     LineMap,
 } from '../../domain/markdown/line-map';
-import { getCoordsAtPos } from './rect-calculator';
+import { getCoordsAtPos } from '../../platform/codemirror/rect-calculator';
 import { DocLike, ParsedLine } from '../../shared/types/protocol-types';
 import { DragSource, DragSourceScope } from '../../shared/types/drag';
 import { ListDropPlanContribution } from './list-drop-planner-port';

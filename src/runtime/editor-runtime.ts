@@ -9,7 +9,7 @@ import {
     finishDragSession,
     getActiveDragSource,
     getActiveDragSourceView,
-} from '../drag/runtime/active-drag-registry';
+} from './active-drag-registry';
 import { isPosInsideRenderedTableCell } from '../platform/dom/table-guard';
 import { BlockMover } from '../drag/move';
 import { DropPlanner } from '../drag/drop';
@@ -130,6 +130,7 @@ export function createDragHandleViewPluginClass(plugin: DragNDropPlugin) {
                 dropPlanner: this.dropPlanner,
                 dragPerfManager: this.dragPerfManager,
                 lifecycleEmitter: this.lifecycleEmitter,
+                getActiveDragSourceView: () => getActiveDragSourceView(),
                 getSemanticRefreshScheduler: () => this.semanticRefreshScheduler,
                 resolveEditorDocumentKey: (editorView) => resolveEditorDocumentKey(plugin.app, editorView),
                 allowCrossDocumentDrop: () => plugin.settings.enableCrossFileDrag === true,

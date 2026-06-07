@@ -1,16 +1,16 @@
 import { Notice, normalizePath } from 'obsidian';
 import type { TFile } from 'obsidian';
-import type DragNDropPlugin from '../../plugin/main';
-import { FILE_DROP_TARGET_CLASS } from '../../shared/dom-selectors';
+import type DragNDropPlugin from '../plugin/main';
+import { FILE_DROP_TARGET_CLASS } from '../shared/dom-selectors';
 import {
     getActiveDragSourceView,
-} from '../../drag/runtime/active-drag-registry';
-import { FileBlockMover } from '../../drag/move';
-import { DragSource } from '../../shared/types/drag';
+} from './active-drag-registry';
+import { FileBlockMover } from '../drag/move';
+import { DragSource } from '../shared/types/drag';
 import {
     PointerDragTargetClient,
     registerPointerDragTargetClient,
-} from '../../runtime/pointer-drag-target-router';
+} from './pointer-drag-target-router';
 
 type FileDropTarget = {
     file: TFile;

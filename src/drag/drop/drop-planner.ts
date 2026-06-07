@@ -3,7 +3,7 @@ import { BlockInfo, BlockType } from '../../domain/block/block-types';
 import { validateInPlaceDrop } from '../../domain/rules/drop-validation';
 import { InsertionSlotContext } from '../../domain/rules/insertion-rules';
 import { getLineMap, LineMap } from '../../domain/markdown/line-map';
-import { getCoordsAtPos } from './rect-calculator';
+import { getCoordsAtPos } from '../../platform/codemirror/rect-calculator';
 import { DocLike, DropPlan, ListContext, ParsedLine } from '../../shared/types/protocol-types';
 import { findEmbedElementAtPoint } from '../../platform/dom/embed-probe';
 import { resolveLineNumberAtCoords } from '../../platform/dom/element-probe';

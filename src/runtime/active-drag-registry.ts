@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
-import { DragSource } from '../../shared/types/drag';
-import { DROP_HIGHLIGHT_SELECTOR, DROP_INDICATOR_SELECTOR, DRAGGING_BODY_CLASS, HIDDEN_CLASS } from '../../shared/dom-selectors';
+import { DragSource } from '../shared/types/drag';
+import { DROP_HIGHLIGHT_SELECTOR, DROP_INDICATOR_SELECTOR, DRAGGING_BODY_CLASS, HIDDEN_CLASS } from '../shared/dom-selectors';
 
 const activeDragSourceByView = new WeakMap<EditorView, DragSource | null>();
 const knownViewRefs = new Set<WeakRef<EditorView>>();

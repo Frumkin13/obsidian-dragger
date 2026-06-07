@@ -2,15 +2,13 @@ import { DragSource } from '../../shared/types/drag';
 import { DRAG_HANDLE_CLASS, EMBED_HANDLE_CLASS } from '../../shared/dom-selectors';
 import { readPointerInput } from '../input';
 import { resolveRangeBoundaryAtPoint } from '../input/range-boundary-hit';
-import {
-    autoScrollSelectionRange as autoScrollSelectionRangeByFlow,
-} from '../selection';
+import { autoScrollEditorNearViewportEdge } from '../preview/range-selection-preview';
 import {
     buildRangeSelectionBoundaryFromBlock,
     type MouseRangeSelectState,
     type RangeSelectionBoundary,
 } from '../state/selection';
-import { handleMobileSelectingPointerMove } from '../selection';
+import { handleMobileSelectingPointerMove } from './touch-selecting-actions';
 import type { DragEventHandler } from './drag-controller';
 
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
@@ -59,7 +57,7 @@ function autoScrollDrag(
     host: PointerMovePipelineHost,
     dragState: { latestX: number; latestY: number; source: DragSource; pointerType: string | null }
 ): boolean {
-    const didScroll = autoScrollSelectionRangeByFlow(host.view, dragState.latestY);
+    const didScroll = autoScrollEditorNearViewportEdge(host.view, dragState.latestY);
     if (didScroll) {
         host.deps.renderDropPreviewAtPoint(dragState.latestX, dragState.latestY, dragState.source, dragState.pointerType);
     }
@@ -192,7 +190,7 @@ function handleRangeSelectionPointerMove(
         host.updateMouseRangeSelection(state, targetBoundary);
     }
 
-    autoScrollSelectionRangeByFlow(host.view, e.clientY);
+    autoScrollEditorNearViewportEdge(host.view, e.clientY);
 }
 
 function resolveHandleRangeBoundaryAtPoint(

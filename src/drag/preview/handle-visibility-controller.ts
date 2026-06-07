@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../domain/block/block-types';
-import type { HoverContentRect, HoverPointerSnapshot } from '../../runtime/hover-pointer-snapshot';
+import type { HoverContentRect, HoverPointerSnapshot } from '../../shared/types/pointer';
 import {
     DRAG_HANDLE_CLASS,
     DRAG_SOURCE_LINE_CLASS,

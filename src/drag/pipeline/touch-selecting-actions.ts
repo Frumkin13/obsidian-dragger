@@ -25,10 +25,8 @@ import {
     SelectedBlockRange,
     subtractSelectedBlocks,
 } from '../state/selection/block-selection';
-import {
-    autoScrollSelectionRange as autoScrollSelectionRangeByFlow,
-    updateSelectionFromBoundary as updateSelectionFromBoundaryByFlow,
-} from './range-selection-flow';
+import { autoScrollEditorNearViewportEdge } from '../preview/range-selection-preview';
+import { updateMouseRangeSelection } from './pointer-selecting-actions';
 import {
     InteractionState,
     MobileSelectionData,
@@ -199,13 +197,11 @@ function tryRetargetActiveMobileRangeSelectionFromHandle(
     if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return false;
 
     retargetMobileRangeSelection(host, e);
-    updateSelectionFromBoundaryByFlow(
-        host.view,
+    updateMouseRangeSelection(
+        host,
         state,
-        buildRangeSelectionBoundaryFromBlock(host.view.state.doc, blockInfo),
-        host.rangeVisual
+        buildRangeSelectionBoundaryFromBlock(host.view.state.doc, blockInfo)
     );
-    state.selectionGestureStarted = true;
     return true;
 }
 
@@ -235,7 +231,6 @@ function tryStartMobileTextLongPressDrag(
     const blockInfo = source.primaryBlock;
     if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return false;
 
-    // Keep native tap-to-focus behavior in text/embed areas.
     host.beginPressPendingDrag(source, e, { deferInterception: true });
     return true;
 }
@@ -266,7 +261,7 @@ export function handleMobileSelectingPointerMove(host: MobileSelectionActionHost
     const targetBoundary = resolveMobileSelectionBoundaryAtPoint(host, e.clientX, e.clientY);
     if (!targetBoundary) return;
     updateMobileSelectionResize(host, state, targetBoundary);
-    autoScrollSelectionRangeByFlow(host.view, e.clientY);
+    autoScrollEditorNearViewportEdge(host.view, e.clientY);
 }
 
 export function finishMobileSelectionPointer(

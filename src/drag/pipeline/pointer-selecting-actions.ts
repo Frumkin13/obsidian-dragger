@@ -13,9 +13,12 @@ import {
     resolveRangeSelectConfig,
 } from '../state/selection/selection-session-flow';
 import {
-    updateSelectionFromBoundary as updateSelectionFromBoundaryByFlow,
-    updateSelectionFromLine as updateSelectionFromLineByFlow,
-} from './range-selection-flow';
+    buildCommittedRangeSelection,
+    computeUpdatedSelectionState,
+} from '../state/selection/selection-state';
+import {
+    resolveBlockBoundaryAtLine,
+} from '../state/selection/selection-model';
 import { RangeSelectionVisualManager } from '../preview/range-selection-visual-manager';
 import type { InteractionState } from '../state/drag-state';
 
@@ -173,8 +176,13 @@ export function updateMouseRangeSelectionFromLine(
     state: MouseRangeSelectState,
     lineNumber: number
 ): void {
-    updateSelectionFromLineByFlow(host.view, state, lineNumber, host.rangeVisual);
-    state.selectionGestureStarted = true;
+    const doc = host.view.state.doc;
+    const clampedLine = Math.max(1, Math.min(doc.lines, lineNumber));
+    const boundary = resolveBlockBoundaryAtLine(host.view.state, clampedLine);
+    updateMouseRangeSelection(host, state, {
+        ...boundary,
+        representativeLineNumber: clampedLine,
+    });
 }
 
 export function updateMouseRangeSelection(
@@ -182,6 +190,27 @@ export function updateMouseRangeSelection(
     state: MouseRangeSelectState,
     target: RangeSelectionBoundary
 ): void {
-    updateSelectionFromBoundaryByFlow(host.view, state, target, host.rangeVisual);
+    const next = computeUpdatedSelectionState(host.view.state, state, target);
+    state.currentLineNumber = next.currentLineNumber;
+    state.selectionBlocks = next.selectionBlocks;
+    host.rangeVisual.render(state.selectionBlocks);
     state.selectionGestureStarted = true;
+}
+
+export function commitRangeSelection(
+    view: EditorView,
+    state: MouseRangeSelectState,
+    rangeVisual: RangeSelectionVisualManager
+): CommittedRangeSelection | null {
+    const committed = buildCommittedRangeSelection(
+        view.state.doc,
+        state.selectionBlocks,
+        state.anchorBlock
+    );
+    if (!committed) {
+        rangeVisual.clear();
+        return null;
+    }
+    rangeVisual.render(committed.blocks);
+    return committed;
 }

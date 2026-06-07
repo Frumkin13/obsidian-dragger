@@ -3,8 +3,8 @@
 import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it } from 'vitest';
-import { BlockInfo, BlockType } from '../../domain/block/block-types';
-import { createDragSource } from '../source/source';
+import { BlockInfo, BlockType } from '../domain/block/block-types';
+import { createDragSource } from '../drag/source/source';
 import {
     beginDragSession,
     finishDragSession,

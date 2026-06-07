@@ -16,15 +16,14 @@ import {
     activateMouseRangeSelectInterception as activateMouseRangeSelectInterceptionAction,
     beginRangeSelectionSessionAction,
     clearMouseRangeSelectState as clearMouseRangeSelectStateAction,
+    commitRangeSelection as commitRangeSelectionAction,
     updateMouseRangeSelection as updateMouseRangeSelectionAction,
     updateMouseRangeSelectionFromLine as updateMouseRangeSelectionFromLineAction,
-} from '../selection';
+} from './pointer-selecting-actions';
 import {
-    clearCommittedSelectionRange as clearCommittedSelectionRangeByFlow,
-    commitSelectionRange as commitSelectionRangeByFlow,
-    deleteCommittedSelectionRange as deleteCommittedSelectionRangeByFlow,
-    refreshSelectionVisual as refreshSelectionVisualByFlow,
-} from '../selection';
+    renderRangeSelectionPreview,
+} from '../preview/range-selection-preview';
+import { deleteCommittedRangeSelectionFromDocument } from '../move/range-selection-deletion';
 import { RangeSelectionVisualManager } from '../preview/range-selection-visual-manager';
 import { TouchInteractionController } from '../input/touch-interaction-controller';
 import { PointerSessionController, readFocusInput, readKeyboardInput, readPointerInput, readVisibilityInput } from '../input';
@@ -53,7 +52,7 @@ import {
     finishMobileSelectionPointer,
     getMobileSelectionTemplateBlock,
     handleMobilePointerDown,
-} from '../selection';
+} from './touch-selecting-actions';
 
 const MOBILE_DRAG_LONG_PRESS_MS = 200;
 const MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX = 12;
@@ -361,19 +360,21 @@ export class DragEventHandler {
     }
 
     commitRangeSelection(state: MouseRangeSelectState): void {
-        this.committedRangeSelection = commitSelectionRangeByFlow(this.view, state, this.rangeVisual);
+        this.committedRangeSelection = commitRangeSelectionAction(this.view, state, this.rangeVisual);
     }
 
     clearCommittedRangeSelection(): void {
-        this.committedRangeSelection = clearCommittedSelectionRangeByFlow(this.committedRangeSelection, this.rangeVisual);
+        this.committedRangeSelection = null;
+        this.rangeVisual.clear();
     }
 
     private deleteCommittedRangeSelection(): void {
-        this.committedRangeSelection = deleteCommittedSelectionRangeByFlow(
-            this.view,
-            this.committedRangeSelection,
-            this.rangeVisual
-        );
+        if (deleteCommittedRangeSelectionFromDocument(this.view, this.committedRangeSelection)) {
+            this.committedRangeSelection = null;
+            this.rangeVisual.clear();
+            return;
+        }
+        this.clearCommittedRangeSelection();
     }
 
     private handleSelectionOverlayAction = (action: 'delete' | 'done' | 'convert'): void => {
@@ -435,7 +436,7 @@ export class DragEventHandler {
     }
 
     private refreshRangeSelectionVisual(): void {
-        refreshSelectionVisualByFlow(this.gesture, this.committedRangeSelection, this.rangeVisual);
+        renderRangeSelectionPreview(this.gesture, this.committedRangeSelection, this.rangeVisual);
     }
 
     finishRangeSelectionSession(): void {

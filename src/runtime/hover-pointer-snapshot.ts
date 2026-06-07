@@ -1,17 +1,8 @@
 import { EditorView } from '@codemirror/view';
 import { HANDLE_INTERACTION_ZONE_PX } from '../shared/constants';
+import type { HoverPointerSnapshot } from '../shared/types/pointer';
 
-export type HoverContentRect = Pick<DOMRect | DOMRectReadOnly, 'left' | 'right' | 'top' | 'bottom'>;
-
-export interface HoverPointerSnapshot {
-    clientX: number;
-    clientY: number;
-    contentRect: HoverContentRect;
-    gutterSide: 'left' | 'right';
-    withinContent: boolean;
-    withinHandleInteractionZone: boolean;
-    withinHoverActivationZone: boolean;
-}
+export type { HoverContentRect, HoverPointerSnapshot } from '../shared/types/pointer';
 
 export function createHoverPointerSnapshot(
     view: EditorView,

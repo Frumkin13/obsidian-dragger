@@ -7,7 +7,7 @@ import {
     getInsertionAnchorY as getInsertionAnchorYByLineNumber,
     getLineIndentPosByWidth as getLineIndentPosByWidthWithTabSize,
     getBlockRect as getBlockRectByRange,
-} from '../../drag/drop/rect-calculator';
+} from './rect-calculator';
 import { clampTargetLineNumber } from '../../shared/utils/line-target-number';
 import { LineParsingContext } from '../../domain/markdown/line-parsing-service';
 import { isEditorLineCollapsed } from '../../platform/obsidian/editor-fold';
