@@ -25,7 +25,7 @@ import {
     normalizeMultiLineSelectionLongPressMs,
     normalizeBlockSelectionVisualStyle,
 } from './settings';
-import { DragLifecycleEvent, DragLifecycleListener } from '../drag/lifecycle/drag-lifecycle';
+import { DragLifecycleEvent, DragLifecycleListener } from '../drag/pipeline/pipeline-output';
 import { registerMobileToolbarCommands } from './mobile-toolbar-commands';
 
 export default class DragNDropPlugin extends Plugin {

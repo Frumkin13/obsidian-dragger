@@ -283,7 +283,7 @@ describe('PointerDragController', () => {
             clientX: 60,
             clientY: 10,
         });
-        vi.advanceTimersByTime(300);
+        vi.advanceTimersByTime(940);
         dispatchPointer(window, 'pointermove', {
             pointerId: 94,
             pointerType: 'touch',
@@ -300,6 +300,9 @@ describe('PointerDragController', () => {
         expect(beginPointerDragSession).not.toHaveBeenCalled();
         expect(onDropPreview).not.toHaveBeenCalled();
         expect(onPlatformCommit).not.toHaveBeenCalled();
+        expect(view.dom.querySelector('.dnd-range-selected-handle')).toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).toBeNull();
         handler.destroy();
     });
 

@@ -1,12 +1,16 @@
-﻿import { EditorView } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../../domain/block/block-types';
+import type { BlockCommand } from '../../../domain/command/block-command';
 import type { BlockSelection, RangeSelectionOperation } from '../../../domain/selection/block-selection';
 import type { SelectedBlockRange } from '../../../domain/selection/block-ranges';
-import type { DragDropSnapshot } from '../../../drag/drop/drag-drop-snapshot';
-import type { DragEffect } from '../../../drag/effects/drag-effect';
-import type { DragEffectExecutor } from '../../../drag/effects/drag-effect-executor';
-import { executeDragEffects } from '../../../drag/effects/drag-effect-executor';
-import type { DragLifecycleEvent } from '../../../drag/lifecycle/drag-lifecycle';
+import {
+    cancelDrop,
+    dragOver,
+    drop as resolvePipelineDrop,
+    startDragDrop,
+    type DragDropSnapshot,
+} from '../../../drag/pipeline/pipeline-drop';
+import type { DragLifecycleEvent, PipelineOutput } from '../../../drag/pipeline/pipeline-output';
 import type { PointerDropCommitResolution } from './pointer-drag-target-router';
 import {
     type RangeSelectionBoundary,
@@ -30,7 +34,6 @@ import {
 import {
     renderRangeSelectionPreview,
 } from '../preview/range-selection-visual-manager';
-import { deleteCommittedRangeSelectionFromDocument } from '../command/committed-selection-deleter';
 import { RangeSelectionVisualManager } from '../preview/range-selection-visual-manager';
 import { TouchInteractionController } from './touch-interaction-controller';
 import { PointerSessionController } from './pointer-session-controller';
@@ -41,21 +44,29 @@ import {
     buildDragStartedLifecycleEvent,
     buildIdleLifecycleEvent,
     buildPressPendingLifecycleEvent,
-} from '../../../drag/lifecycle/drag-lifecycle';
-import type { GestureCancelReason } from '../../../drag/state/drag-state';
+} from '../../../drag/pipeline/pipeline-output';
+import type { DragCancelReason } from '../../../drag/pipeline/pipeline-event';
 import type { InteractionState } from './interaction-state';
 import {
     isMobileEnvironment as isMobileEnvironmentByInput,
 } from './pointer-input';
 import { type BlockSelectionRequest } from '../selection/block-selection-resolver';
 import { cleanupInteractionSession, type InteractionCleanupOptions } from './interaction-cleanup';
-import { DragFlowController } from '../../../drag/pipeline/drag-flow-controller';
+import {
+    IDLE_INTERACTION_MODE,
+    MOBILE_DRAG_GESTURE_MODE,
+    MOBILE_SELECTION_GESTURE_MODE,
+    MOBILE_SELECTION_PASSIVE_MODE,
+    shouldExitDragInteractionWhenMobileDragUnavailable,
+    type DragInteractionMode,
+} from './touch-interaction-controller';
 import { handlePointerMove } from './pointermove-handler';
 import { handlePointerCancel, handlePointerUp } from './pointerup-handler';
 import { handleDesktopPointerDown } from './pointerdown-handler';
 import {
     enterMobileSelectionMode,
     enterMobileSelectionModeFromBlock,
+    exitMobileSelectionMode,
     finishMobileSelectionPointer,
     getMobileSelectionTemplateBlock,
     handleMobilePointerDown,
@@ -81,9 +92,16 @@ export interface PointerDragControllerDeps {
     finishDragSession: () => void;
     resolveDropSnapshotAtPoint: (clientX: number, clientY: number, source: BlockSelection, pointerType: string | null) => DragDropSnapshot;
     buildBlockCommandAtPoint: (source: BlockSelection, clientX: number, clientY: number, pointerType: string | null) => PointerDropCommitResolution;
-    dragEffectExecutor: DragEffectExecutor;
+    pipelineOutputExecutor: PipelineOutputExecutor;
     onDragLifecycleEvent?: (event: DragLifecycleEvent) => void;
     openBlockTypeMenu?: (blockInfo: BlockInfo, event: MouseEvent | PointerEvent | null) => void;
+}
+
+export interface PipelineOutputExecutor<TPreview = unknown> {
+    showDropPreview(selection: BlockSelection, drop: DragDropSnapshot<TPreview>, pointerType: string | null): void;
+    hideDropPreview(): void;
+    applyCommand(command: BlockCommand): void;
+    emitLifecycle(event: DragLifecycleEvent): void;
 }
 
 export class PointerDragController {
@@ -92,7 +110,6 @@ export class PointerDragController {
     readonly rangeVisual: RangeSelectionVisualManager;
     readonly mobile: TouchInteractionController;
     readonly pointer: PointerSessionController;
-    readonly dragFlow = new DragFlowController();
     private activeDragPointer: { clientX: number; clientY: number; pointerType: string | null } | null = null;
 
     private readonly onEditorPointerDown = (e: PointerEvent) => {
@@ -121,8 +138,7 @@ export class PointerDragController {
         this.rangeVisual = new RangeSelectionVisualManager(
             this.view,
             () => this.refreshRangeSelectionVisual(),
-            (blockStart) => this.deps.getVisibleHandleForBlockStart?.(blockStart) ?? null,
-            this.handleSelectionOverlayAction
+            (blockStart) => this.deps.getVisibleHandleForBlockStart?.(blockStart) ?? null
         );
         this.mobile = new TouchInteractionController(this.view, (e) => this.handleDocumentFocusIn(e));
         this.pointer = new PointerSessionController(this.view, {
@@ -217,9 +233,7 @@ export class PointerDragController {
             e.stopPropagation();
             this.pointer.tryCapturePointer(e);
             if (pointerType !== 'mouse') {
-                this.mobile.lockMobileInteraction();
-                this.mobile.attachFocusGuard();
-                this.mobile.suppressMobileKeyboard();
+                this.mobile.applyDragInteractionMode(MOBILE_DRAG_GESTURE_MODE, e.target);
             }
         }
         const skipLongPress = options?.skipLongPress === true;
@@ -236,9 +250,7 @@ export class PointerDragController {
                 if (!state.suppressNativeInteraction) {
                     state.suppressNativeInteraction = true;
                     if (state.pointerType !== 'mouse') {
-                        this.mobile.lockMobileInteraction();
-                        this.mobile.attachFocusGuard();
-                        this.mobile.suppressMobileKeyboard();
+                        this.mobile.applyDragInteractionMode(MOBILE_DRAG_GESTURE_MODE, e.target);
                     }
                     this.pointer.tryCapturePointerById(state.pointerId);
                 }
@@ -311,27 +323,28 @@ export class PointerDragController {
             return;
         }
         if (this.mobile.isMobileEnvironment()) {
-            this.mobile.lockMobileInteraction();
-            this.mobile.attachFocusGuard();
-            this.mobile.suppressMobileKeyboard();
+            this.mobile.applyDragInteractionMode(MOBILE_DRAG_GESTURE_MODE);
             this.mobile.triggerMobileHapticFeedback();
         }
         this.pointer.tryCapturePointerById(pointerId);
         this.pointer.attachPointerListeners();
         this.activeDragPointer = { clientX, clientY, pointerType };
         const drop = this.deps.resolveDropSnapshotAtPoint(clientX, clientY, source, pointerType);
-        const result = this.dragFlow.begin({
-            selection: source,
-            pointerId,
-            pointerType,
-            drop,
-        });
         this.gesture = {
             phase: 'dragging',
-            drag: result.drag,
+            drag: {
+                selection: source,
+                pointerId,
+                pointerType,
+                autoScrollFrameId: null,
+            },
         };
         this.deps.beginPointerDragSession(source);
-        this.applyDragEffects(result.effects);
+        this.applyPipelineOutputs(startDragDrop({
+            selection: source,
+            pointerType,
+            drop,
+        }));
     }
 
 
@@ -367,17 +380,28 @@ export class PointerDragController {
         pointerId: number;
         pointerType: string | null;
         drop: DragDropSnapshot;
-    }): DragEffect[] {
-        return this.dragFlow.preview(params);
+    }): PipelineOutput[] {
+        if (this.gesture.phase !== 'dragging') return [];
+        const drag = this.gesture.drag;
+        if (drag.pointerId !== params.pointerId) return [];
+        drag.pointerType = params.pointerType || drag.pointerType;
+        return dragOver({
+            selection: drag.selection,
+            pointerType: params.pointerType,
+            drop: params.drop,
+        });
     }
 
     commitActiveDrag(params: {
         pointerId: number;
         pointerType: string | null;
         resolved: PointerDropCommitResolution;
-    }): DragEffect[] {
-        return this.dragFlow.commit({
-            pointerId: params.pointerId,
+    }): PipelineOutput[] {
+        if (this.gesture.phase !== 'dragging') return [];
+        const drag = this.gesture.drag;
+        if (drag.pointerId !== params.pointerId) return [];
+        return resolvePipelineDrop({
+            selection: drag.selection,
             pointerType: params.pointerType,
             resolution: params.resolved,
         });
@@ -386,9 +410,16 @@ export class PointerDragController {
     cancelActiveDrag(params: {
         pointerId: number;
         pointerType: string | null;
-        reason: GestureCancelReason;
-    }): DragEffect[] {
-        return this.dragFlow.cancel(params);
+        reason: DragCancelReason;
+    }): PipelineOutput[] {
+        if (this.gesture.phase !== 'dragging') return [];
+        const drag = this.gesture.drag;
+        if (drag.pointerId !== params.pointerId) return [];
+        return cancelDrop({
+            selection: drag.selection,
+            reason: params.reason,
+            pointerType: params.pointerType,
+        });
     }
 
     buildActiveDragCommand(selection: BlockSelection): PointerDropCommitResolution {
@@ -403,8 +434,28 @@ export class PointerDragController {
         );
     }
 
-    applyDragEffects(effects: DragEffect[]): void {
-        executeDragEffects(this.deps.dragEffectExecutor, effects);
+    applyPipelineOutputs(outputs: PipelineOutput[]): void {
+        for (const output of outputs) {
+            switch (output.type) {
+                case 'drag_over':
+                    this.deps.pipelineOutputExecutor.showDropPreview(output.selection, output.drop, output.pointerType);
+                    break;
+                case 'dropped':
+                    break;
+                case 'cancelled':
+                    this.deps.pipelineOutputExecutor.hideDropPreview();
+                    break;
+                case 'command_ready':
+                    this.deps.pipelineOutputExecutor.applyCommand(output.command);
+                    break;
+                case 'lifecycle':
+                    this.deps.pipelineOutputExecutor.emitLifecycle(output.event);
+                    break;
+                case 'state_changed':
+                case 'selection_changed':
+                    break;
+            }
+        }
     }
 
     private updateMouseRangeSelectionFromLine(state: MouseRangeSelectState, lineNumber: number): void {
@@ -467,29 +518,24 @@ export class PointerDragController {
         this.rangeVisual.clear();
     }
 
-    private deleteCommittedRangeSelection(): void {
-        if (deleteCommittedRangeSelectionFromDocument(this.view, this.committedRangeSelection)) {
-            this.committedRangeSelection = null;
-            this.rangeVisual.clear();
+    handleMobileDragAvailabilityChanged(mobileDragAvailable: boolean): void {
+        if (!shouldExitDragInteractionWhenMobileDragUnavailable(
+            this.resolveCurrentDragInteractionMode(),
+            mobileDragAvailable
+        )) {
             return;
         }
-        this.clearCommittedRangeSelection();
+        if (this.gesture.phase === 'selecting' && this.gesture.selection.mode === 'mobile') {
+            exitMobileSelectionMode(this);
+            return;
+        }
+        this.resetInteractionSession({
+            shouldFinishDragSession: true,
+            shouldHideDropPreview: true,
+            cancelReason: 'session_interrupted',
+            pointerType: null,
+        });
     }
-
-    private handleSelectionOverlayAction = (action: 'delete' | 'done' | 'convert'): void => {
-        if (action === 'delete') {
-            this.deleteCommittedRangeSelection();
-            return;
-        }
-        if (action === 'convert') {
-            const block = this.getCommittedSelection();
-            if (block) {
-                this.deps.openBlockTypeMenu?.(block.anchorBlock, null);
-            }
-            return;
-        }
-        this.clearCommittedRangeSelection();
-    };
 
     getCommittedSelection(): BlockSelection | null {
         const request = this.buildCommittedSelectionSelectionRequest();
@@ -542,8 +588,7 @@ export class PointerDragController {
         this.clearMouseRangeSelectState({ preserveVisual: true });
         this.pointer.detachPointerListeners();
         this.pointer.releasePointerCapture();
-        this.mobile.unlockMobileInteraction();
-        this.mobile.detachFocusGuard();
+        this.mobile.clearDragInteractionMode();
         this.emitIdleLifecycle();
     }
 
@@ -628,10 +673,13 @@ export class PointerDragController {
             this.clearMouseRangeSelectState();
             this.pointer.detachPointerListeners();
             this.pointer.releasePointerCapture();
-            this.mobile.unlockMobileInteraction();
-            this.mobile.detachFocusGuard();
+            this.mobile.clearDragInteractionMode();
             this.clearCommittedRangeSelection();
             this.emitIdleLifecycle();
+            return true;
+        }
+        if (this.gesture.phase === 'selecting' && this.gesture.selection.mode === 'mobile') {
+            exitMobileSelectionMode(this);
             return true;
         }
         if (this.gesture.phase === 'idle' && this.committedRangeSelection) {
@@ -642,7 +690,7 @@ export class PointerDragController {
     }
 
     abortForGestureCancel(
-        cancelReason: GestureCancelReason,
+        cancelReason: DragCancelReason,
         pointerType: string | null
     ): void {
         this.resetInteractionSession({
@@ -677,12 +725,12 @@ export class PointerDragController {
         ) {
             this.clearCommittedRangeSelection();
         }
-        if (!this.shouldSuppressNativeInteractionForActiveGesture()) return;
+        if (!this.shouldSuppressTextInputForActiveInteraction()) return;
         this.mobile.suppressMobileKeyboard(e.target);
     }
 
     private handleTouchMove(e: TouchEvent): void {
-        if (!this.shouldSuppressNativeInteractionForActiveGesture()) return;
+        if (!this.shouldSuppressScrollForActiveInteraction()) return;
         if (e.cancelable) {
             e.preventDefault();
         }
@@ -702,7 +750,22 @@ export class PointerDragController {
         }
     }
 
-    private shouldSuppressNativeInteractionForActiveGesture(): boolean {
+    private shouldSuppressTextInputForActiveInteraction(): boolean {
+        switch (this.gesture.phase) {
+            case 'dragging':
+                return true;
+            case 'selecting':
+                return this.gesture.selection.mode === 'mobile'
+                    ? true
+                    : this.gesture.selection.rangeSelect.isIntercepting;
+            case 'press_pending':
+                return this.gesture.press.suppressNativeInteraction;
+            default:
+                return false;
+        }
+    }
+
+    private shouldSuppressScrollForActiveInteraction(): boolean {
         switch (this.gesture.phase) {
             case 'dragging':
                 return true;
@@ -720,7 +783,6 @@ export class PointerDragController {
     private resetInteractionSession(options?: InteractionCleanupOptions): void {
         cleanupInteractionSession(this, options);
         this.activeDragPointer = null;
-        this.dragFlow.clear();
     }
 
     resolveActiveRangeSelection(): BlockSelection | null {
@@ -797,6 +859,27 @@ export class PointerDragController {
             MIN_TOUCH_RANGE_SELECT_LONG_PRESS_MS,
             Math.min(MAX_TOUCH_RANGE_SELECT_LONG_PRESS_MS, Math.round(value))
         );
+    }
+
+    private resolveCurrentDragInteractionMode(): DragInteractionMode {
+        if (!this.mobile.isMobileEnvironment()) return IDLE_INTERACTION_MODE;
+        switch (this.gesture.phase) {
+            case 'dragging':
+                return this.gesture.drag.pointerType === 'mouse'
+                    ? IDLE_INTERACTION_MODE
+                    : MOBILE_DRAG_GESTURE_MODE;
+            case 'press_pending':
+                return this.gesture.press.pointerType === 'mouse' || !this.gesture.press.suppressNativeInteraction
+                    ? IDLE_INTERACTION_MODE
+                    : MOBILE_DRAG_GESTURE_MODE;
+            case 'selecting':
+                if (this.gesture.selection.mode !== 'mobile') return IDLE_INTERACTION_MODE;
+                return this.gesture.selection.mobileSelect.activeInteraction === null
+                    ? MOBILE_SELECTION_PASSIVE_MODE
+                    : MOBILE_SELECTION_GESTURE_MODE;
+            default:
+                return IDLE_INTERACTION_MODE;
+        }
     }
 }
 

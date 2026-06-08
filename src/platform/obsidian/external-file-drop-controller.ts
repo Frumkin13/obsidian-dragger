@@ -11,7 +11,7 @@ import {
     PointerDragTargetClient,
     registerPointerDragTargetClient,
 } from '../codemirror/input/pointer-drag-target-router';
-import type { DragDropSnapshot } from '../../drag/drop/drag-drop-snapshot';
+import type { DragDropSnapshot } from '../../drag/pipeline/pipeline-drop';
 
 type FileDropTarget = {
     file: TFile;

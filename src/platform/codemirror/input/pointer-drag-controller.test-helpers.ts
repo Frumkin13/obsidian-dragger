@@ -6,11 +6,10 @@ import { makeBlockSelection, type BlockSelection } from '../selection/block-sele
 import type { BlockSelectionRequest } from '../selection/block-selection-resolver';
 import { buildSelectionFromSelectedBlocks, buildSingleBlockSelectionRanges } from '../selection/block-selection-resolver';
 import type { BlockCommand } from '../../../domain/command/block-command';
-import type { DragDropSnapshot } from '../../../drag/drop/drag-drop-snapshot';
-import type { DragEffectExecutor } from '../../../drag/effects/drag-effect-executor';
-import type { DragLifecycleEvent } from '../../../drag/lifecycle/drag-lifecycle';
+import type { DragDropSnapshot } from '../../../drag/pipeline/pipeline-drop';
+import type { DragLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
 import type { PointerDropCommitResolution } from './pointer-drag-target-router';
-import type { PointerDragControllerDeps } from './pointer-drag-controller';
+import type { PipelineOutputExecutor, PointerDragControllerDeps } from './pointer-drag-controller';
 
 type RectLike = {
     left: number;
@@ -28,9 +27,9 @@ const originalMatchMedia = window.matchMedia;
 const originalVibrate = (navigator as Navigator & { vibrate?: (pattern: number | number[]) => boolean }).vibrate;
 let originalElementFromPoint: ((this: void, x: number, y: number) => Element | null) | undefined;
 
-type LegacyPointerDragControllerTestDeps = Omit<
+type PointerDragControllerTestDeps = Omit<
     Partial<PointerDragControllerDeps>,
-    'resolveDropSnapshotAtPoint' | 'buildBlockCommandAtPoint' | 'dragEffectExecutor'
+    'resolveDropSnapshotAtPoint' | 'buildBlockCommandAtPoint' | 'pipelineOutputExecutor'
 > & {
     resolveBlockSelection: PointerDragControllerDeps['resolveBlockSelection'];
     isBlockInsideRenderedTableCell: PointerDragControllerDeps['isBlockInsideRenderedTableCell'];
@@ -38,7 +37,7 @@ type LegacyPointerDragControllerTestDeps = Omit<
     finishDragSession: PointerDragControllerDeps['finishDragSession'];
     resolveDropSnapshotAtPoint?: (clientX: number, clientY: number, source: BlockSelection, pointerType: string | null) => DragDropSnapshot;
     buildBlockCommandAtPoint?: (source: BlockSelection, clientX: number, clientY: number, pointerType: string | null) => PointerDropCommitResolution;
-    dragEffectExecutor?: DragEffectExecutor;
+    pipelineOutputExecutor?: PipelineOutputExecutor;
     onDropPreview?: (clientX: number, clientY: number, source: BlockSelection | null, pointerType: string | null) => void;
     onHideDropPreview?: () => void;
     applyBlockCommand?: (command: BlockCommand) => void;
@@ -46,7 +45,7 @@ type LegacyPointerDragControllerTestDeps = Omit<
     onDragLifecycleEvent?: (event: DragLifecycleEvent) => void;
 };
 
-export function createPointerDragControllerDeps(deps: LegacyPointerDragControllerTestDeps): PointerDragControllerDeps {
+export function createPointerDragControllerDeps(deps: PointerDragControllerTestDeps): PointerDragControllerDeps {
     let lastDropPoint: { clientX: number; clientY: number } | null = null;
     const resolveDropSnapshotAtPoint = (
         clientX: number,
@@ -73,7 +72,7 @@ export function createPointerDragControllerDeps(deps: LegacyPointerDragControlle
         }
         return { type: 'cancel', drop: { target: null, rejectReason: 'no_target' }, reason: 'no_target' };
     };
-    const dragEffectExecutor = deps.dragEffectExecutor ?? {
+    const pipelineOutputExecutor = deps.pipelineOutputExecutor ?? {
         showDropPreview: (selection, _drop, pointerType) => {
             if (!lastDropPoint) return;
             deps.onDropPreview?.(lastDropPoint.clientX, lastDropPoint.clientY, selection, pointerType);
@@ -81,13 +80,13 @@ export function createPointerDragControllerDeps(deps: LegacyPointerDragControlle
         hideDropPreview: () => deps.onHideDropPreview?.(),
         applyCommand: (command) => deps.applyBlockCommand?.(command),
         emitLifecycle: (event) => deps.onDragLifecycleEvent?.(event),
-    } satisfies DragEffectExecutor;
+    } satisfies PipelineOutputExecutor;
 
     return {
         ...deps,
         resolveDropSnapshotAtPoint,
         buildBlockCommandAtPoint,
-        dragEffectExecutor,
+        pipelineOutputExecutor,
     };
 }
 

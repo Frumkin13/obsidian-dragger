@@ -1,9 +1,8 @@
 import type { BlockCommand } from '../../../domain/command/block-command';
 import type { BlockSelection } from '../../../domain/selection/block-selection';
-import type { DragDropSnapshot } from '../../../drag/drop/drag-drop-snapshot';
-import type { DropCommitResolution } from '../../../drag/pipeline/drag-input';
+import type { DragDropSnapshot, DropResolution } from '../../../drag/pipeline/pipeline-drop';
 
-export type PointerDropCommitResolution = DropCommitResolution;
+export type PointerDropCommitResolution = DropResolution;
 
 export interface PointerDragTargetClient {
     containsPoint: (clientX: number, clientY: number) => boolean;

@@ -34,12 +34,8 @@ describe('headless drag architecture boundaries', () => {
             .filter((entry) => statSync(join(dragRoot, entry)).isDirectory())
             .sort();
         expect(topLevelDirs).toEqual([
-            'drop',
-            'effects',
-            'intent',
-            'lifecycle',
             'pipeline',
-            'state',
+            'selection',
         ]);
     });
 
@@ -59,7 +55,7 @@ describe('headless drag architecture boundaries', () => {
     });
 
     it('keeps platform resolution and command execution contracts out of drag', () => {
-        const forbidden = /\b(?:DropResolution|DropPreview|DropValidationResult|MoveBlockCommand|BlockTransaction|applyMoveCommand|applyBlockTransaction|renderDropPreviewAtPoint|performDropAtPoint)\b/;
+        const forbidden = /\b(?:DropPreview|DropValidationResult|MoveBlockCommand|BlockTransaction|applyMoveCommand|applyBlockTransaction|renderDropPreviewAtPoint|performDropAtPoint)\b/;
         const offenders = readDragProductionFiles()
             .filter((file) => forbidden.test(file.text))
             .map((file) => file.rel);
@@ -69,10 +65,16 @@ describe('headless drag architecture boundaries', () => {
     it('does not keep old UI/source/move folders under drag', () => {
         const forbidden = [
             'cleanup',
+            'drop',
+            'effects',
             'input',
+            'intent',
+            'lifecycle',
+            'mode',
             'preview',
             'source',
             'move',
+            'state',
         ];
         const existing = forbidden.filter((dir) => {
             try {

@@ -46,13 +46,13 @@ function finishPointerDrag(host: PointerDragController, e: PointerEvent, shouldD
     if (shouldDrop) {
         host.updateActiveDragPointer(e.clientX, e.clientY, e.pointerType || null);
         const resolved = host.buildActiveDragCommand(state.selection);
-        host.applyDragEffects(host.commitActiveDrag({
+        host.applyPipelineOutputs(host.commitActiveDrag({
             pointerId: e.pointerId,
             pointerType: e.pointerType || null,
             resolved,
         }));
     } else {
-        host.applyDragEffects(host.cancelActiveDrag({
+        host.applyPipelineOutputs(host.cancelActiveDrag({
             pointerId: e.pointerId,
             pointerType: e.pointerType || null,
             reason: 'pointer_cancelled',

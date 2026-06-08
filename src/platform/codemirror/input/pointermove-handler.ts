@@ -46,7 +46,7 @@ function handleDraggingPointerMove(host: PointerMoveHost, e: PointerEvent): void
     e.stopPropagation();
     host.updateActiveDragPointer(e.clientX, e.clientY, e.pointerType || null);
     const drop = host.resolveActiveDragDropSnapshot(dragState.selection);
-    host.applyDragEffects(host.previewActiveDrag({
+    host.applyPipelineOutputs(host.previewActiveDrag({
         pointerId: e.pointerId,
         pointerType: e.pointerType || null,
         drop,
@@ -65,7 +65,7 @@ function autoScrollDrag(
     const didScroll = autoScrollEditorNearViewportEdge(host.view, pointer.clientY);
     if (didScroll) {
         const drop = host.resolveActiveDragDropSnapshot(dragState.selection);
-        host.applyDragEffects(host.previewActiveDrag({
+        host.applyPipelineOutputs(host.previewActiveDrag({
             pointerId: dragState.pointerId,
             pointerType: pointer.pointerType,
             drop,

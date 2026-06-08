@@ -1,10 +1,16 @@
 import type { BlockSelection } from '../../../domain/selection/block-selection';
 import type { SelectedBlockRange } from '../../../domain/selection/block-ranges';
-import type { ActiveDrag } from '../../../drag/state/drag-state';
 import type {
     RangeSelectionBoundary,
 } from '../../../domain/selection/range-selection';
 import type { MouseRangeSelectState } from './range-selection-gesture-state';
+
+export type ActiveDrag = {
+    selection: BlockSelection;
+    pointerId: number;
+    pointerType: string | null;
+    autoScrollFrameId: number | null;
+};
 
 export type PointerPressData = {
     selection: BlockSelection;
@@ -37,6 +43,8 @@ export type MobileSelectionInteraction =
         startX: number;
         startY: number;
         selection: BlockSelection;
+        longPressReady: boolean;
+        timeoutId: number | null;
     };
 
 export type MobileSelectionData = {

@@ -1,6 +1,9 @@
 import type { ListDropTarget } from '../../domain/command/drop-target';
+import type { BlockCommand } from '../../domain/command/block-command';
 import type { BlockSelection } from '../../domain/selection/block-selection';
-export type { BlockSelection, BlockSelectionRange, RangeSelectionOperation } from '../../domain/selection/block-selection';
+import type { DragCancelReason } from './pipeline-event';
+import type { DragDropSnapshot } from './pipeline-drop';
+import type { PipelineState } from './pipeline-state';
 
 export type DragSessionPhase =
     | 'idle'
@@ -77,6 +80,17 @@ export interface DragCancelledLifecycleEvent {
     rejectReason: string;
     pointerType: string | null;
 }
+
+export type DragLifecycleListener = (event: DragLifecycleEvent) => void;
+
+export type PipelineOutput<TPreview = unknown> =
+    | { type: 'state_changed'; state: PipelineState }
+    | { type: 'selection_changed'; selection: BlockSelection | null }
+    | { type: 'drag_over'; selection: BlockSelection; drop: DragDropSnapshot<TPreview>; pointerType: string | null }
+    | { type: 'dropped'; selection: BlockSelection; drop: DragDropSnapshot<TPreview>; pointerType: string | null }
+    | { type: 'cancelled'; selection: BlockSelection | null; reason: DragCancelReason; pointerType: string | null }
+    | { type: 'command_ready'; command: BlockCommand }
+    | { type: 'lifecycle'; event: DragLifecycleEvent };
 
 export function buildPressPendingLifecycleEvent(
     source: BlockSelection,
@@ -174,5 +188,3 @@ export function buildIdleLifecycleEvent(): DragLifecycleEvent {
         pointerType: null,
     };
 }
-
-export type DragLifecycleListener = (event: DragLifecycleEvent) => void;

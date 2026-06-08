@@ -1,7 +1,6 @@
 ﻿import type { BlockSelection } from '../../../domain/selection/block-selection';
 import { createMoveCommand, type MoveBlockCommand } from '../../../domain/command/move-command';
-import type { DragDocumentRelation, DragSelectionScope } from '../../../drag/state/drag-session';
-import type { DropAllowedResult, DropValidationResult } from '../drop/drop-resolution';
+import type { DragDocumentRelation, DragSelectionScope, DropAllowedResult, DropValidationResult } from '../drop/drop-resolution';
 
 export type MoveCommandDecision =
     | {

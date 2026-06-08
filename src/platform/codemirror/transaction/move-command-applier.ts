@@ -19,7 +19,7 @@ import {
 } from '../../../domain/transaction/block-command-transaction';
 import { planOrderedListRenumberChanges } from '../../../domain/transaction/list-renumber';
 import type { BlockEffect } from '../../../domain/transaction/block-transaction';
-import type { DragDocumentRelation } from '../../../drag/state/drag-session';
+import type { DragDocumentRelation } from '../drop/drop-resolution';
 import { applyBlockTransaction } from './transaction-applier';
 import type { CapturedBlockFoldState, BlockFoldStateManager } from '../../obsidian/block-fold-state';
 

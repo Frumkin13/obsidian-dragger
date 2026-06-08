@@ -13,10 +13,9 @@ import { clampTargetLineNumber } from '../../../domain/markdown/line-target-numb
 import { getRenderedMainLineNumberAtPoint } from '../../dom/line-hit';
 
 import type { BlockSelection } from '../../../domain/selection/block-selection';
-import type { DragSelectionScope } from '../../../drag/state/drag-session';
 import { createListDropTargetResolver, type ListDropTargetResolver } from './list-drop-target-resolver';
 import { getPreviousNonEmptyLineNumber } from '../../../domain/rules/container-policy';
-import type { DropRejectReason, DropResolution, DropValidationResult } from './drop-resolution';
+import type { DragSelectionScope, DropRejectReason, DropResolution, DropValidationResult } from './drop-resolution';
 
 type PerfDurationKey =
     | 'resolve_total'

@@ -17,16 +17,15 @@ import type { DropValidationResult } from '../drop/drop-resolution';
 import { DropIndicatorManager } from '../preview/drop-indicator';
 import { getVisibleHandleForBlockStart } from '../preview/handle-renderer';
 import { HandleVisibilityController } from '../preview/handle-visibility-controller';
-import { PointerDragController } from '../input/pointer-drag-controller';
-import { buildIdleLifecycleEvent } from '../../../drag/lifecycle/drag-lifecycle';
+import { PointerDragController, type PipelineOutputExecutor } from '../input/pointer-drag-controller';
+import { buildIdleLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
 import { createEditorContext, EditorContext } from './editor-context';
-import { DragLifecycleEmitter } from '../../../drag/lifecycle/drag-lifecycle-emitter';
 
 import type { BlockSelection } from '../../../domain/selection/block-selection';
-import type { DragDocumentRelation, DragSelectionScope } from '../../../drag/state/drag-session';
-import type { DragLifecycleEvent } from '../../../drag/lifecycle/drag-lifecycle';
+import type { DragDocumentRelation, DragSelectionScope } from '../drop/drop-resolution';
+import type { DragLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
 import { DND_DRAG_SOURCE_HIGHLIGHT_ATTR, DND_DRAG_SOURCE_STYLE_ATTR } from '../../../shared/dom-attrs';
 import { normalizeBlockSelectionVisualStyle } from '../../../plugin/settings';
 import { resolveEditorDocumentKey } from '../../obsidian/editor-document-key';
@@ -54,10 +53,33 @@ import {
 import { openBlockTypeMenu } from '../../../plugin/block-type-menu';
 import { buildMoveCommandDecision } from '../command/move-command-decision';
 import type { BlockCommand } from '../../../domain/command/block-command';
-import type { DragDropSnapshot } from '../../../drag/drop/drag-drop-snapshot';
-import type { DragEffectExecutor } from '../../../drag/effects/drag-effect-executor';
+import type { DragDropSnapshot } from '../../../drag/pipeline/pipeline-drop';
 
 type CodeMirrorDragDropSnapshot = DragDropSnapshot<DropValidationResult>;
+
+class DragLifecycleEmitter {
+    private lastSignature: string | null = null;
+
+    constructor(private readonly sink: (event: DragLifecycleEvent) => void) {}
+
+    emit(event: DragLifecycleEvent): void {
+        const signature = JSON.stringify({
+            type: event.type,
+            phase: event.phase,
+            sourceStart: event.source?.anchorBlock.startLine ?? null,
+            sourceEnd: event.source?.anchorBlock.endLine ?? null,
+            sourceRanges: event.source?.ranges ?? null,
+            targetLine: event.targetLine,
+            listIntent: event.listIntent,
+            rejectReason: event.rejectReason,
+            pointerType: event.pointerType,
+            pressReady: event.type === 'drag_press_pending' && event.pressReady === true,
+        });
+        if (signature === this.lastSignature) return;
+        this.lastSignature = signature;
+        this.sink(event);
+    }
+}
 
 export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
     return class {
@@ -151,7 +173,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 applyBlockCommand: (command) => this.applyBlockCommand(command),
             };
             this.unregisterPointerDragTargetClient = registerPointerDragTargetClient(this.pointerDragTargetClient);
-            const dragEffectExecutor: DragEffectExecutor = {
+            const pipelineOutputExecutor: PipelineOutputExecutor = {
                 showDropPreview: (selection, drop, pointerType) =>
                     showPointerDropPreview(
                         this.pointerDragTargetClient,
@@ -206,7 +228,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                         clientY,
                         pointerType ?? null
                     ),
-                dragEffectExecutor,
+                pipelineOutputExecutor,
                 onDragLifecycleEvent: (event) => {
                     this.handleSourceVisualByLifecycle(event);
                     this.emitDragLifecycle(event);
@@ -441,6 +463,9 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private handleSettingsUpdated(): void {
             this.cachedHandleGutterSide = this.resolveConfiguredHandleGutterSide();
             this.syncViewDomState();
+            this.pointerDragController.handleMobileDragAvailabilityChanged(
+                plugin.settings.requireMobileDragMode !== true || plugin.isMobileDragModeEnabled()
+            );
             this.refreshDecorationsAndEmbeds();
             this.pointerDragController.refreshSelectionVisual();
             this.handleVisibility.refreshGrabVisualState();

@@ -1,5 +1,5 @@
 import type { BlockSelection } from '../../../domain/selection/block-selection';
-import type { GestureCancelReason } from '../../../drag/state/drag-state';
+import type { DragCancelReason } from '../../../drag/pipeline/pipeline-event';
 import type { InteractionState } from './interaction-state';
 
 export interface InteractionCleanupHost {
@@ -9,11 +9,10 @@ export interface InteractionCleanupHost {
         releasePointerCapture(): void;
     };
     mobile: {
-        unlockMobileInteraction(): void;
-        detachFocusGuard(): void;
+        clearDragInteractionMode(): void;
     };
     deps: {
-        dragEffectExecutor: {
+        pipelineOutputExecutor: {
             hideDropPreview(): void;
         };
         finishDragSession(): void;
@@ -24,14 +23,14 @@ export interface InteractionCleanupHost {
     clearCommittedRangeSelection(): void;
     resolveActiveRangeSelection(): BlockSelection | null;
     resolveMobileSelection(): BlockSelection | null;
-    emitCancelledLifecycle(source: BlockSelection, rejectReason: GestureCancelReason | 'session_interrupted', pointerType: string | null): void;
+    emitCancelledLifecycle(source: BlockSelection, rejectReason: DragCancelReason, pointerType: string | null): void;
     emitIdleLifecycle(): void;
 }
 
 export type InteractionCleanupOptions = {
     shouldFinishDragSession?: boolean;
     shouldHideDropPreview?: boolean;
-    cancelReason?: GestureCancelReason | 'session_interrupted' | null;
+    cancelReason?: DragCancelReason | null;
     pointerType?: string | null;
 };
 
@@ -45,11 +44,10 @@ export function cleanupInteractionSession(host: InteractionCleanupHost, options?
     host.gesture = { phase: 'idle' };
     host.pointer.detachPointerListeners();
     host.pointer.releasePointerCapture();
-    host.mobile.unlockMobileInteraction();
-    host.mobile.detachFocusGuard();
+    host.mobile.clearDragInteractionMode();
 
     if (shouldHideDropPreview) {
-        host.deps.dragEffectExecutor.hideDropPreview();
+        host.deps.pipelineOutputExecutor.hideDropPreview();
     }
     if (hadDrag && shouldFinishDragSession) {
         host.deps.finishDragSession();

@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../../domain/block/block-types';
-import { type BlockSelection } from '../../../drag/lifecycle/drag-lifecycle';
+import { type BlockSelection } from '../../../domain/selection/block-selection';
 import { PointerDragController } from './pointer-drag-controller';
 import {
     registerMouseHandlerTestHooks,
@@ -12,6 +12,7 @@ import {
     appendHandleForBlockStart,
     appendHandleGutterMarker,
     dispatchPointer,
+    dispatchTouchMove,
     createRect,
     resolveBlockSelectionFromTestBlocks,
 } from './pointer-drag-controller.test-helpers';
@@ -397,7 +398,7 @@ describe('PointerDragController Range Selection', () => {
         handler.destroy();
     });
 
-    it('supports immediate handle-slide deselection in committed multi-select mode', () => {
+    it('supports immediate handle retargeting in committed desktop multi-select mode', () => {
         const view = createViewStub(8);
         const startHandle = appendHandleForBlockStart(view, 1);
         const endHandle = appendHandleForBlockStart(view, 5);
@@ -1021,15 +1022,17 @@ describe('PointerDragController Range Selection', () => {
         view.dom.dispatchEvent(event);
 
         expect(event.detail.handled).toBe(true);
-        expect(view.contentDOM.getAttribute('contenteditable')).toBe('false');
+        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
         expect(view.dom.querySelector('.dnd-mobile-selection-bar')).toBeNull();
+        expect(view.dom.querySelector('.dnd-range-selected-line')).toBeNull();
+        expect(view.dom.querySelector('.dnd-drag-source-line')).not.toBeNull();
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
         document.body.classList.remove('is-mobile');
         handler.destroy();
     });
 
-    it('restores editor contenteditable after leaving mobile selection mode', () => {
+    it('suppresses editor input without locking scroll in passive mobile selection mode', () => {
         document.body.classList.add('is-mobile');
         const view = createViewStub(8);
         view.contentDOM.setAttribute('contenteditable', 'true');
@@ -1053,13 +1056,10 @@ describe('PointerDragController Range Selection', () => {
         }));
 
         expect(view.contentDOM.getAttribute('contenteditable')).toBe('false');
+        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
+        expect(dispatchTouchMove(window).defaultPrevented).toBe(false);
 
-        dispatchPointer(view.contentDOM, 'pointerdown', {
-            pointerId: 515,
-            pointerType: 'touch',
-            clientX: 220,
-            clientY: 80,
-        });
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
 
         expect(view.contentDOM.getAttribute('contenteditable')).toBe('true');
         document.body.classList.remove('is-mobile');
@@ -1921,7 +1921,7 @@ describe('PointerDragController Range Selection', () => {
         handler.destroy();
     });
 
-    it('keeps mobile selection mode open and supports sliding handles to extend selection', () => {
+    it('keeps mobile selection mode open and supports resize handles to extend selection', () => {
         document.body.classList.add('is-mobile');
         const view = createViewStub(8);
         const startHandle = appendHandleForBlockStart(view, 0);
@@ -1960,6 +1960,7 @@ describe('PointerDragController Range Selection', () => {
             clientX: 12,
             clientY: 105,
         });
+        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(true);
         dispatchPointer(window, 'pointermove', {
             pointerId: 205,
             pointerType: 'touch',
@@ -1983,7 +1984,7 @@ describe('PointerDragController Range Selection', () => {
         handler.destroy();
     });
 
-    it('drags directly from highlighted mobile selection handles', () => {
+    it('drags highlighted mobile selection handles only after a second long-press', () => {
         document.body.classList.add('is-mobile');
         const view = createViewStub(8);
         const handle = appendHandleForBlockStart(view, 0);
@@ -1996,6 +1997,8 @@ describe('PointerDragController Range Selection', () => {
         const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
+            isMobileDragModeRequired: () => true,
+            isMobileDragModeEnabled: () => true,
             beginPointerDragSession,
             finishDragSession,
             onDropPreview,
@@ -2010,6 +2013,8 @@ describe('PointerDragController Range Selection', () => {
         }));
 
         expect(handle.classList.contains('dnd-range-selected-handle')).toBe(true);
+        expect(view.dom.querySelector('.dnd-range-selected-line')).toBeNull();
+        expect(view.dom.querySelector('.dnd-drag-source-line')).not.toBeNull();
 
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 401,
@@ -2017,6 +2022,18 @@ describe('PointerDragController Range Selection', () => {
             clientX: 12,
             clientY: 10,
         });
+        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(true);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 401,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 15,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(onDropPreview).not.toHaveBeenCalled();
+
+        vi.advanceTimersByTime(220);
         dispatchPointer(window, 'pointermove', {
             pointerId: 401,
             pointerType: 'touch',
@@ -2041,6 +2058,7 @@ describe('PointerDragController Range Selection', () => {
 
         expect(onPlatformCommit).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
+        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
         document.body.classList.remove('is-mobile');
         handler.destroy();
     });
@@ -2070,7 +2088,10 @@ describe('PointerDragController Range Selection', () => {
         }));
 
         expect(handle.classList.contains('dnd-range-selected-handle')).toBe(true);
-        expect(view.dom.querySelectorAll('.dnd-range-selected-line')).not.toHaveLength(0);
+        expect(view.dom.querySelector('.dnd-range-selected-line')).toBeNull();
+        expect(view.dom.querySelector('.dnd-drag-source-line')).not.toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
 
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 402,
@@ -2080,7 +2101,8 @@ describe('PointerDragController Range Selection', () => {
         });
         vi.advanceTimersByTime(5000);
         expect(handle.classList.contains('dnd-range-selected-handle')).toBe(true);
-        expect(view.dom.querySelectorAll('.dnd-range-selected-line')).not.toHaveLength(0);
+        expect(view.dom.querySelector('.dnd-range-selected-line')).toBeNull();
+        expect(view.dom.querySelector('.dnd-drag-source-line')).not.toBeNull();
 
         dispatchPointer(window, 'pointermove', {
             pointerId: 402,
@@ -2097,7 +2119,8 @@ describe('PointerDragController Range Selection', () => {
             })],
             }), 'touch');
         expect(handle.classList.contains('dnd-range-selected-handle')).toBe(true);
-        expect(view.dom.querySelectorAll('.dnd-range-selected-line')).not.toHaveLength(0);
+        expect(view.dom.querySelector('.dnd-range-selected-line')).toBeNull();
+        expect(view.dom.querySelector('.dnd-drag-source-line')).not.toBeNull();
 
         document.body.classList.remove('is-mobile');
         handler.destroy();
@@ -2147,6 +2170,7 @@ describe('PointerDragController Range Selection', () => {
             clientX: 12,
             clientY: 10,
         });
+        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(true);
         dispatchPointer(window, 'pointermove', {
             pointerId: 207,
             pointerType: 'touch',
@@ -2159,6 +2183,7 @@ describe('PointerDragController Range Selection', () => {
             clientX: 12,
             clientY: 105,
         });
+        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
         dispatchPointer(view.dom, 'lostpointercapture', {
             pointerId: 207,
             pointerType: 'touch',
@@ -2183,6 +2208,7 @@ describe('PointerDragController Range Selection', () => {
             clientX: 12,
             clientY: 10,
         });
+        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(true);
         dispatchPointer(window, 'pointermove', {
             pointerId: 208,
             pointerType: 'touch',
@@ -2195,6 +2221,7 @@ describe('PointerDragController Range Selection', () => {
             clientX: 12,
             clientY: 50,
         });
+        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
         dispatchPointer(view.dom, 'lostpointercapture', {
             pointerId: 208,
             pointerType: 'touch',
@@ -2215,7 +2242,111 @@ describe('PointerDragController Range Selection', () => {
         handler.destroy();
     });
 
-    it('cancels blocks and exits mobile selection from explicit taps', () => {
+    it('adds disjoint mobile selection ranges from unselected handles', () => {
+        document.body.classList.add('is-mobile');
+        const view = createViewStub(8);
+        const firstHandle = appendHandleForBlockStart(view, 0);
+        const middleHandle = appendHandleForBlockStart(view, 1);
+        const farHandle = appendHandleForBlockStart(view, 5);
+        const firstBlock = createBlock('line 1', 0, 0);
+        const middleBlock = createBlock('line 2', 1, 1);
+        const farBlock = createBlock('line 6', 5, 5);
+
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
+                handle: (handle) => {
+                    if (handle === firstHandle) return firstBlock;
+                    if (handle === middleHandle) return middleBlock;
+                    if (handle === farHandle) return farBlock;
+                    return null;
+                },
+                point: () => firstBlock,
+            }),
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
+
+        handler.attach();
+        view.dom.dispatchEvent(new CustomEvent('dnd:enter-mobile-selection-mode', {
+            bubbles: true,
+            detail: { handled: false },
+        }));
+        vi.runOnlyPendingTimers();
+
+        dispatchPointer(farHandle, 'pointerdown', {
+            pointerId: 209,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 105,
+        });
+        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(true);
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 209,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 105,
+        });
+
+        const selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
+        expect(selectedHandles).toContain(firstHandle);
+        expect(selectedHandles).toContain(farHandle);
+        expect(selectedHandles).not.toContain(middleHandle);
+        expect(selectedHandles).toHaveLength(2);
+        expect(view.dom.querySelectorAll('.dnd-drag-source-line')).toHaveLength(2);
+        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
+        expect(dispatchTouchMove(window).defaultPrevented).toBe(false);
+
+        document.body.classList.remove('is-mobile');
+        handler.destroy();
+    });
+
+    it('exits mobile selection when parent mobile drag mode becomes unavailable', () => {
+        document.body.classList.add('is-mobile');
+        const view = createViewStub(8);
+        view.contentDOM.setAttribute('contenteditable', 'true');
+        const handle = appendHandleForBlockStart(view, 0);
+        const sourceBlock = createBlock('line 1', 0, 0);
+
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
+                handle: () => sourceBlock,
+                point: () => sourceBlock,
+            }),
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
+
+        handler.attach();
+        view.dom.dispatchEvent(new CustomEvent('dnd:enter-mobile-selection-mode', {
+            bubbles: true,
+            detail: { handled: false },
+        }));
+
+        expect(handle.classList.contains('dnd-range-selected-handle')).toBe(true);
+        expect(view.dom.querySelector('.dnd-drag-source-line')).not.toBeNull();
+        expect(view.contentDOM.getAttribute('contenteditable')).toBe('false');
+
+        handler.handleMobileDragAvailabilityChanged(false);
+
+        expect(handle.classList.contains('dnd-range-selected-handle')).toBe(false);
+        expect(view.dom.querySelector('.dnd-drag-source-line')).toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top.is-active')).toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom.is-active')).toBeNull();
+        expect(view.contentDOM.getAttribute('contenteditable')).toBe('true');
+
+        document.body.classList.remove('is-mobile');
+        handler.destroy();
+    });
+
+    it('ignores explicit content taps while mobile selection is active', () => {
         document.body.classList.add('is-mobile');
         const view = createViewStub(4);
         const firstHandle = appendHandleForBlockStart(view, 0);
@@ -2255,9 +2386,13 @@ describe('PointerDragController Range Selection', () => {
 
         let selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
         expect(selectedHandles).toContain(firstHandle);
-        expect(selectedHandles).toContain(secondHandle);
-        expect(selectedHandles).toHaveLength(2);
-        expect(view.dom.querySelectorAll('.dnd-range-selected-line')).toHaveLength(2);
+        expect(selectedHandles).not.toContain(secondHandle);
+        expect(selectedHandles).toHaveLength(1);
+        expect(view.dom.querySelector('.dnd-range-selected-line')).toBeNull();
+        expect(view.dom.querySelectorAll('.dnd-drag-source-line')).toHaveLength(1);
+
+        const contentTouchMove = dispatchTouchMove(window);
+        expect(contentTouchMove.defaultPrevented).toBe(false);
 
         dispatchPointer(view.contentDOM, 'pointerdown', {
             pointerId: 302,
@@ -2267,8 +2402,8 @@ describe('PointerDragController Range Selection', () => {
         });
 
         selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
-        expect(selectedHandles).not.toContain(firstHandle);
-        expect(selectedHandles).toContain(secondHandle);
+        expect(selectedHandles).toContain(firstHandle);
+        expect(selectedHandles).not.toContain(secondHandle);
         expect(selectedHandles).toHaveLength(1);
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
 
@@ -2279,10 +2414,12 @@ describe('PointerDragController Range Selection', () => {
             clientY: 25,
         });
 
-        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).toHaveLength(0);
+        selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
+        expect(selectedHandles).toContain(firstHandle);
+        expect(selectedHandles).not.toContain(secondHandle);
+        expect(selectedHandles).toHaveLength(1);
         expect(view.dom.querySelector('.dnd-range-selected-line')).toBeNull();
-        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top.is-active')).toBeNull();
-        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom.is-active')).toBeNull();
+        expect(view.dom.querySelectorAll('.dnd-drag-source-line')).toHaveLength(1);
 
         view.dom.dispatchEvent(new CustomEvent('dnd:enter-mobile-selection-mode', {
             bubbles: true,
@@ -2298,9 +2435,11 @@ describe('PointerDragController Range Selection', () => {
             clientY: Number.NaN,
         });
 
-        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).toHaveLength(0);
-        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top.is-active')).toBeNull();
-        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom.is-active')).toBeNull();
+        selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
+        expect(selectedHandles).toContain(firstHandle);
+        expect(selectedHandles).toHaveLength(1);
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top.is-active')).not.toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom.is-active')).not.toBeNull();
         expect(thirdHandle.classList.contains('dnd-range-selected-handle')).toBe(false);
         document.body.classList.remove('is-mobile');
         handler.destroy();
