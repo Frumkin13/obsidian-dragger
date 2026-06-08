@@ -68,6 +68,8 @@ function createState(docText: string): TestState {
     return { doc: createDoc(docText) };
 }
 
+const TAB_SIZE = 4;
+
 function updateState(
     state: TestState,
     change: { from: number; to: number; insert: string }
@@ -118,9 +120,16 @@ function summarizeDurations(samples: number[]): {
 }
 
 describe('line-map', () => {
+    it('uses explicit tab size supplied by the caller', () => {
+        const state = createState('\t- child');
+        const lineMap = getLineMap(state, { tabSize: 8 });
+
+        expect(getLineMetaAt(lineMap, 1).indentWidth).toBe(8);
+    });
+
     it('builds line metadata and non-empty indexes', () => {
         const state = createState('> [!note] title\n> body\n\n- item\n---\n| a |');
-        const lineMap = getLineMap(state);
+        const lineMap = getLineMap(state, { tabSize: TAB_SIZE });
 
         expect(getLineMetaAt(lineMap, 1)).toEqual(expect.objectContaining({
             isQuote: true,
@@ -145,7 +154,7 @@ describe('line-map', () => {
 
     it('builds list parent/subtree indexes', () => {
         const state = createState('- root\n  - child\n    detail\n- sibling\nafter');
-        const lineMap = getLineMap(state);
+        const lineMap = getLineMap(state, { tabSize: TAB_SIZE });
 
         expect(lineMap.listParentLine[1]).toBe(0);
         expect(lineMap.listParentLine[2]).toBe(1);
@@ -157,18 +166,18 @@ describe('line-map', () => {
 
     it('reuses cached line map across states sharing the same doc', () => {
         const stateA = createState('- item');
-        const first = getLineMap(stateA);
+        const first = getLineMap(stateA, { tabSize: TAB_SIZE });
         const stateB = { doc: stateA.doc };
-        const second = getLineMap(stateB);
+        const second = getLineMap(stateB, { tabSize: TAB_SIZE });
         const stateC = createState('- item\n- next');
 
         expect(first).toBe(second);
-        expect(getLineMap(stateC)).not.toBe(first);
+        expect(getLineMap(stateC, { tabSize: TAB_SIZE })).not.toBe(first);
     });
 
     it('primes next line map from transition changes and matches full build output', () => {
         const previousState = createState('- root\n- sibling\nplain');
-        const previousMap = getLineMap(previousState);
+        const previousMap = getLineMap(previousState, { tabSize: TAB_SIZE });
         expect(previousMap.doc.lines).toBe(3);
 
         const tr = updateState(previousState, {
@@ -182,8 +191,9 @@ describe('line-map', () => {
             previousState,
             nextState,
             changes: tr.changes,
+            tabSize: TAB_SIZE,
         });
-        const rebuilt = buildLineMap(nextState);
+        const rebuilt = buildLineMap(nextState, { tabSize: TAB_SIZE });
 
         expect(primed.doc).toBe(nextState.doc);
         expect(primed.lineMeta).toEqual(rebuilt.lineMeta);
@@ -192,12 +202,12 @@ describe('line-map', () => {
         expect(Array.from(primed.prevListLine)).toEqual(Array.from(rebuilt.prevListLine));
         expect(Array.from(primed.listParentLine)).toEqual(Array.from(rebuilt.listParentLine));
         expect(Array.from(primed.listSubtreeEndLine)).toEqual(Array.from(rebuilt.listSubtreeEndLine));
-        expect(getLineMap(nextState)).toBe(primed);
+        expect(getLineMap(nextState, { tabSize: TAB_SIZE })).toBe(primed);
     });
 
     it('reuses index arrays when typing does not change structural metadata', () => {
         const previousState = createState('- item\nplain text\n> quote');
-        const previous = getLineMap(previousState);
+        const previous = getLineMap(previousState, { tabSize: TAB_SIZE });
         const tr = updateState(previousState, {
             from: previousState.doc.line(2).to,
             to: previousState.doc.line(2).to,
@@ -207,6 +217,7 @@ describe('line-map', () => {
             previousState,
             nextState: tr.state,
             changes: tr.changes,
+            tabSize: TAB_SIZE,
         });
 
         expect(next.prevNonEmpty).toBe(previous.prevNonEmpty);
@@ -234,7 +245,7 @@ describe('line-map', () => {
         }
 
         let state = createState(sourceLines.join('\n'));
-        getLineMap(state);
+        getLineMap(state, { tabSize: TAB_SIZE });
 
         const totalDurations: number[] = [];
         const primeDurations: number[] = [];
@@ -256,11 +267,12 @@ describe('line-map', () => {
                 previousState: state,
                 nextState: tr.state,
                 changes: tr.changes,
+                tabSize: TAB_SIZE,
             });
             primeDurations.push(nowMs() - primeStartedAt);
 
             const getStartedAt = nowMs();
-            const cached = getLineMap(tr.state);
+            const cached = getLineMap(tr.state, { tabSize: TAB_SIZE });
             getDurations.push(nowMs() - getStartedAt);
             totalDurations.push(nowMs() - totalStartedAt);
 

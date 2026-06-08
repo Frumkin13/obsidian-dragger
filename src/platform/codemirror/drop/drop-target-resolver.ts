@@ -27,6 +27,7 @@ type PerfDurationKey =
     | 'geometry';
 
 export interface DropTargetResolverDeps {
+    tabSize: number;
     parseLineWithQuote: (line: string) => ParsedLine;
     getAdjustedTargetLocation: (
         lineNumber: number,
@@ -35,7 +36,7 @@ export interface DropTargetResolverDeps {
     resolveDropRuleAtInsertion: (
         sourceBlock: BlockInfo,
         targetLineNumber: number,
-        options?: { lineMap?: LineMap }
+        options: { lineMap?: LineMap; tabSize: number }
     ) => {
         slotContext: InsertionSlotContext;
         decision: { allowDrop: boolean; rejectReason?: string | null };
@@ -77,6 +78,7 @@ export class DropTargetResolver {
         private readonly deps: DropTargetResolverDeps
     ) {
         this.listDropTargetResolver = createListDropTargetResolver(view, {
+            tabSize: deps.tabSize,
             parseLineWithQuote: deps.parseLineWithQuote,
             getPreviousNonEmptyLineNumber,
             getIndentUnitWidthForDoc: deps.getIndentUnitWidthForDoc,
@@ -109,7 +111,7 @@ export class DropTargetResolver {
         }
         this.deps.incrementPerfCounter?.('resolve_cache_misses', 1);
 
-        const lineMap = getLineMap(this.view.state);
+        const lineMap = getLineMap(this.view.state, { tabSize: this.deps.tabSize });
 
         const result = this.resolveValidatedDropTargetInternal({
             info,
@@ -288,7 +290,10 @@ export class DropTargetResolver {
     } {
         const containerStartedAt = this.now();
         const containerRule = selection
-            ? this.deps.resolveDropRuleAtInsertion(selection.anchorBlock, targetLineNumber, { lineMap })
+            ? this.deps.resolveDropRuleAtInsertion(selection.anchorBlock, targetLineNumber, {
+                lineMap,
+                tabSize: this.deps.tabSize,
+            })
             : null;
         this.deps.recordPerfDuration?.('container', this.now() - containerStartedAt);
         if (!containerRule) {

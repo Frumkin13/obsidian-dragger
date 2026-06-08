@@ -7,6 +7,7 @@ import {
 } from './block-guards';
 import { splitBlockquotePrefix, getBlockquoteDepthFromLine } from '../markdown/line-parser';
 import { findCodeBlockRange, findMathBlockRange } from '../markdown/fence-scanner';
+import { normalizeTabSize } from '../markdown/indent-calculator';
 
 const LIST_UNORDERED_RE = /^[-*+]\s/;
 const LIST_ORDERED_RE = /^\d+\.\s/;
@@ -396,23 +397,19 @@ function detectBlockUncached(state: StateWithDoc, lineNumber: number, tabSize: n
 /**
  * hot path cache: drag move 每帧会重复查询同一行块信息
  */
-function safeTabSize(state: unknown): number {
-    if (!state || typeof state !== 'object') return 2;
-    const maybeTabSize = (state as { tabSize?: unknown }).tabSize;
-    return typeof maybeTabSize === 'number' && Number.isFinite(maybeTabSize) && maybeTabSize > 0
-        ? maybeTabSize
-        : 2;
-}
-
 function nowMs(): number {
     return typeof performance !== 'undefined' && typeof performance.now === 'function'
         ? performance.now()
         : Date.now();
 }
 
-export function detectBlock(state: StateWithDoc, lineNumber: number): BlockInfo | null {
+export function detectBlock(
+    state: StateWithDoc,
+    lineNumber: number,
+    options: { tabSize: number }
+): BlockInfo | null {
     const doc = state.doc;
-    const tabSize = safeTabSize(state);
+    const tabSize = normalizeTabSize(options.tabSize);
 
     let cacheByTabSize = blockDetectionCache.get(doc);
     if (!cacheByTabSize) {

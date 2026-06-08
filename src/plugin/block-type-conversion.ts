@@ -1,8 +1,12 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { detectBlock } from '../domain/block/block-detector';
-import { resolveDeleteRange } from '../domain/mutation/document-change';
-import { anchorSelectionBeforeUndoableChange } from '../platform/codemirror/transaction/undo-selection-anchor';
+import { BlockType, type BlockInfo } from '../domain/block/block-types';
+import { createDeleteCommand } from '../domain/command/delete-command';
+import { createBlockSelection } from '../domain/selection/block-selection';
+import { planBlockCommandTransaction } from '../domain/transaction/block-command-transaction';
+import { applyBlockTransaction } from '../platform/codemirror/transaction/transaction-applier';
+import type { CommandReject } from '../domain/transaction/command-reject';
 
 export type BlockTypeConversion =
     | 'paragraph'
@@ -51,25 +55,40 @@ export function deleteCurrentBlock(view: EditorView): boolean {
     const block = getCurrentBlock(view);
     if (!block) return false;
 
-    const startLine = view.state.doc.line(block.startLine + 1);
-    const endLine = view.state.doc.line(block.endLine + 1);
-    const change = resolveDeleteRange(view.state.doc, startLine.from, endLine.to);
-    if (change.from === change.to) return false;
-
-    anchorSelectionBeforeUndoableChange(view, change.from);
-    view.dispatch({
-        changes: { from: change.from, to: change.to },
-        scrollIntoView: false,
+    const transaction = planBlockCommandTransaction({
+        doc: view.state.doc,
+        command: createDeleteCommand(createBlockSelection(block, [{
+            startLine: block.startLine,
+            endLine: block.endLine,
+        }])),
     });
+    if (isCommandReject(transaction)) return false;
+    applyBlockTransaction(view, transaction, { anchor: block.from });
     return true;
 }
 
-function getCurrentBlock(view: EditorView): { startLine: number; endLine: number } | null {
+function getCurrentBlock(view: EditorView): BlockInfo | null {
     const head = view.state.selection.main.head;
     const lineNumber = view.state.doc.lineAt(head).number;
-    const block = detectBlock(view.state, lineNumber);
-    if (!block) return { startLine: lineNumber - 1, endLine: lineNumber - 1 };
-    return { startLine: block.startLine, endLine: block.endLine };
+    const block = detectBlock(view.state, lineNumber, { tabSize: view.state.facet(EditorState.tabSize) });
+    if (block) return block;
+    const line = view.state.doc.line(lineNumber);
+    return {
+        type: BlockType.Paragraph,
+        startLine: lineNumber - 1,
+        endLine: lineNumber - 1,
+        from: line.from,
+        to: line.to,
+        indentLevel: 0,
+        content: line.text,
+    };
+}
+
+function isCommandReject(value: unknown): value is CommandReject {
+    return typeof value === 'object'
+        && value !== null
+        && 'type' in value
+        && value.type === 'reject';
 }
 
 function buildBlockTypeConversionChanges(

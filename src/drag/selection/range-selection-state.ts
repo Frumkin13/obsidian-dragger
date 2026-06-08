@@ -1,5 +1,4 @@
 import type { BlockInfo } from '../../domain/block/block-types';
-import { detectBlock } from '../../domain/block/block-detector';
 import type { RangeSelectionOperation } from '../../domain/selection/block-selection';
 import {
     isSelectedBlockCoveredByBlocks,
@@ -8,7 +7,7 @@ import {
     type SelectedBlockRange,
 } from '../../domain/selection/block-ranges';
 import { clampLineNumber } from '../../domain/markdown/line-number';
-import type { DocLikeWithRange, StateWithDoc } from '../../domain/markdown/document-types';
+import type { DocLikeWithRange } from '../../domain/markdown/document-types';
 
 type DocWithLineAt = DocLikeWithRange & {
     lineAt: (pos: number) => { number: number };
@@ -28,6 +27,10 @@ export type RangeSelectionBoundary = {
     endLineNumber: number;
     representativeLineNumber: number;
 };
+
+export type RangeSelectionBoundaryResolver = (
+    lineNumber: number
+) => { startLineNumber: number; endLineNumber: number };
 
 export type RangeSelectConfig = {
     longPressMs: number;
@@ -80,25 +83,6 @@ export function buildSelectedBlockRangeFromBlockInfo(block: BlockInfo): Selected
     };
 }
 
-export function resolveBlockBoundaryAtLine(
-    state: StateWithDoc,
-    lineNumber: number
-): { startLineNumber: number; endLineNumber: number } {
-    const doc = state.doc;
-    const clampedLine = Math.max(1, Math.min(doc.lines, lineNumber));
-    const block = detectBlock(state, clampedLine);
-    if (!block) {
-        return {
-            startLineNumber: clampedLine,
-            endLineNumber: clampedLine,
-        };
-    }
-    return {
-        startLineNumber: Math.max(1, block.startLine + 1),
-        endLineNumber: Math.min(doc.lines, block.endLine + 1),
-    };
-}
-
 export function buildRangeSelectionBoundaryFromBlock(
     doc: DocWithLineAt,
     block: BlockInfo
@@ -117,13 +101,13 @@ export function buildRangeSelectionBoundaryFromBlock(
 }
 
 export function collectSelectedBlocksBetween(
-    state: StateWithDoc,
+    docLines: number,
     anchorStartLineNumber: number,
     anchorEndLineNumber: number,
     targetBlockStartLineNumber: number,
-    targetBlockEndLineNumber: number
+    targetBlockEndLineNumber: number,
+    resolveBoundary: RangeSelectionBoundaryResolver
 ): SelectedBlockRange[] {
-    const docLines = state.doc.lines;
     const startLineNumber = Math.max(
         1,
         Math.min(docLines, Math.min(anchorStartLineNumber, targetBlockStartLineNumber))
@@ -136,7 +120,7 @@ export function collectSelectedBlocksBetween(
     const blocks: SelectedBlockRange[] = [];
     let cursor = startLineNumber;
     while (cursor <= endLineNumber) {
-        const boundary = resolveBlockBoundaryAtLine(state, cursor);
+        const boundary = resolveBoundary(cursor);
         blocks.push({
             startLineNumber: boundary.startLineNumber,
             endLineNumber: boundary.endLineNumber,
@@ -148,22 +132,23 @@ export function collectSelectedBlocksBetween(
 }
 
 export function computeUpdatedSelectionState(
-    editorState: StateWithDoc,
+    docLines: number,
     state: MouseRangeSelectState,
-    target: RangeSelectionBoundary
+    target: RangeSelectionBoundary,
+    resolveBoundary: RangeSelectionBoundaryResolver
 ): {
     currentLineNumber: number;
     selectionBlocks: SelectedBlockRange[];
 } {
     const activeBlocks = collectSelectedBlocksBetween(
-        editorState,
+        docLines,
         state.anchorStartLineNumber,
         state.anchorEndLineNumber,
         target.startLineNumber,
-        target.endLineNumber
+        target.endLineNumber,
+        resolveBoundary
     );
 
-    const docLines = editorState.doc.lines;
     const selectionBlocks = state.operation === 'remove'
         ? subtractSelectedBlocks(docLines, state.committedBlocksSnapshot, activeBlocks)
         : mergeSelectedBlocks(docLines, [

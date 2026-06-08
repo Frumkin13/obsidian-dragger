@@ -15,7 +15,6 @@ import {
     collectSelectedBlocksBetween,
     CommittedRangeSelection,
     RangeSelectionBoundary,
-    resolveBlockBoundaryAtLine,
 } from '../../../drag/selection/range-selection-state';
 import { resolveRangeBoundaryAtPoint } from './pointer-input';
 import {
@@ -33,6 +32,7 @@ import {
     PointerTerminalMode,
 } from '../../../drag/state/drag-state';
 import { shouldStartMobilePressDrag as shouldStartMobilePressDragByInput } from './pointer-input';
+import { createRangeSelectionBoundaryResolver } from '../selection/block-boundary-resolver';
 import type { BlockSelectionRequest } from '../selection/block-selection-resolver';
 
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
@@ -289,7 +289,7 @@ export function enterMobileSelectionMode(host: MobileSelectionActionHost, e: Eve
     if (host.gesture.phase !== 'idle') return;
 
     const line = host.view.state.doc.lineAt(host.view.state.selection.main.head);
-    const boundaryAtCursor = resolveBlockBoundaryAtLine(host.view.state, line.number);
+    const boundaryAtCursor = createRangeSelectionBoundaryResolver(host.view.state)(line.number);
     const startLine = host.view.state.doc.line(boundaryAtCursor.startLineNumber);
     const endLine = host.view.state.doc.line(boundaryAtCursor.endLineNumber);
     const blockInfo = {
@@ -404,11 +404,12 @@ function updateMobileSelectionResize(
     movingBoundary: RangeSelectionBoundary
 ): void {
     const activeBlocks = collectSelectedBlocksBetween(
-        host.view.state,
+        host.view.state.doc.lines,
         state.activeFixedBoundary.startLineNumber,
         state.activeFixedBoundary.endLineNumber,
         movingBoundary.startLineNumber,
-        movingBoundary.endLineNumber
+        movingBoundary.endLineNumber,
+        createRangeSelectionBoundaryResolver(host.view.state)
     );
     const baseBlocks = removeActiveMobileSelectionBlocks(state.selectedBlocks, state.activeRangeBlocks);
     state.activeMovingBoundary = movingBoundary;
@@ -467,7 +468,7 @@ function resolveMobileSelectionBoundaryAtPoint(
     for (const probeX of probeXs) {
         const lineNumber = resolveLineNumberAtMobileSelectionPoint(host, probeX, clientY, contentRect);
         if (lineNumber === null) continue;
-        const boundary = resolveBlockBoundaryAtLine(host.view.state, lineNumber);
+        const boundary = createRangeSelectionBoundaryResolver(host.view.state)(lineNumber);
         return {
             startLineNumber: boundary.startLineNumber,
             endLineNumber: boundary.endLineNumber,

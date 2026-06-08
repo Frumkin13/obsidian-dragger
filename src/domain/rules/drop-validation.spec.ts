@@ -5,6 +5,8 @@ import { validateInPlaceDrop } from './drop-validation';
 import { getLineMap } from '../markdown/line-map';
 import { parseLineWithQuote } from '../markdown/line-parser';
 
+const TAB_SIZE = 4;
+
 function createDoc(lines: string[]) {
     return {
         lines: lines.length,
@@ -71,7 +73,7 @@ describe('drop-validation', () => {
             getListContext: () => ({ indentWidth: 0, indentRaw: '', markerType: 'unordered' }),
             getIndentUnitWidth: () => 2,
             slotContext: 'inside_list',
-            lineMap: getLineMap(state),
+            lineMap: getLineMap(state, { tabSize: TAB_SIZE }),
             listIntent: {
                 mode: 'sibling',
                 contextLineNumber: 1,

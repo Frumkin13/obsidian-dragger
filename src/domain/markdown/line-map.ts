@@ -77,14 +77,6 @@ export function setLineMapPerfRecorder(
     lineMapPerfRecorder = recorder;
 }
 
-function resolveStateTabSize(state: unknown): number {
-    if (!state || typeof state !== 'object') return 4;
-    const maybeTabSize = (state as { tabSize?: unknown }).tabSize;
-    return typeof maybeTabSize === 'number' && Number.isFinite(maybeTabSize)
-        ? normalizeTabSize(maybeTabSize)
-        : 4;
-}
-
 function createLineMetaFromText(text: string, tabSize: number): LineMeta {
     const parsed = parseLineWithQuote(text, tabSize);
     const isEmpty = text.trim().length === 0;
@@ -199,10 +191,10 @@ function createLineMapFromMeta(doc: DocLike, tabSize: number, lineMeta: LineMeta
 
 export function buildLineMap(
     state: StateWithDoc,
-    options?: { tabSize?: number }
+    options: { tabSize: number }
 ): LineMap {
     const doc = state.doc;
-    const tabSize = normalizeTabSize(options?.tabSize ?? resolveStateTabSize(state));
+    const tabSize = normalizeTabSize(options.tabSize);
     const lineMeta = createLineMetaArray(doc, tabSize);
     return createLineMapFromMeta(doc, tabSize, lineMeta);
 }
@@ -405,13 +397,10 @@ export function primeLineMapFromTransition(params: {
     previousState: StateWithDoc;
     nextState: StateWithDoc;
     changes: LineMapChangeDescLike;
-    tabSize?: number;
+    tabSize: number;
 }): LineMap {
     const startedAt = nowMs();
-    const tabSize = normalizeTabSize(
-        params.tabSize
-        ?? resolveStateTabSize(params.nextState)
-    );
+    const tabSize = normalizeTabSize(params.tabSize);
     const previousDoc = params.previousState.doc as Partial<DocLikeWithOffsets>;
     const nextDoc = params.nextState.doc as Partial<DocLikeWithOffsets>;
     const hasOffsetHelpers = typeof previousDoc.lineAt === 'function'
@@ -454,10 +443,10 @@ export function primeLineMapFromTransition(params: {
 
 export function getLineMap(
     state: StateWithDoc,
-    options?: { tabSize?: number }
+    options: { tabSize: number }
 ): LineMap {
     const startedAt = nowMs();
-    const tabSize = normalizeTabSize(options?.tabSize ?? resolveStateTabSize(state));
+    const tabSize = normalizeTabSize(options.tabSize);
     if (!state || typeof state !== 'object') {
         const buildStartedAt = nowMs();
         const built = buildLineMap(state, { tabSize });
@@ -489,9 +478,9 @@ export function getLineMap(
 
 export function peekCachedLineMap(
     state: StateWithDoc,
-    options?: { tabSize?: number }
+    options: { tabSize: number }
 ): LineMap | null {
-    const tabSize = normalizeTabSize(options?.tabSize ?? resolveStateTabSize(state));
+    const tabSize = normalizeTabSize(options.tabSize);
     if (!state || typeof state !== 'object') return null;
     const doc = state.doc;
     if (!doc || typeof doc !== 'object') return null;

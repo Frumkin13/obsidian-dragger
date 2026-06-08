@@ -1,3 +1,4 @@
+import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { detectBlock } from '../../../domain/block/block-detector';
 import type { BlockInfo } from '../../../domain/block/block-types';
@@ -16,6 +17,8 @@ import {
     planBlockCommandTransaction,
     planCapturedMoveCommandTransaction,
 } from '../../../domain/transaction/block-command-transaction';
+import { planOrderedListRenumberChanges } from '../../../domain/transaction/list-renumber';
+import type { BlockEffect } from '../../../domain/transaction/block-transaction';
 import type { DragDocumentRelation } from '../../../drag/state/drag-session';
 import { applyBlockTransaction } from './transaction-applier';
 import type { CapturedBlockFoldState, BlockFoldStateManager } from '../../obsidian/block-fold-state';
@@ -77,6 +80,7 @@ export function applyMoveCommand(deps: MoveCommandApplierDeps, params: MoveComma
     const planned = planBlockCommandTransaction({ doc, command, deps });
     if (isReject(planned)) return;
     applyBlockTransaction(deps.view, planned, { anchor: capturedSource.block.from });
+    applyMovePostEffects(deps, planned.effects);
     const restoreLine = planned.effects?.find((effect) => effect.type === 'restore-fold-state')?.lineNumber
         ?? command.target.targetLineNumber;
     deps.blockFoldState?.restore(deps.view, restoreLine, capturedBlockFoldState ?? null);
@@ -116,12 +120,32 @@ export function applyMoveCommandAcrossEditors(params: CrossEditorMoveCommandPara
     applyBlockTransaction(targetView, { ...planned, changes: planned.changes.filter((change) => change.insert.length > 0) }, {
         anchor: sourceBlock.from,
     });
+    applyMovePostEffects({ ...deps, view: targetView }, planned.effects);
     applyBlockTransaction(sourceView, {
         changes: moveSourcePayload.segments
             .map((segment) => ({ from: segment.deleteFrom, to: segment.deleteTo, insert: '' }))
             .sort((a, b) => b.from - a.from),
     }, { anchor: sourceBlock.from });
     deps.blockFoldState?.restore(targetView, command.target.targetLineNumber, capturedBlockFoldState ?? null);
+}
+
+function applyMovePostEffects(deps: MoveCommandApplierDeps, effects: BlockEffect[] | undefined): void {
+    if (!effects) return;
+    const renumberLineNumbers = Array.from(new Set(
+        effects
+            .filter((effect) => effect.type === 'renumber-ordered-list')
+            .map((effect) => effect.lineNumber)
+    ));
+    for (const lineNumber of renumberLineNumbers) {
+        const changes = planOrderedListRenumberChanges(
+            deps.view.state.doc,
+            deps.parseLineWithQuote,
+            lineNumber
+        );
+        if (changes.length > 0) {
+            applyBlockTransaction(deps.view, { changes });
+        }
+    }
 }
 
 function captureBlockFoldState(
@@ -156,17 +180,17 @@ function resolveDisplacedTargetBlock(view: EditorView, targetLineNumber: number)
     const doc = state.doc;
     if (targetLineNumber < 1 || targetLineNumber > doc.lines) return null;
 
-    const targetBlock = detectBlock(state, targetLineNumber);
+    const targetBlock = detectBlock(state, targetLineNumber, { tabSize: view.state.facet(EditorState.tabSize) });
     if (targetBlock) {
         return targetLineNumber === targetBlock.startLine + 1
             ? targetBlock
             : null;
     }
 
-    const lineMap = getLineMap(state);
+    const lineMap = getLineMap(state, { tabSize: view.state.facet(EditorState.tabSize) });
     const nextNonEmptyLineNumber = getNextNonEmptyLineNumber(doc, targetLineNumber, lineMap);
     if (nextNonEmptyLineNumber === null) return null;
-    const nextBlock = detectBlock(state, nextNonEmptyLineNumber);
+    const nextBlock = detectBlock(state, nextNonEmptyLineNumber, { tabSize: view.state.facet(EditorState.tabSize) });
     if (!nextBlock || nextNonEmptyLineNumber !== nextBlock.startLine + 1) return null;
     return nextBlock;
 }

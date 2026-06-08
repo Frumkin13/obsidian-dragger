@@ -1,4 +1,4 @@
-import type { Text } from '@codemirror/state';
+import { EditorState, type Text } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { detectBlock, getHeadingSectionRange } from '../../../domain/block/block-detector';
 import type { BlockInfo } from '../../../domain/block/block-types';
@@ -123,7 +123,9 @@ export class BlockSelectionResolver {
     }
 
     getDraggableBlockAtLine(lineNumber: number): BlockInfo | null {
-        const block = detectBlock(this.view.state, lineNumber);
+        const block = detectBlock(this.view.state, lineNumber, {
+            tabSize: this.view.state.facet(EditorState.tabSize),
+        });
         if (!block) return null;
         return this.expandHeadingBlockIfCollapsed(block);
     }

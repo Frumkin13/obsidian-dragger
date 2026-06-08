@@ -36,6 +36,7 @@ export interface ListDropTargetResolverPort {
 }
 
 export interface ListDropTargetResolverDeps {
+    tabSize: number;
     parseLineWithQuote: (line: string) => ParsedLine;
     getPreviousNonEmptyLineNumber: (doc: DocLike, lineNumber: number) => number | null;
     getIndentUnitWidthForDoc: (doc: DocLike) => number;
@@ -128,7 +129,7 @@ export function createListDropTargetResolver(view: EditorView, deps: ListDropTar
         if (!selection || selection.anchorBlock.type !== BlockType.ListItem) return {};
 
         const doc = view.state.doc;
-        const lineMap = providedLineMap ?? getLineMap(view.state);
+        const lineMap = providedLineMap ?? getLineMap(view.state, { tabSize: deps.tabSize });
         const memo: ListCalcMemo = {
             parsedLineByLine: new Map<number, ParsedLine>(),
             markerBoundsByLine: new Map<number, { markerStartX: number; contentStartX: number } | null>(),

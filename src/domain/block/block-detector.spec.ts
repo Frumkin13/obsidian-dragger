@@ -31,10 +31,16 @@ function createState(docText: string): StateWithDoc & { tabSize: number } {
     };
 }
 
+const TAB_SIZE = 4;
+
+function detect(state: StateWithDoc, lineNumber: number, tabSize = TAB_SIZE) {
+    return detectBlock(state, lineNumber, { tabSize });
+}
+
 describe('block-detector', () => {
     it('does not absorb following plain text into a list item block', () => {
         const state = createState('- item\nplain text');
-        const block = detectBlock(state, 1);
+        const block = detect(state, 1);
 
         expect(block).not.toBeNull();
         expect(block?.type).toBe(BlockType.ListItem);
@@ -44,7 +50,7 @@ describe('block-detector', () => {
 
     it('keeps indented continuation inside list item block', () => {
         const state = createState('- item\n  continuation\nplain text');
-        const block = detectBlock(state, 1);
+        const block = detect(state, 1);
 
         expect(block).not.toBeNull();
         expect(block?.type).toBe(BlockType.ListItem);
@@ -53,7 +59,7 @@ describe('block-detector', () => {
 
     it('keeps indented fenced code descendants inside list item subtree', () => {
         const state = createState('- parent\n  ```ts\n  const x = 1\n  ```\nafter');
-        const block = detectBlock(state, 1);
+        const block = detect(state, 1);
 
         expect(block).not.toBeNull();
         expect(block?.type).toBe(BlockType.ListItem);
@@ -62,7 +68,7 @@ describe('block-detector', () => {
 
     it('does not absorb following plain text into a task item block', () => {
         const state = createState('- [ ] task\nplain text');
-        const block = detectBlock(state, 1);
+        const block = detect(state, 1);
 
         expect(block).not.toBeNull();
         expect(block?.type).toBe(BlockType.ListItem);
@@ -71,7 +77,7 @@ describe('block-detector', () => {
 
     it('treats regular blockquote lines as line-level movable blocks', () => {
         const state = createState('> line 1\n> line 2\n> line 3\noutside');
-        const block = detectBlock(state, 2);
+        const block = detect(state, 2);
 
         expect(block).not.toBeNull();
         expect(block?.type).toBe(BlockType.Blockquote);
@@ -81,7 +87,7 @@ describe('block-detector', () => {
 
     it('treats quote lines with list markers as part of one blockquote container', () => {
         const state = createState('> intro\n> - item\n> continuation');
-        const block = detectBlock(state, 2);
+        const block = detect(state, 2);
 
         expect(block).not.toBeNull();
         expect(block?.type).toBe(BlockType.Blockquote);
@@ -91,7 +97,7 @@ describe('block-detector', () => {
 
     it('keeps callout as one container block when hit from body lines', () => {
         const state = createState('> [!note] title\n> body line 1\n> body line 2\noutside');
-        const block = detectBlock(state, 2);
+        const block = detect(state, 2);
 
         expect(block).not.toBeNull();
         expect(block?.type).toBe(BlockType.Callout);
@@ -101,7 +107,7 @@ describe('block-detector', () => {
 
     it('detects horizontal rule block with trailing spaces', () => {
         const state = createState('---   \nnext');
-        const block = detectBlock(state, 1);
+        const block = detect(state, 1);
 
         expect(block).not.toBeNull();
         expect(block?.type).toBe(BlockType.HorizontalRule);
@@ -111,7 +117,7 @@ describe('block-detector', () => {
 
     it('detects spaced horizontal rule syntax instead of list item', () => {
         const state = createState('- - -\nnext');
-        const block = detectBlock(state, 1);
+        const block = detect(state, 1);
 
         expect(block).not.toBeNull();
         expect(block?.type).toBe(BlockType.HorizontalRule);
@@ -119,10 +125,17 @@ describe('block-detector', () => {
         expect(block?.endLine).toBe(0);
     });
 
+    it('uses explicit tab size supplied by the caller', () => {
+        const state = createState('        indented paragraph');
+        const block = detect(state, 1, 8);
+
+        expect(block?.indentLevel).toBe(1);
+    });
+
     it('reuses cached block detection result for repeated lookup on same line', () => {
         const state = createState('```ts\nconst x = 1\n```\noutside');
-        const first = detectBlock(state, 2);
-        const second = detectBlock(state, 2);
+        const first = detect(state, 2);
+        const second = detect(state, 2);
 
         expect(first).not.toBeNull();
         expect(second).not.toBeNull();
@@ -132,31 +145,31 @@ describe('block-detector', () => {
     it('avoids cold line-map build for large-doc list detection and keeps subtree result', () => {
         const filler = Array.from({ length: 30_100 }, (_, i) => `plain ${i}`).join('\n');
         const state = createState(`- parent\n  - child\noutside\n${filler}`);
-        expect(peekCachedLineMap(state)).toBeNull();
+        expect(peekCachedLineMap(state, { tabSize: TAB_SIZE })).toBeNull();
 
-        const block = detectBlock(state, 1);
+        const block = detect(state, 1);
 
         expect(block).not.toBeNull();
         expect(block?.type).toBe(BlockType.ListItem);
         expect(block?.endLine).toBe(1);
-        expect(peekCachedLineMap(state)).toBeNull();
+        expect(peekCachedLineMap(state, { tabSize: TAB_SIZE })).toBeNull();
     });
 
     it('keeps eager line-map build on smaller docs for list detection', () => {
         const state = createState('- parent\n  - child\noutside');
-        expect(peekCachedLineMap(state)).toBeNull();
+        expect(peekCachedLineMap(state, { tabSize: TAB_SIZE })).toBeNull();
 
-        const block = detectBlock(state, 1);
+        const block = detect(state, 1);
 
         expect(block).not.toBeNull();
         expect(block?.type).toBe(BlockType.ListItem);
-        expect(peekCachedLineMap(state)).not.toBeNull();
+        expect(peekCachedLineMap(state, { tabSize: TAB_SIZE })).not.toBeNull();
     });
 
     it('keeps unclosed fenced code behavior (only fence start line is code block)', () => {
         const state = createState('```ts\nconst x = 1\nstill code?');
-        const startFenceBlock = detectBlock(state, 1);
-        const innerLineBlock = detectBlock(state, 2);
+        const startFenceBlock = detect(state, 1);
+        const innerLineBlock = detect(state, 2);
 
         expect(startFenceBlock?.type).toBe(BlockType.CodeBlock);
         expect(startFenceBlock?.startLine).toBe(0);
@@ -182,10 +195,10 @@ describe('block-detector', () => {
         const secondBlockProbeLine = firstCodeLines.length + 4 + 800;
         const middleLine = firstCodeLines.length + 3;
 
-        const deepBlock = detectBlock(state, secondBlockProbeLine);
+        const deepBlock = detect(state, secondBlockProbeLine);
         expect(deepBlock?.type).toBe(BlockType.CodeBlock);
 
-        const middleBlock = detectBlock(state, middleLine);
+        const middleBlock = detect(state, middleLine);
         expect(middleBlock?.type).toBe(BlockType.Paragraph);
         expect(middleBlock?.startLine).toBe(middleLine - 1);
         expect(middleBlock?.endLine).toBe(middleLine - 1);

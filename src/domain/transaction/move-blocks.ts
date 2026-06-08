@@ -9,7 +9,6 @@ import { resolveDeleteRange, resolveInsertionChange } from '../mutation/document
 import { normalizeCompositeRanges, type CompositeLineRange } from '../selection/selection-ranges';
 import { createBlockSelection, type BlockSelection } from '../selection/block-selection';
 import type { BlockTransaction } from './block-transaction';
-import { planOrderedListRenumberChanges } from './list-renumber';
 import { rejectCommand, type CommandReject } from './command-reject';
 
 export type MoveSourceSegment = {
@@ -36,7 +35,7 @@ export interface MoveBlocksPlannerDeps {
     resolveDropRuleAtInsertion: (
         sourceBlock: BlockInfo,
         targetLineNumber: number,
-        options?: { lineMap?: ReturnType<typeof getLineMap> }
+        options: { lineMap?: ReturnType<typeof getLineMap>; tabSize: number }
     ) => {
         slotContext: InsertionSlotContext;
         decision: { allowDrop: boolean; rejectReason?: string | null };
@@ -51,6 +50,7 @@ export interface MoveBlocksPlannerDeps {
         sourceContent: string,
         listIntent?: ListDropTarget
     ) => string;
+    tabSize: number;
 }
 
 export function captureMoveSource(doc: DocLikeWithRange, selection: BlockSelection): CapturedMoveSource | null {
@@ -128,8 +128,11 @@ export function planCapturedMoveBlocksTransaction(params: {
     const { doc, capturedSource, target, deps } = params;
     const { block: sourceBlock, payload } = capturedSource;
     const targetLineNumber = clampTargetLineNumber(doc.lines, target.targetLineNumber);
-    const lineMap = getLineMap({ doc });
-    const containerRule = deps.resolveDropRuleAtInsertion(sourceBlock, targetLineNumber, { lineMap });
+    const lineMap = getLineMap({ doc }, { tabSize: deps.tabSize });
+    const containerRule = deps.resolveDropRuleAtInsertion(sourceBlock, targetLineNumber, {
+        lineMap,
+        tabSize: deps.tabSize,
+    });
     if (!containerRule.decision.allowDrop) {
         return rejectCommand(containerRule.decision.rejectReason ?? 'container_policy');
     }
@@ -212,17 +215,18 @@ function planInsertionAndDeletionTransaction(params: {
             ...payload.segments.map((segment) => ({ from: segment.deleteFrom, to: segment.deleteTo, insert: '' })),
         ].sort((a, b) => b.from - a.from);
 
-    const renumberTargets = new Set<number>([targetLineNumber]);
+    const finalInsertedStartLineNumber = resolveFinalInsertedStartLineNumber(targetLineNumber, payload);
+    const renumberTargets = new Set<number>([targetLineNumber, finalInsertedStartLineNumber]);
     for (const segment of payload.segments) {
         renumberTargets.add(segment.startLineNumber);
-    }
-    for (const lineNumber of renumberTargets) {
-        changes.push(...planOrderedListRenumberChanges(doc, deps.parseLineWithQuote, lineNumber));
     }
 
     return {
         changes,
-        effects: [{ type: 'restore-fold-state', lineNumber: resolveFinalInsertedStartLineNumber(targetLineNumber, payload) }],
+        effects: [
+            { type: 'restore-fold-state', lineNumber: finalInsertedStartLineNumber },
+            ...Array.from(renumberTargets).map((lineNumber) => ({ type: 'renumber-ordered-list' as const, lineNumber })),
+        ],
     };
 }
 
@@ -248,10 +252,12 @@ function planInsertOnlyTransaction(params: {
         remainingLengthAfterDelete: doc.length,
     });
     const changes = [{ from: insertion.pos, to: insertion.pos, insert: insertion.text }];
-    changes.push(...planOrderedListRenumberChanges(doc, deps.parseLineWithQuote, targetLineNumber));
     return {
         changes,
-        effects: [{ type: 'restore-fold-state', lineNumber: targetLineNumber }],
+        effects: [
+            { type: 'restore-fold-state', lineNumber: targetLineNumber },
+            { type: 'renumber-ordered-list', lineNumber: targetLineNumber },
+        ],
     };
 }
 

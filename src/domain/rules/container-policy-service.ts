@@ -11,14 +11,14 @@ export function resolveDropRuleAtInsertion(
     state: StateWithDoc,
     sourceBlock: BlockInfo,
     targetLineNumber: number,
-    options?: { lineMap?: LineMap }
+    options: { lineMap?: LineMap; tabSize: number }
 ): DropRuleContext {
-    const lineMap = options?.lineMap ?? getLineMap(state);
+    const lineMap = options.lineMap ?? getLineMap(state, { tabSize: options.tabSize });
     return resolveDropRuleContextAtInsertion(
         state,
         sourceBlock,
         targetLineNumber,
         undefined,
-        { lineMap }
+        { lineMap, tabSize: options.tabSize }
     );
 }

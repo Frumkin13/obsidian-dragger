@@ -16,11 +16,9 @@ import {
     buildCommittedRangeSelection,
     computeUpdatedSelectionState,
 } from '../../../drag/selection/range-selection-state';
-import {
-    resolveBlockBoundaryAtLine,
-} from '../../../drag/selection/range-selection-state';
 import { RangeSelectionVisualManager } from '../preview/range-selection-visual-manager';
 import type { InteractionState } from '../../../drag/state/drag-state';
+import { createRangeSelectionBoundaryResolver } from '../selection/block-boundary-resolver';
 
 const MOBILE_DRAG_LONG_PRESS_MS = 200;
 const MOUSE_RANGE_SELECT_LONG_PRESS_MS = 260;
@@ -178,7 +176,7 @@ export function updateMouseRangeSelectionFromLine(
 ): void {
     const doc = host.view.state.doc;
     const clampedLine = Math.max(1, Math.min(doc.lines, lineNumber));
-    const boundary = resolveBlockBoundaryAtLine(host.view.state, clampedLine);
+    const boundary = createRangeSelectionBoundaryResolver(host.view.state)(clampedLine);
     updateMouseRangeSelection(host, state, {
         ...boundary,
         representativeLineNumber: clampedLine,
@@ -190,7 +188,12 @@ export function updateMouseRangeSelection(
     state: MouseRangeSelectState,
     target: RangeSelectionBoundary
 ): void {
-    const next = computeUpdatedSelectionState(host.view.state, state, target);
+    const next = computeUpdatedSelectionState(
+        host.view.state.doc.lines,
+        state,
+        target,
+        createRangeSelectionBoundaryResolver(host.view.state)
+    );
     state.currentLineNumber = next.currentLineNumber;
     state.selectionBlocks = next.selectionBlocks;
     host.rangeVisual.render(state.selectionBlocks);

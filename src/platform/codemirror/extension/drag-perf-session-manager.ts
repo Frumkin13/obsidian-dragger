@@ -1,3 +1,4 @@
+import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { createDragPerfSession, DragPerfSession, logDragPerfSession } from './perf-session';
 import { getLineMap, setLineMapPerfRecorder } from '../../../domain/markdown/line-map';
@@ -20,7 +21,7 @@ export class DragPerfSessionManager {
             this.session?.recordDuration(key, durationMs);
         });
         // Warm line-map once per drag session to move cold build out of move-frame hot path.
-        getLineMap(this.view.state);
+        getLineMap(this.view.state, { tabSize: this.view.state.facet(EditorState.tabSize) });
     }
 
     flush(reason: string): void {

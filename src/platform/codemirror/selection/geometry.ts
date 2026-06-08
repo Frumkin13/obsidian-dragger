@@ -1,4 +1,5 @@
 import { EditorView } from '@codemirror/view';
+import { EditorState } from '@codemirror/state';
 import { detectBlock } from '../../../domain/block/block-detector';
 import { BlockType } from '../../../domain/block/block-types';
 import {
@@ -22,7 +23,7 @@ export function getAdjustedTargetLocation(
         return { lineNumber: clampTargetLineNumber(doc.lines, lineNumber), blockAdjusted: false };
     }
 
-    const block = detectBlock(view.state, lineNumber);
+    const block = detectBlock(view.state, lineNumber, { tabSize: view.state.facet(EditorState.tabSize) });
     if (!block) return { lineNumber, blockAdjusted: false };
 
     const isAtomicBlock = block.type === BlockType.CodeBlock

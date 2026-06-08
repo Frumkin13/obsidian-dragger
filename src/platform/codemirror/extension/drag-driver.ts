@@ -89,6 +89,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             });
             this.dragPerfSessionManager = new DragPerfSessionManager(this.view);
             const dropTargetResolverDeps: DropTargetResolverDeps = {
+                tabSize: this.context.tabSize,
                 parseLineWithQuote: this.context.parseLineWithQuote,
                 getAdjustedTargetLocation: this.context.getAdjustedTargetLocation,
                 resolveDropRuleAtInsertion: this.context.resolveDropRuleAtInsertion,
@@ -123,6 +124,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             );
             this.moveCommandDeps = {
                 view: this.context.view,
+                tabSize: this.context.tabSize,
                 resolveDropRuleAtInsertion: this.context.resolveDropRuleAtInsertion,
                 parseLineWithQuote: this.context.parseLineWithQuote,
                 getListContext: this.context.getListContext,

@@ -5,7 +5,7 @@ import { detectBlock } from '../../../domain/block/block-detector';
 import { DRAG_HANDLE_CLASS, HANDLE_CORE_CLASS, LINE_HANDLE_CLASS } from '../../../shared/dom-selectors';
 
 export function resolveHandleBlockAtLine(state: EditorState, lineNumber: number): BlockInfo | null {
-    const block = detectBlock(state, lineNumber);
+    const block = detectBlock(state, lineNumber, { tabSize: state.facet(EditorState.tabSize) });
     if (!block) return null;
     if (block.startLine + 1 !== lineNumber) return null;
     return block;

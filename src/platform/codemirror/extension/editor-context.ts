@@ -17,13 +17,15 @@ import { DocLike } from '../../../domain/markdown/document-types';
 import type { ListDropTarget } from '../../../domain/command/drop-target';
 
 export function createEditorContext(view: EditorView) {
+    const tabSize = view.state.facet(EditorState.tabSize);
     const selection = new BlockSelectionResolver(view);
-    const lineParsing = createLineParsingContext(view.state.facet(EditorState.tabSize));
+    const lineParsing = createLineParsingContext(tabSize);
     const getListContextForDoc = (doc: DocLike, lineNumber: number) =>
         getListContext(doc, lineNumber, lineParsing.parseLine);
 
     return {
         view,
+        tabSize,
         selection,
         parseLineWithQuote: lineParsing.parseLine,
         getAdjustedTargetLocation: (lineNumber: number, options?: { clientY?: number }) =>
@@ -32,7 +34,10 @@ export function createEditorContext(view: EditorView) {
             sourceBlock: BlockInfo,
             targetLineNumber: number,
             options?: Parameters<typeof resolveDropRuleAtInsertion>[3]
-        ) => resolveDropRuleAtInsertion(view.state, sourceBlock, targetLineNumber, options),
+        ) => resolveDropRuleAtInsertion(view.state, sourceBlock, targetLineNumber, {
+            ...options,
+            tabSize,
+        }),
         getListContext: getListContextForDoc,
         getIndentUnitWidth: lineParsing.getIndentUnitWidth,
         getIndentUnitWidthForDoc: lineParsing.getIndentUnitWidthForDoc,

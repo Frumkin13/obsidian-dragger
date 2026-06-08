@@ -712,6 +712,31 @@ describe('applyMoveCommand', () => {
         setTimeoutSpy.mockRestore();
     });
 
+    it('renumbers ordered lists after applying move changes', () => {
+        const initial = EditorState.create({ doc: '1. one\n2. two\n3. three' });
+        const { view, dispatch, getState } = createMutableView(initial);
+        const applier = createApplier({
+            view,
+            ...createTextMutationDeps(view),
+            resolveDropRuleAtInsertion: () => ({
+                slotContext: 'outside',
+                decision: { allowDrop: true },
+            }),
+        });
+
+        applier.applyMoveCommand({
+            source: selectionFromBlock(createListBlock(initial.doc, 2, 2)),
+            target: dropTarget(1),
+        });
+
+        expect(getState().doc.toString()).toBe('1. two\n2. one\n3. three');
+        const moveDispatch = dispatch.mock.calls.find((call) => {
+            const changes = call[0].changes;
+            return Array.isArray(changes) && changes.some((change: { insert?: string }) => change.insert?.includes('2. two'));
+        });
+        expect(moveDispatch?.[0].changes).toHaveLength(2);
+    });
+
     it('allows composite move into unselected gap between selected ranges', () => {
         const state = EditorState.create({ doc: 'a\nb\nc\nd\ne\nf' });
         const dispatch = vi.fn();
