@@ -2272,6 +2272,88 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 
+    it('drags the whole mobile selection from selected text long-press', () => {
+        document.body.classList.add('is-mobile');
+        const view = createViewStub(8);
+        const firstLine = view.contentDOM.querySelectorAll<HTMLElement>('.cm-line')[0];
+        expect(firstLine).not.toBeNull();
+        const firstHandle = appendHandleForBlockStart(view, 0);
+        const farHandle = appendHandleForBlockStart(view, 5);
+        const firstBlock = createBlock('line 1', 0, 0);
+        const farBlock = createBlock('line 6', 5, 5);
+        const beginPointerDragSession = vi.fn();
+        const onDropPreview = vi.fn();
+
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
+                handle: (handle) => (handle === farHandle ? farBlock : firstBlock),
+                point: (_x, y) => (y >= 100 ? farBlock : firstBlock),
+            }),
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileDragModeRequired: () => true,
+            isMobileDragModeEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            onDropPreview,
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
+
+        handler.attach();
+        view.dom.dispatchEvent(new CustomEvent('dnd:enter-mobile-selection-mode', {
+            bubbles: true,
+            detail: { handled: false },
+        }));
+        vi.runOnlyPendingTimers();
+
+        dispatchPointer(farHandle, 'pointerdown', {
+            pointerId: 501,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 105,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 501,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 105,
+        });
+
+        expect(firstHandle.classList.contains('dnd-range-selected-handle')).toBe(true);
+        expect(farHandle.classList.contains('dnd-range-selected-handle')).toBe(true);
+        expect(firstLine.classList.contains('dnd-drag-source-line')).toBe(true);
+
+        dispatchPointer(firstLine, 'pointerdown', {
+            pointerId: 502,
+            pointerType: 'touch',
+            clientX: 120,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(220);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 502,
+            pointerType: 'touch',
+            clientX: 120,
+            clientY: 36,
+        });
+
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as BlockSelection;
+        expect(selectedBlock.ranges).toEqual([
+            { startLine: 0, endLine: 0 },
+            { startLine: 5, endLine: 5 },
+        ]);
+        expect(onDropPreview).toHaveBeenCalledWith(120, 36, expect.objectContaining({
+            ranges: [
+                expect.objectContaining({ startLine: 0, endLine: 0 }),
+                expect.objectContaining({ startLine: 5, endLine: 5 }),
+            ],
+        }), 'touch');
+
+        document.body.classList.remove('is-mobile');
+        handler.destroy();
+    });
+
     it('resizes mobile selection symmetrically from top and bottom handles', () => {
         document.body.classList.add('is-mobile');
         const view = createViewStub(8);

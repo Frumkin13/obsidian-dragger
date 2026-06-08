@@ -2,6 +2,7 @@ import type { CommittedRangeSelection } from '../../../domain/selection/range-se
 import {
     CODEMIRROR_CONTENT_SELECTOR,
     CODEMIRROR_GUTTERS_SELECTOR,
+    DRAG_SOURCE_LINE_CLASS,
     DRAG_HANDLE_CLASS,
     RANGE_SELECTED_HANDLE_CLASS,
 } from '../../../shared/dom-selectors';
@@ -93,6 +94,7 @@ export function isCommittedSelectionGripHit(options: IsCommittedSelectionGripHit
     if (hitHandle) return true;
 
     if (options.pointerType && options.pointerType !== 'mouse') {
+        if (options.target.closest(`.${DRAG_SOURCE_LINE_CLASS}`)) return true;
         if (!options.isWithinMobileDragHotzoneBand(options.clientX)) {
             return false;
         }
