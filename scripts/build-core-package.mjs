@@ -6,24 +6,31 @@ fs.rmSync("dist/npm", { recursive: true, force: true });
 fs.mkdirSync("dist/npm", { recursive: true });
 
 const common = {
-    entryPoints: ["src/index.ts"],
+    entryPoints: [
+        "src/index.ts",
+        "src/domain.ts",
+        "src/drag.ts",
+        "src/markdown.ts",
+    ],
     bundle: true,
     platform: "neutral",
     target: "es2018",
     sourcemap: false,
     logLevel: "info",
+    outdir: "dist/npm",
+    entryNames: "[name]",
 };
 
 await esbuild.build({
     ...common,
     format: "esm",
-    outfile: "dist/npm/index.mjs",
+    outExtension: { ".js": ".mjs" },
 });
 
 await esbuild.build({
     ...common,
     format: "cjs",
-    outfile: "dist/npm/index.cjs",
+    outExtension: { ".js": ".cjs" },
 });
 
 const tscBin = process.platform === "win32"

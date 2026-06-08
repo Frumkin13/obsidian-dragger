@@ -1,7 +1,7 @@
-import type { BlockSelection } from '../../domain/selection/block-selection';
-import type { GestureCancelReason, InteractionState } from '../state/drag-state';
+import type { BlockSelection } from '../../../domain/selection/block-selection';
+import type { GestureCancelReason, InteractionState } from '../../../drag/state/drag-state';
 
-export interface DragCleanupHost {
+export interface InteractionCleanupHost {
     gesture: InteractionState;
     pointer: {
         detachPointerListeners(): void;
@@ -12,7 +12,9 @@ export interface DragCleanupHost {
         detachFocusGuard(): void;
     };
     deps: {
-        hideDropIndicator(): void;
+        dragEffectExecutor: {
+            hideDropPreview(): void;
+        };
         finishDragSession(): void;
     };
     cancelDragAutoScroll(state: { autoScrollFrameId: number | null }): void;
@@ -25,17 +27,17 @@ export interface DragCleanupHost {
     emitIdleLifecycle(): void;
 }
 
-export type DragCleanupOptions = {
+export type InteractionCleanupOptions = {
     shouldFinishDragSession?: boolean;
-    shouldHideDropIndicator?: boolean;
+    shouldHideDropPreview?: boolean;
     cancelReason?: GestureCancelReason | 'session_interrupted' | null;
     pointerType?: string | null;
 };
 
-export function cleanupInteractionSession(host: DragCleanupHost, options?: DragCleanupOptions): void {
+export function cleanupInteractionSession(host: InteractionCleanupHost, options?: InteractionCleanupOptions): void {
     const { source, hadDrag } = resolveCleanupContext(host);
     const shouldFinishDragSession = options?.shouldFinishDragSession ?? hadDrag;
-    const shouldHideDropIndicator = options?.shouldHideDropIndicator ?? hadDrag;
+    const shouldHideDropPreview = options?.shouldHideDropPreview ?? hadDrag;
     const cancelReason = options?.cancelReason ?? null;
     const pointerType = options?.pointerType ?? null;
 
@@ -45,8 +47,8 @@ export function cleanupInteractionSession(host: DragCleanupHost, options?: DragC
     host.mobile.unlockMobileInteraction();
     host.mobile.detachFocusGuard();
 
-    if (shouldHideDropIndicator) {
-        host.deps.hideDropIndicator();
+    if (shouldHideDropPreview) {
+        host.deps.dragEffectExecutor.hideDropPreview();
     }
     if (hadDrag && shouldFinishDragSession) {
         host.deps.finishDragSession();
@@ -57,7 +59,7 @@ export function cleanupInteractionSession(host: DragCleanupHost, options?: DragC
     host.emitIdleLifecycle();
 }
 
-function resolveCleanupContext(host: DragCleanupHost): { source: BlockSelection | null; hadDrag: boolean } {
+function resolveCleanupContext(host: InteractionCleanupHost): { source: BlockSelection | null; hadDrag: boolean } {
     const gesture = host.gesture;
     switch (gesture.phase) {
         case 'dragging':

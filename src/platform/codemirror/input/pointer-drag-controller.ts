@@ -1,11 +1,12 @@
 ﻿import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../../domain/block/block-types';
-import type { BlockCommand } from '../../../domain/command/block-command';
 import type { BlockSelection } from '../../../domain/selection/block-selection';
 import type { DragDropSnapshot } from '../../../drag/drop/drag-drop-snapshot';
 import type { DragEffect } from '../../../drag/effects/drag-effect';
+import type { DragEffectExecutor } from '../../../drag/effects/drag-effect-executor';
+import { executeDragEffects } from '../../../drag/effects/drag-effect-executor';
 import type { DragLifecycleEvent } from '../../../drag/lifecycle/drag-lifecycle';
-import type { PointerDropCommandResult } from './pointer-drag-target-router';
+import type { PointerDropCommitResolution } from './pointer-drag-target-router';
 import {
     type RangeSelectionBoundary,
     type CommittedRangeSelection,
@@ -48,7 +49,7 @@ import {
     isMobileEnvironment as isMobileEnvironmentByInput,
 } from './pointer-input';
 import { type BlockSelectionRequest } from '../selection/block-selection-resolver';
-import { cleanupInteractionSession, type DragCleanupOptions } from '../../../drag/lifecycle/drag-cleanup';
+import { cleanupInteractionSession, type InteractionCleanupOptions } from './interaction-cleanup';
 import { DragFlowController } from '../../../drag/pipeline/drag-flow-controller';
 import { handlePointerMove } from './pointermove-handler';
 import { handlePointerCancel, handlePointerUp } from './pointerup-handler';
@@ -76,12 +77,9 @@ export interface PointerDragControllerDeps {
     isMobileTextLongPressDragEnabled?: () => boolean;
     beginPointerDragSession: (source: BlockSelection) => void;
     finishDragSession: () => void;
-    resolveDropSnapshotAtPoint?: (clientX: number, clientY: number, source: BlockSelection, pointerType: string | null) => DragDropSnapshot;
-    buildBlockCommandAtPoint?: (source: BlockSelection, clientX: number, clientY: number, pointerType: string | null) => PointerDropCommandResult;
-    previewDropAtPoint: (clientX: number, clientY: number, source: BlockSelection | null, pointerType: string | null) => void;
-    hideDropIndicator: () => void;
-    applyBlockCommand?: (command: BlockCommand) => void;
-    commitDropAtPoint?: (source: BlockSelection, clientX: number, clientY: number, pointerType: string | null) => void;
+    resolveDropSnapshotAtPoint: (clientX: number, clientY: number, source: BlockSelection, pointerType: string | null) => DragDropSnapshot;
+    buildBlockCommandAtPoint: (source: BlockSelection, clientX: number, clientY: number, pointerType: string | null) => PointerDropCommitResolution;
+    dragEffectExecutor: DragEffectExecutor;
     onDragLifecycleEvent?: (event: DragLifecycleEvent) => void;
     openBlockTypeMenu?: (blockInfo: BlockInfo, event: MouseEvent | PointerEvent | null) => void;
 }
@@ -145,7 +143,7 @@ export class PointerDragController {
     }
 
     destroy(): void {
-        this.resetInteractionSession({ shouldFinishDragSession: true, shouldHideDropIndicator: true });
+        this.resetInteractionSession({ shouldFinishDragSession: true, shouldHideDropPreview: true });
         this.clearCommittedRangeSelection();
         this.rangeVisual.destroy();
 
@@ -295,8 +293,7 @@ export class PointerDragController {
         this.pointer.tryCapturePointerById(pointerId);
         this.pointer.attachPointerListeners();
         this.activeDragPointer = { clientX, clientY, pointerType };
-        const drop = this.deps.resolveDropSnapshotAtPoint?.(clientX, clientY, source, pointerType)
-            ?? { target: null, rejectReason: null };
+        const drop = this.deps.resolveDropSnapshotAtPoint(clientX, clientY, source, pointerType);
         const result = this.dragFlow.begin({
             selection: source,
             pointerId,
@@ -332,12 +329,12 @@ export class PointerDragController {
 
     resolveActiveDragDropSnapshot(selection: BlockSelection): DragDropSnapshot {
         if (!this.activeDragPointer) return { target: null, rejectReason: 'no_target' };
-        return this.deps.resolveDropSnapshotAtPoint?.(
+        return this.deps.resolveDropSnapshotAtPoint(
             this.activeDragPointer.clientX,
             this.activeDragPointer.clientY,
             selection,
             this.activeDragPointer.pointerType
-        ) ?? { target: null, rejectReason: null };
+        );
     }
 
     previewActiveDrag(params: {
@@ -351,14 +348,12 @@ export class PointerDragController {
     commitActiveDrag(params: {
         pointerId: number;
         pointerType: string | null;
-        resolved: PointerDropCommandResult;
+        resolved: PointerDropCommitResolution;
     }): DragEffect[] {
         return this.dragFlow.commit({
             pointerId: params.pointerId,
             pointerType: params.pointerType,
-            command: params.resolved.command,
-            drop: params.resolved.drop,
-            didCommit: params.resolved.didCommit,
+            resolution: params.resolved,
         });
     }
 
@@ -370,57 +365,20 @@ export class PointerDragController {
         return this.dragFlow.cancel(params);
     }
 
-    buildActiveDragCommand(selection: BlockSelection): PointerDropCommandResult {
+    buildActiveDragCommand(selection: BlockSelection): PointerDropCommitResolution {
         if (!this.activeDragPointer) {
-            return { drop: { target: null, rejectReason: 'no_target' }, command: null };
+            return { type: 'cancel', drop: { target: null, rejectReason: 'no_target' }, reason: 'no_target' };
         }
-        if (this.deps.buildBlockCommandAtPoint) {
-            return this.deps.buildBlockCommandAtPoint(
-                selection,
-                this.activeDragPointer.clientX,
-                this.activeDragPointer.clientY,
-                this.activeDragPointer.pointerType
-            );
-        }
-        if (this.deps.commitDropAtPoint) {
-            this.deps.commitDropAtPoint(
-                selection,
-                this.activeDragPointer.clientX,
-                this.activeDragPointer.clientY,
-                this.activeDragPointer.pointerType
-            );
-            return { drop: { target: null, rejectReason: null }, command: null, didCommit: true };
-        }
-        return { drop: { target: null, rejectReason: 'no_target' }, command: null };
-    }
-
-    repreviewActiveDrag(selection: BlockSelection): void {
-        if (!this.activeDragPointer) return;
-        this.deps.previewDropAtPoint(
+        return this.deps.buildBlockCommandAtPoint(
+            selection,
             this.activeDragPointer.clientX,
             this.activeDragPointer.clientY,
-            selection,
             this.activeDragPointer.pointerType
         );
     }
 
     applyDragEffects(effects: DragEffect[]): void {
-        for (const effect of effects) {
-            switch (effect.type) {
-                case 'show_drop_preview':
-                    this.repreviewActiveDrag(effect.selection);
-                    break;
-                case 'hide_drop_preview':
-                    this.deps.hideDropIndicator();
-                    break;
-                case 'apply_command':
-                    this.deps.applyBlockCommand?.(effect.command);
-                    break;
-                case 'emit_lifecycle':
-                    this.emitLifecycle(effect.event);
-                    break;
-            }
-        }
+        executeDragEffects(this.deps.dragEffectExecutor, effects);
     }
 
     private updateMouseRangeSelectionFromLine(state: MouseRangeSelectState, lineNumber: number): void {
@@ -595,7 +553,7 @@ export class PointerDragController {
         });
     }
 
-    cleanupAfterPointerDrag(options?: DragCleanupOptions): void {
+    cleanupAfterPointerDrag(options?: InteractionCleanupOptions): void {
         this.resetInteractionSession(options);
     }
 
@@ -662,7 +620,7 @@ export class PointerDragController {
     ): void {
         this.resetInteractionSession({
             shouldFinishDragSession: false,
-            shouldHideDropIndicator: false,
+            shouldHideDropPreview: false,
             cancelReason,
             pointerType,
         });
@@ -671,7 +629,7 @@ export class PointerDragController {
     private abortForSessionInterrupted(pointerType: string | null): void {
         this.resetInteractionSession({
             shouldFinishDragSession: true,
-            shouldHideDropIndicator: true,
+            shouldHideDropPreview: true,
             cancelReason: 'session_interrupted',
             pointerType,
         });
@@ -732,7 +690,7 @@ export class PointerDragController {
         }
     }
 
-    private resetInteractionSession(options?: DragCleanupOptions): void {
+    private resetInteractionSession(options?: InteractionCleanupOptions): void {
         cleanupInteractionSession(this, options);
         this.activeDragPointer = null;
         this.dragFlow.clear();

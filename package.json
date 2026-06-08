@@ -10,6 +10,21 @@
             "types": "./dist/npm/types/index.d.ts",
             "import": "./dist/npm/index.mjs",
             "require": "./dist/npm/index.cjs"
+        },
+        "./domain": {
+            "types": "./dist/npm/types/domain.d.ts",
+            "import": "./dist/npm/domain.mjs",
+            "require": "./dist/npm/domain.cjs"
+        },
+        "./drag": {
+            "types": "./dist/npm/types/drag.d.ts",
+            "import": "./dist/npm/drag.mjs",
+            "require": "./dist/npm/drag.cjs"
+        },
+        "./markdown": {
+            "types": "./dist/npm/types/markdown.d.ts",
+            "import": "./dist/npm/markdown.mjs",
+            "require": "./dist/npm/markdown.cjs"
         }
     },
     "files": [
@@ -17,6 +32,7 @@
         "dist/main.js",
         "dist/manifest.json",
         "dist/styles.css",
+        "examples/headless-platform",
         "manifest.json",
         "styles.css"
     ],
@@ -26,6 +42,7 @@
         "build": "node esbuild.config.mjs production && node scripts/build-core-package.mjs",
         "build:plugin": "node esbuild.config.mjs production",
         "build:core": "node scripts/build-core-package.mjs",
+        "smoke:npm": "node scripts/smoke-npm-consumer.mjs",
         "lint": "eslint src --config eslint.config.mjs",
         "lint:fix": "eslint src --config eslint.config.mjs --fix",
         "lint:review": "eslint src --config eslint.config.mjs --max-warnings=0",

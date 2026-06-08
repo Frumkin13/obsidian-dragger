@@ -35,6 +35,33 @@
 
 重启 Obsidian 并启用插件。
 
+## Headless core npm 包
+
+Dragger 同时发布平台无关的 npm core。这个 core 不导入 Obsidian、CodeMirror、DOM event 或编辑器 dispatch API。
+
+```bash
+npm install dragger
+```
+
+稳定入口：
+
+```ts
+import { DragFlowController, executeDragEffects } from 'dragger/drag';
+import { createMoveCommand, planBlockCommandTransaction } from 'dragger/domain';
+import { getLineMap, parseLineWithQuote } from 'dragger/markdown';
+```
+
+接入其他编辑器平台时，平台层只需要把宿主环境翻译成 core 值：
+
+- `BlockSelection`
+- `DragDropSnapshot`
+- `DropCommitResolution`
+- `DragEffectExecutor`
+
+`DragDropSnapshot<TPreview>` 里的 `previewData` 是平台私有的渲染数据。例如 CodeMirror 会把落点指示器的几何信息放在这里。core 只保持类型并在 `showDropPreview` 时原样传回平台，不读取也不修改它。
+
+最小接入形态见 [`examples/headless-platform`](examples/headless-platform)。
+
 ## 使用
 
 1. **悬停** 在任意块的左侧边缘，显示拖拽手柄

@@ -1,12 +1,9 @@
 import type { BlockCommand } from '../../../domain/command/block-command';
 import type { BlockSelection } from '../../../domain/selection/block-selection';
 import type { DragDropSnapshot } from '../../../drag/drop/drag-drop-snapshot';
+import type { DropCommitResolution } from '../../../drag/pipeline/drag-input';
 
-export type PointerDropCommandResult = {
-    drop: DragDropSnapshot;
-    command: BlockCommand | null;
-    didCommit?: boolean;
-};
+export type PointerDropCommitResolution = DropCommitResolution;
 
 export interface PointerDragTargetClient {
     containsPoint: (clientX: number, clientY: number) => boolean;
@@ -16,26 +13,15 @@ export interface PointerDragTargetClient {
         source: BlockSelection,
         pointerType: string | null
     ) => DragDropSnapshot;
-    previewDropAtPoint: (
-        clientX: number,
-        clientY: number,
-        source: BlockSelection | null,
-        pointerType: string | null
-    ) => void;
-    hideDropIndicator: () => void;
-    buildBlockCommandAtPoint?: (
+    showDropPreview: (source: BlockSelection, drop: DragDropSnapshot, pointerType: string | null) => void;
+    hideDropPreview: () => void;
+    buildBlockCommandAtPoint: (
         source: BlockSelection,
         clientX: number,
         clientY: number,
         pointerType: string | null
-    ) => PointerDropCommandResult;
-    applyBlockCommand?: (command: BlockCommand) => void;
-    commitDropAtPoint?: (
-        source: BlockSelection,
-        clientX: number,
-        clientY: number,
-        pointerType: string | null
-    ) => void;
+    ) => PointerDropCommitResolution;
+    applyBlockCommand: (command: BlockCommand) => void;
 }
 
 const clients = new Set<PointerDragTargetClient>();
@@ -50,7 +36,7 @@ function resolveClientAtPoint(clientX: number, clientY: number): PointerDragTarg
 
 function setActiveClient(nextClient: PointerDragTargetClient | null): void {
     if (activeClient && activeClient !== nextClient) {
-        activeClient.hideDropIndicator();
+        activeClient.hideDropPreview();
     }
     activeClient = nextClient;
 }
@@ -60,22 +46,20 @@ export function registerPointerDragTargetClient(client: PointerDragTargetClient)
     return () => {
         clients.delete(client);
         if (activeClient === client) {
-            client.hideDropIndicator();
+            client.hideDropPreview();
             activeClient = null;
         }
     };
 }
 
-export function previewPointerDropAtPoint(
+export function showPointerDropPreview(
     fallbackClient: PointerDragTargetClient,
-    clientX: number,
-    clientY: number,
-    source: BlockSelection | null,
+    source: BlockSelection,
+    drop: DragDropSnapshot,
     pointerType: string | null
 ): void {
-    const targetClient = resolveClientAtPoint(clientX, clientY) ?? fallbackClient;
-    setActiveClient(targetClient);
-    targetClient.previewDropAtPoint(clientX, clientY, source, pointerType);
+    const targetClient = activeClient ?? fallbackClient;
+    targetClient.showDropPreview(source, drop, pointerType);
 }
 
 export function resolvePointerDropSnapshotAtPoint(
@@ -96,17 +80,10 @@ export function buildPointerBlockCommandAtPoint(
     clientX: number,
     clientY: number,
     pointerType: string | null
-): PointerDropCommandResult {
+): PointerDropCommitResolution {
     const targetClient = resolveClientAtPoint(clientX, clientY) ?? activeClient ?? fallbackClient;
     setActiveClient(targetClient);
-    if (targetClient.buildBlockCommandAtPoint) {
-        return targetClient.buildBlockCommandAtPoint(source, clientX, clientY, pointerType);
-    }
-    if (targetClient.commitDropAtPoint) {
-        targetClient.commitDropAtPoint(source, clientX, clientY, pointerType);
-        return { drop: { target: null, rejectReason: null }, command: null, didCommit: true };
-    }
-    return { drop: { target: null, rejectReason: 'no_target' }, command: null };
+    return targetClient.buildBlockCommandAtPoint(source, clientX, clientY, pointerType);
 }
 
 export function applyPointerBlockCommand(
@@ -114,25 +91,12 @@ export function applyPointerBlockCommand(
     command: BlockCommand
 ): void {
     const targetClient = activeClient ?? fallbackClient;
-    targetClient.applyBlockCommand?.(command);
+    targetClient.applyBlockCommand(command);
 }
 
-export function commitPointerDropAtPoint(
-    fallbackClient: PointerDragTargetClient,
-    source: BlockSelection,
-    clientX: number,
-    clientY: number,
-    pointerType: string | null
-): void {
-    const result = buildPointerBlockCommandAtPoint(fallbackClient, source, clientX, clientY, pointerType);
-    if (result.command) {
-        applyPointerBlockCommand(fallbackClient, result.command);
-    }
-}
-
-export function hidePointerDropIndicators(): void {
+export function hidePointerDropPreviews(): void {
     for (const client of clients) {
-        client.hideDropIndicator();
+        client.hideDropPreview();
     }
     activeClient = null;
 }

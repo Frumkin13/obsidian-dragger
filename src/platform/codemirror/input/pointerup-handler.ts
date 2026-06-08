@@ -60,7 +60,7 @@ function finishPointerDrag(host: PointerDragController, e: PointerEvent, shouldD
     }
     host.cleanupAfterPointerDrag({
         shouldFinishDragSession: true,
-        shouldHideDropIndicator: true,
+        shouldHideDropPreview: true,
         cancelReason: null,
         pointerType: e.pointerType || null,
     });

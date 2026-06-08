@@ -58,13 +58,18 @@ function handleDraggingPointerMove(host: PointerMoveHost, e: PointerEvent): void
 
 function autoScrollDrag(
     host: PointerMoveHost,
-    dragState: { selection: BlockSelection }
+    dragState: { selection: BlockSelection; pointerId: number }
 ): boolean {
     const pointer = host.getActiveDragPointer();
     if (!pointer) return false;
     const didScroll = autoScrollEditorNearViewportEdge(host.view, pointer.clientY);
     if (didScroll) {
-        host.repreviewActiveDrag(dragState.selection);
+        const drop = host.resolveActiveDragDropSnapshot(dragState.selection);
+        host.applyDragEffects(host.previewActiveDrag({
+            pointerId: dragState.pointerId,
+            pointerType: pointer.pointerType,
+            drop,
+        }));
     }
     return didScroll;
 }

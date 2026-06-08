@@ -8,19 +8,22 @@ export type DragPointerInput = {
     pointerType: string | null;
 };
 
-export type BeginDragInput = DragPointerInput & {
+export type BeginDragInput<TPreview = unknown> = DragPointerInput & {
     selection: BlockSelection;
-    drop: DragDropSnapshot;
+    drop: DragDropSnapshot<TPreview>;
 };
 
-export type PreviewDragInput = DragPointerInput & {
-    drop: DragDropSnapshot;
+export type PreviewDragInput<TPreview = unknown> = DragPointerInput & {
+    drop: DragDropSnapshot<TPreview>;
 };
 
-export type CommitDragInput = DragPointerInput & {
-    command: BlockCommand | null;
-    drop: DragDropSnapshot;
-    didCommit?: boolean;
+export type DropCommitResolution<TPreview = unknown> =
+    | { type: 'command'; command: BlockCommand; drop: DragDropSnapshot<TPreview> }
+    | { type: 'platform_commit'; drop: DragDropSnapshot<TPreview> }
+    | { type: 'cancel'; drop: DragDropSnapshot<TPreview>; reason?: string | null };
+
+export type CommitDragInput<TPreview = unknown> = DragPointerInput & {
+    resolution: DropCommitResolution<TPreview>;
 };
 
 export type CancelDragInput = DragPointerInput & {

@@ -8,26 +8,26 @@ import {
     updateDragPipeline,
 } from './drag-controller';
 
-export type DragFlowBeginResult = {
+export type DragFlowBeginResult<TPreview = unknown> = {
     drag: ActiveDrag;
-    effects: DragEffect[];
+    effects: DragEffect<TPreview>[];
 };
 
-export class DragFlowController {
+export class DragFlowController<TPreview = unknown> {
     private activeDrag: ActiveDrag | null = null;
 
-    begin(input: BeginDragInput): DragFlowBeginResult {
+    begin(input: BeginDragInput<TPreview>): DragFlowBeginResult<TPreview> {
         const result = beginDragPipeline(input);
         this.activeDrag = result.drag;
         return result;
     }
 
-    preview(input: PreviewDragInput): DragEffect[] {
+    preview(input: PreviewDragInput<TPreview>): DragEffect<TPreview>[] {
         if (!this.activeDrag) return [];
         return updateDragPipeline(this.activeDrag, input);
     }
 
-    commit(input: CommitDragInput): DragEffect[] {
+    commit(input: CommitDragInput<TPreview>): DragEffect<TPreview>[] {
         if (!this.activeDrag) return [];
         const effects = commitDragPipeline(this.activeDrag, input);
         if (input.pointerId === this.activeDrag.pointerId) {
@@ -36,7 +36,7 @@ export class DragFlowController {
         return effects;
     }
 
-    cancel(input: CancelDragInput): DragEffect[] {
+    cancel(input: CancelDragInput): DragEffect<unknown>[] {
         if (!this.activeDrag) return [];
         const effects = cancelDragPipeline(this.activeDrag, input);
         if (input.pointerId === this.activeDrag.pointerId) {

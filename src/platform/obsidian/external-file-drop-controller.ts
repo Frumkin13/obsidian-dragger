@@ -34,24 +34,23 @@ export class ExternalFileDropController {
     private readonly pointerDragTargetClient: PointerDragTargetClient = {
         containsPoint: (clientX, clientY) => this.resolveDropTargetAtPoint(clientX, clientY) !== null,
         resolveDropSnapshotAtPoint: (clientX, clientY) => this.resolveDropSnapshotAtPoint(clientX, clientY),
-        previewDropAtPoint: (clientX, clientY) => {
-            const target = this.resolveDropTargetAtPoint(clientX, clientY);
+        showDropPreview: (_source, drop) => {
+            const target = drop.previewData as FileDropTarget | undefined;
             if (!target) {
                 this.clearHighlight();
                 return;
             }
             this.setHighlightedTarget(target.element);
         },
-        hideDropIndicator: () => this.clearHighlight(),
+        hideDropPreview: () => this.clearHighlight(),
         buildBlockCommandAtPoint: (source, clientX, clientY) => {
-            const didCommit = this.commitDropAtPoint(source, clientX, clientY);
-            return {
-                drop: didCommit
-                    ? { target: null, rejectReason: null }
-                    : { target: null, rejectReason: 'no_target' },
-                command: null,
-                didCommit,
-            };
+            const drop = this.resolveDropSnapshotAtPoint(clientX, clientY);
+            const target = drop.previewData;
+            if (!target) {
+                return { type: 'cancel' as const, drop: { target: null, rejectReason: 'no_target' }, reason: 'no_target' };
+            }
+            this.commitDropToTarget(source, target);
+            return { type: 'platform_commit' as const, drop };
         },
         applyBlockCommand: () => undefined,
     };
@@ -68,19 +67,14 @@ export class ExternalFileDropController {
         });
     }
 
-    private resolveDropSnapshotAtPoint(clientX: number, clientY: number): DragDropSnapshot {
-        return this.resolveDropTargetAtPoint(clientX, clientY)
-            ? { target: null, rejectReason: null }
+    private resolveDropSnapshotAtPoint(clientX: number, clientY: number): DragDropSnapshot<FileDropTarget> {
+        const target = this.resolveDropTargetAtPoint(clientX, clientY);
+        return target
+            ? { target: null, rejectReason: null, previewData: target }
             : { target: null, rejectReason: 'no_target' };
     }
 
-    private commitDropAtPoint(source: BlockSelection, clientX: number, clientY: number): boolean {
-        const target = this.resolveDropTargetAtPoint(clientX, clientY);
-        if (!target) {
-            this.clearHighlight();
-            return false;
-        }
-
+    private commitDropToTarget(source: BlockSelection, target: FileDropTarget): boolean {
         this.clearHighlight();
         const sourceView = getActiveBlockSelectionView();
         if (!sourceView) {

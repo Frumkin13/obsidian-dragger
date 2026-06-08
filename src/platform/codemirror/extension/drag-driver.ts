@@ -13,6 +13,7 @@ import {
 import { isPosInsideRenderedTableCell } from '../../dom/table-guard';
 import { applyMoveCommand, type MoveCommandApplierDeps } from '../transaction/move-command-applier';
 import { DropTargetResolver, type DropTargetResolverDeps } from '../drop/drop-target-resolver';
+import type { DropValidationResult } from '../drop/drop-resolution';
 import { DropIndicatorManager } from '../preview/drop-indicator';
 import { getVisibleHandleForBlockStart } from '../preview/handle-renderer';
 import { HandleVisibilityController } from '../preview/handle-visibility-controller';
@@ -42,18 +43,21 @@ import { placeHandleGutterForConfiguredSide } from './gutter';
 import { GlobalPointerMoveClient } from './global-pointermove-router';
 import { createHoverPointerSnapshot, HoverPointerSnapshot } from './hover-pointer-snapshot';
 import {
-    hidePointerDropIndicators,
+    hidePointerDropPreviews,
     applyPointerBlockCommand,
     buildPointerBlockCommandAtPoint,
     PointerDragTargetClient,
     registerPointerDragTargetClient,
-    previewPointerDropAtPoint,
+    showPointerDropPreview,
     resolvePointerDropSnapshotAtPoint,
 } from '../input/pointer-drag-target-router';
 import { openBlockTypeMenu } from '../../../plugin/block-type-menu';
 import { buildMoveCommandDecision } from '../command/move-command-decision';
 import type { BlockCommand } from '../../../domain/command/block-command';
 import type { DragDropSnapshot } from '../../../drag/drop/drag-drop-snapshot';
+import type { DragEffectExecutor } from '../../../drag/effects/drag-effect-executor';
+
+type CodeMirrorDragDropSnapshot = DragDropSnapshot<DropValidationResult>;
 
 export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
     return class {
@@ -139,25 +143,30 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 containsPoint: (clientX, clientY) => this.containsPoint(clientX, clientY),
                 resolveDropSnapshotAtPoint: (clientX, clientY, selection, pointerType) =>
                     this.resolveDropSnapshotAtPoint(selection, clientX, clientY, pointerType),
-                previewDropAtPoint: (clientX, clientY, selection, pointerType) => {
-                    const source = selection ?? getActiveBlockSelection(this.view) ?? null;
-                    const startedAt = performance.now();
-                    const validation = this.dropTargetResolver.resolveValidatedDropTarget({
-                        clientX,
-                        clientY,
-                        selection: source,
-                        pointerType: pointerType ?? null,
-                        sourceScope: this.resolveDragSelectionScope(),
-                    });
-                    this.dragPerfSessionManager.recordDuration('drop_indicator_resolve', performance.now() - startedAt);
-                    this.dropIndicator.scheduleRender(validation, source, pointerType);
-                },
-                hideDropIndicator: () => this.dropIndicator.hide(),
+                showDropPreview: (selection, drop, pointerType) =>
+                    this.showDropPreview(selection, drop, pointerType),
+                hideDropPreview: () => this.dropIndicator.hide(),
                 buildBlockCommandAtPoint: (source, clientX, clientY, pointerType) =>
                     this.buildBlockCommandAtPoint(source, clientX, clientY, pointerType),
                 applyBlockCommand: (command) => this.applyBlockCommand(command),
             };
             this.unregisterPointerDragTargetClient = registerPointerDragTargetClient(this.pointerDragTargetClient);
+            const dragEffectExecutor: DragEffectExecutor = {
+                showDropPreview: (selection, drop, pointerType) =>
+                    showPointerDropPreview(
+                        this.pointerDragTargetClient,
+                        selection,
+                        drop,
+                        pointerType ?? null
+                    ),
+                hideDropPreview: () => hidePointerDropPreviews(),
+                applyCommand: (command) =>
+                    applyPointerBlockCommand(this.pointerDragTargetClient, command),
+                emitLifecycle: (event) => {
+                    this.handleSourceVisualByLifecycle(event);
+                    this.emitDragLifecycle(event);
+                },
+            };
             this.pointerDragController = new PointerDragController(this.view, {
                 resolveBlockSelection: (request) => this.context.selection.resolveSelection(request),
                 getVisibleHandleForBlockStart: (blockStart) =>
@@ -175,19 +184,10 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                     this.handleVisibility.clearGrabbedLineNumbers();
                     this.handleVisibility.setActiveVisibleHandle(null);
                     finishDragSession(this.view);
-                    hidePointerDropIndicators();
+                    hidePointerDropPreviews();
                     this.flushDragPerfSession('finish_drag_session');
                     this.refreshDecorationsAndEmbeds();
                 },
-                previewDropAtPoint: (clientX, clientY, selection, pointerType) =>
-                    previewPointerDropAtPoint(
-                        this.pointerDragTargetClient,
-                        clientX,
-                        clientY,
-                        selection,
-                        pointerType ?? null
-                    ),
-                hideDropIndicator: () => this.dropIndicator.hide(),
                 resolveDropSnapshotAtPoint: (clientX, clientY, selection, pointerType) =>
                     resolvePointerDropSnapshotAtPoint(
                         this.pointerDragTargetClient,
@@ -204,8 +204,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                         clientY,
                         pointerType ?? null
                     ),
-                applyBlockCommand: (command) =>
-                    applyPointerBlockCommand(this.pointerDragTargetClient, command),
+                dragEffectExecutor,
                 onDragLifecycleEvent: (event) => {
                     this.handleSourceVisualByLifecycle(event);
                     this.emitDragLifecycle(event);
@@ -287,7 +286,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             this.lifecycleEmitter.emit(event);
         }
 
-        private resolveDropSnapshotAtPoint(source: BlockSelection, clientX: number, clientY: number, pointerType: string | null): DragDropSnapshot {
+        private resolveDropSnapshotAtPoint(source: BlockSelection, clientX: number, clientY: number, pointerType: string | null): CodeMirrorDragDropSnapshot {
             const sourceView = getActiveBlockSelectionView();
             const sourceScope: DragSelectionScope = sourceView && sourceView !== this.view
                 ? 'cross_editor'
@@ -302,13 +301,18 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             return {
                 target: validation.allowed ? validation.resolution.target : null,
                 rejectReason: validation.allowed ? null : (validation.reason ?? 'no_target'),
+                previewData: validation,
             };
         }
 
         private buildBlockCommandAtPoint(source: BlockSelection, clientX: number, clientY: number, pointerType: string | null): {
-            drop: DragDropSnapshot;
-            command: BlockCommand | null;
-            didCommit?: boolean;
+            type: 'command';
+            drop: CodeMirrorDragDropSnapshot;
+            command: BlockCommand;
+        } | {
+            type: 'cancel';
+            drop: CodeMirrorDragDropSnapshot;
+            reason: string;
         } {
             this.ensureDragPerfSession();
             const sourceView = getActiveBlockSelectionView();
@@ -330,17 +334,18 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 sourceDocumentRelation,
                 crossFileDragEnabled: plugin.settings.enableCrossFileDrag === true,
             });
-            const drop: DragDropSnapshot = {
+            const drop: CodeMirrorDragDropSnapshot = {
                 target: decision.type === 'commit'
                     ? decision.command.target
                     : (validation.allowed ? validation.resolution.target : null),
                 rejectReason: decision.type === 'cancel' ? decision.rejectReason : null,
+                previewData: validation,
             };
             if (decision.type === 'cancel') {
-                return { drop, command: null };
+                return { type: 'cancel', drop, reason: decision.rejectReason };
             }
 
-            return { drop, command: decision.command };
+            return { type: 'command', drop, command: decision.command };
         }
 
         private applyBlockCommand(command: BlockCommand): void {
@@ -355,6 +360,15 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 sourceView: sourceScope === 'cross_editor' && sourceView ? sourceView : undefined,
                 sourceDocumentRelation,
             });
+        }
+
+        private showDropPreview(selection: BlockSelection, drop: DragDropSnapshot, pointerType: string | null): void {
+            const validation = drop.previewData as DropValidationResult | undefined;
+            if (!validation) {
+                this.dropIndicator.hide();
+                return;
+            }
+            this.dropIndicator.scheduleRender(validation, selection, pointerType);
         }
 
         private resolveDragDocumentRelation(sourceView: EditorView | null): DragDocumentRelation {

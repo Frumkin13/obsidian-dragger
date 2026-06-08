@@ -35,6 +35,33 @@ Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](
 
 Restart Obsidian and enable the plugin.
 
+## Headless core package
+
+Dragger also publishes a platform-agnostic npm core. It does not import Obsidian, CodeMirror, DOM events, or editor dispatch APIs.
+
+```bash
+npm install dragger
+```
+
+Stable entry points:
+
+```ts
+import { DragFlowController, executeDragEffects } from 'dragger/drag';
+import { createMoveCommand, planBlockCommandTransaction } from 'dragger/domain';
+import { getLineMap, parseLineWithQuote } from 'dragger/markdown';
+```
+
+For another editor platform, adapt host events into core values:
+
+- `BlockSelection`
+- `DragDropSnapshot`
+- `DropCommitResolution`
+- `DragEffectExecutor`
+
+`previewData` on `DragDropSnapshot<TPreview>` is platform-private rendering data. For example, CodeMirror stores the resolved drop-indicator geometry there. The core keeps the type and passes it back to `showDropPreview`; it never reads or mutates that data.
+
+See [`examples/headless-platform`](examples/headless-platform) for the minimal adapter shape.
+
 ## Usage
 
 1. **Hover** on the left edge of any block to reveal the drag handle

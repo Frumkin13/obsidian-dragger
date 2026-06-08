@@ -52,7 +52,7 @@ describe('headless drag pipeline', () => {
             'show_drop_preview',
             'emit_lifecycle',
         ]);
-        expect(effects[1]).toEqual({ type: 'show_drop_preview', selection, drop: createDrop() });
+        expect(effects[1]).toEqual({ type: 'show_drop_preview', selection, drop: createDrop(), pointerType: 'mouse' });
     });
 
     it('updates preview only for the active pointer', () => {
@@ -92,8 +92,7 @@ describe('headless drag pipeline', () => {
         const effects = commitDragPipeline(drag, {
             pointerId: 7,
             pointerType: 'mouse',
-            command,
-            drop: createDrop(),
+            resolution: { type: 'command', command, drop: createDrop() },
         });
 
         expect(effects[0]).toEqual({ type: 'apply_command', command });
@@ -141,8 +140,7 @@ describe('headless drag pipeline', () => {
         const commitEffects = flow.commit({
             pointerId: 7,
             pointerType: 'mouse',
-            command,
-            drop: createDrop(),
+            resolution: { type: 'command', command, drop: createDrop() },
         });
         expect(commitEffects[0]).toEqual({ type: 'apply_command', command });
         expect(flow.getActiveDrag()).toBeNull();

@@ -11,6 +11,9 @@
     },
     "include": [
         "src/index.ts",
+        "src/domain.ts",
+        "src/drag.ts",
+        "src/markdown.ts",
         "src/domain/**/*.ts",
         "src/drag/**/*.ts"
     ],

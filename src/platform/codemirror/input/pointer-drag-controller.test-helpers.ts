@@ -5,6 +5,12 @@ import { BlockInfo, BlockType } from '../../../domain/block/block-types';
 import { makeBlockSelection, type BlockSelection } from '../selection/block-selection-resolver';
 import type { BlockSelectionRequest } from '../selection/block-selection-resolver';
 import { buildSelectionFromSelectedBlocks, buildSingleBlockSelectionRanges } from '../selection/block-selection-resolver';
+import type { BlockCommand } from '../../../domain/command/block-command';
+import type { DragDropSnapshot } from '../../../drag/drop/drag-drop-snapshot';
+import type { DragEffectExecutor } from '../../../drag/effects/drag-effect-executor';
+import type { DragLifecycleEvent } from '../../../drag/lifecycle/drag-lifecycle';
+import type { PointerDropCommitResolution } from './pointer-drag-target-router';
+import type { PointerDragControllerDeps } from './pointer-drag-controller';
 
 type RectLike = {
     left: number;
@@ -21,6 +27,69 @@ type RectLike = {
 const originalMatchMedia = window.matchMedia;
 const originalVibrate = (navigator as Navigator & { vibrate?: (pattern: number | number[]) => boolean }).vibrate;
 let originalElementFromPoint: ((this: void, x: number, y: number) => Element | null) | undefined;
+
+type LegacyPointerDragControllerTestDeps = Omit<
+    Partial<PointerDragControllerDeps>,
+    'resolveDropSnapshotAtPoint' | 'buildBlockCommandAtPoint' | 'dragEffectExecutor'
+> & {
+    resolveBlockSelection: PointerDragControllerDeps['resolveBlockSelection'];
+    isBlockInsideRenderedTableCell: PointerDragControllerDeps['isBlockInsideRenderedTableCell'];
+    beginPointerDragSession: PointerDragControllerDeps['beginPointerDragSession'];
+    finishDragSession: PointerDragControllerDeps['finishDragSession'];
+    resolveDropSnapshotAtPoint?: (clientX: number, clientY: number, source: BlockSelection, pointerType: string | null) => DragDropSnapshot;
+    buildBlockCommandAtPoint?: (source: BlockSelection, clientX: number, clientY: number, pointerType: string | null) => PointerDropCommitResolution;
+    dragEffectExecutor?: DragEffectExecutor;
+    onDropPreview?: (clientX: number, clientY: number, source: BlockSelection | null, pointerType: string | null) => void;
+    onHideDropPreview?: () => void;
+    applyBlockCommand?: (command: BlockCommand) => void;
+    onPlatformCommit?: (source: BlockSelection, clientX: number, clientY: number, pointerType: string | null) => void;
+    onDragLifecycleEvent?: (event: DragLifecycleEvent) => void;
+};
+
+export function createPointerDragControllerDeps(deps: LegacyPointerDragControllerTestDeps): PointerDragControllerDeps {
+    let lastDropPoint: { clientX: number; clientY: number } | null = null;
+    const resolveDropSnapshotAtPoint = (
+        clientX: number,
+        clientY: number,
+        source: BlockSelection,
+        pointerType: string | null
+    ): DragDropSnapshot => {
+        lastDropPoint = { clientX, clientY };
+        return deps.resolveDropSnapshotAtPoint?.(clientX, clientY, source, pointerType)
+            ?? { target: null, rejectReason: null };
+    };
+    const buildBlockCommandAtPoint = (
+        source: BlockSelection,
+        clientX: number,
+        clientY: number,
+        pointerType: string | null
+    ): PointerDropCommitResolution => {
+        if (deps.buildBlockCommandAtPoint) {
+            return deps.buildBlockCommandAtPoint(source, clientX, clientY, pointerType);
+        }
+        if (deps.onPlatformCommit) {
+            deps.onPlatformCommit(source, clientX, clientY, pointerType);
+            return { type: 'platform_commit', drop: { target: null, rejectReason: null } };
+        }
+        return { type: 'cancel', drop: { target: null, rejectReason: 'no_target' }, reason: 'no_target' };
+    };
+    const dragEffectExecutor = deps.dragEffectExecutor ?? {
+        showDropPreview: (selection, _drop, pointerType) => {
+            if (!lastDropPoint) return;
+            deps.onDropPreview?.(lastDropPoint.clientX, lastDropPoint.clientY, selection, pointerType);
+        },
+        hideDropPreview: () => deps.onHideDropPreview?.(),
+        applyCommand: (command) => deps.applyBlockCommand?.(command),
+        emitLifecycle: (event) => deps.onDragLifecycleEvent?.(event),
+    } satisfies DragEffectExecutor;
+
+    return {
+        ...deps,
+        resolveDropSnapshotAtPoint,
+        buildBlockCommandAtPoint,
+        dragEffectExecutor,
+    };
+}
 
 export function createRect(left: number, top: number, width: number, height: number): RectLike {
     return {

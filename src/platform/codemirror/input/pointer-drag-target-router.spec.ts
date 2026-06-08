@@ -1,20 +1,23 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BlockInfo } from '../../../domain/block/block-types';
 import {
-    hidePointerDropIndicators,
-    commitPointerDropAtPoint,
+    hidePointerDropPreviews,
+    buildPointerBlockCommandAtPoint,
     registerPointerDragTargetClient,
     resetPointerDragTargetRouterForTests,
-    previewPointerDropAtPoint,
+    resolvePointerDropSnapshotAtPoint,
+    showPointerDropPreview,
     type PointerDragTargetClient,
 } from './pointer-drag-target-router';
 
 function createClient(name: string, hitRect: { left: number; top: number; right: number; bottom: number }): PointerDragTargetClient {
     return {
         containsPoint: (x, y) => x >= hitRect.left && x <= hitRect.right && y >= hitRect.top && y <= hitRect.bottom,
-        previewDropAtPoint: vi.fn(),
-        hideDropIndicator: vi.fn(),
-        commitDropAtPoint: vi.fn(),
+        resolveDropSnapshotAtPoint: vi.fn(() => ({ target: null, rejectReason: null })),
+        showDropPreview: vi.fn(),
+        hideDropPreview: vi.fn(),
+        buildBlockCommandAtPoint: vi.fn(() => ({ type: 'platform_commit', drop: { target: null, rejectReason: null } })),
+        applyBlockCommand: vi.fn(),
     } satisfies PointerDragTargetClient & { name?: string };
 }
 
@@ -31,13 +34,15 @@ describe('pointer-drag-target-router', () => {
         registerPointerDragTargetClient(fallback);
         registerPointerDragTargetClient(other);
 
-        previewPointerDropAtPoint(fallback, 10, 10, sourceBlock, 'mouse');
-        expect(fallback.previewDropAtPoint).toHaveBeenCalledWith(10, 10, sourceBlock, 'mouse');
-        expect(other.previewDropAtPoint).not.toHaveBeenCalled();
+        const fallbackDrop = resolvePointerDropSnapshotAtPoint(fallback, 10, 10, sourceBlock, 'mouse');
+        showPointerDropPreview(fallback, sourceBlock, fallbackDrop, 'mouse');
+        expect(fallback.showDropPreview).toHaveBeenCalledWith(sourceBlock, fallbackDrop, 'mouse');
+        expect(other.showDropPreview).not.toHaveBeenCalled();
 
-        previewPointerDropAtPoint(fallback, 220, 10, sourceBlock, 'mouse');
-        expect(fallback.hideDropIndicator).toHaveBeenCalledTimes(1);
-        expect(other.previewDropAtPoint).toHaveBeenCalledWith(220, 10, sourceBlock, 'mouse');
+        const otherDrop = resolvePointerDropSnapshotAtPoint(fallback, 220, 10, sourceBlock, 'mouse');
+        showPointerDropPreview(fallback, sourceBlock, otherDrop, 'mouse');
+        expect(fallback.hideDropPreview).toHaveBeenCalledTimes(1);
+        expect(other.showDropPreview).toHaveBeenCalledWith(sourceBlock, otherDrop, 'mouse');
     });
 
     it('uses the active target for drop when the pointer leaves registered editors', () => {
@@ -46,11 +51,11 @@ describe('pointer-drag-target-router', () => {
         registerPointerDragTargetClient(fallback);
         registerPointerDragTargetClient(other);
 
-        previewPointerDropAtPoint(fallback, 220, 10, sourceBlock, 'mouse');
-        commitPointerDropAtPoint(fallback, sourceBlock, 500, 500, 'mouse');
+        resolvePointerDropSnapshotAtPoint(fallback, 220, 10, sourceBlock, 'mouse');
+        buildPointerBlockCommandAtPoint(fallback, sourceBlock, 500, 500, 'mouse');
 
-        expect(other.commitDropAtPoint).toHaveBeenCalledWith(sourceBlock, 500, 500, 'mouse');
-        expect(fallback.commitDropAtPoint).not.toHaveBeenCalled();
+        expect(other.buildBlockCommandAtPoint).toHaveBeenCalledWith(sourceBlock, 500, 500, 'mouse');
+        expect(fallback.buildBlockCommandAtPoint).not.toHaveBeenCalled();
     });
 
     it('clears all visible target indicators', () => {
@@ -59,9 +64,9 @@ describe('pointer-drag-target-router', () => {
         registerPointerDragTargetClient(fallback);
         registerPointerDragTargetClient(other);
 
-        hidePointerDropIndicators();
+        hidePointerDropPreviews();
 
-        expect(fallback.hideDropIndicator).toHaveBeenCalledTimes(1);
-        expect(other.hideDropIndicator).toHaveBeenCalledTimes(1);
+        expect(fallback.hideDropPreview).toHaveBeenCalledTimes(1);
+        expect(other.hideDropPreview).toHaveBeenCalledTimes(1);
     });
 });

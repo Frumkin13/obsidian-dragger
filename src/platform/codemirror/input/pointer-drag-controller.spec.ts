@@ -5,6 +5,7 @@ import { PointerDragController } from './pointer-drag-controller';
 import {
     registerMouseHandlerTestHooks,
     createBlock,
+    createPointerDragControllerDeps,
     createViewStub,
     appendHandleForBlockStart,
     dispatchPointer,
@@ -21,15 +22,15 @@ describe('PointerDragController', () => {
         const sourceBlock = createBlock();
         const beginPointerDragSession = vi.fn();
 
-        const handler = new PointerDragController(view, {
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => null, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            previewDropAtPoint: vi.fn(),
-            hideDropIndicator: vi.fn(),
-            commitDropAtPoint: vi.fn(),
-        });
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
 
         handler.attach();
         dispatchPointer(view.dom, 'pointerdown', {
@@ -62,17 +63,17 @@ describe('PointerDragController', () => {
     it('does not start drag when pointerdown is outside hotzone', () => {
         const view = createViewStub();
         const beginPointerDragSession = vi.fn();
-        const commitDropAtPoint = vi.fn();
+        const onPlatformCommit = vi.fn();
 
-        const handler = new PointerDragController(view, {
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => null, point: () => createBlock() }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            previewDropAtPoint: vi.fn(),
-            hideDropIndicator: vi.fn(),
-            commitDropAtPoint,
-        });
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit,
+        }));
 
         handler.attach();
         dispatchPointer(view.dom, 'pointerdown', {
@@ -96,7 +97,7 @@ describe('PointerDragController', () => {
         });
 
         expect(beginPointerDragSession).not.toHaveBeenCalled();
-        expect(commitDropAtPoint).not.toHaveBeenCalled();
+        expect(onPlatformCommit).not.toHaveBeenCalled();
         handler.destroy();
     });
 
@@ -106,20 +107,20 @@ describe('PointerDragController', () => {
         expect(line).not.toBeNull();
         const sourceBlock = createBlock('- item', 0, 0);
         const beginPointerDragSession = vi.fn();
-        const previewDropAtPoint = vi.fn();
-        const commitDropAtPoint = vi.fn();
+        const onDropPreview = vi.fn();
+        const onPlatformCommit = vi.fn();
         const finishDragSession = vi.fn();
 
-        const handler = new PointerDragController(view, {
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession,
-            previewDropAtPoint,
-            hideDropIndicator: vi.fn(),
-            commitDropAtPoint,
-        });
+            onDropPreview,
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit,
+        }));
 
         handler.attach();
         dispatchPointer(line!, 'pointerdown', {
@@ -143,13 +144,13 @@ describe('PointerDragController', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(previewDropAtPoint).toHaveBeenCalledWith(90, 10, expect.objectContaining({
+        expect(onDropPreview).toHaveBeenCalledWith(90, 10, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 0,
                 endLine: 0,
             })],
             }), 'touch');
-        expect(commitDropAtPoint).toHaveBeenCalledTimes(1);
+        expect(onPlatformCommit).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
         handler.destroy();
@@ -161,8 +162,8 @@ describe('PointerDragController', () => {
         expect(line).not.toBeNull();
         const sourceBlock = createBlock('- item', 0, 0);
         const beginPointerDragSession = vi.fn();
-        const previewDropAtPoint = vi.fn();
-        const commitDropAtPoint = vi.fn();
+        const onDropPreview = vi.fn();
+        const onPlatformCommit = vi.fn();
         const blurSpy = vi.spyOn(view.contentDOM, 'blur');
 
         Object.defineProperty(view, 'hasFocus', {
@@ -170,16 +171,16 @@ describe('PointerDragController', () => {
             value: true,
         });
 
-        const handler = new PointerDragController(view, {
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            previewDropAtPoint,
-            hideDropIndicator: vi.fn(),
-            commitDropAtPoint,
-        });
+            onDropPreview,
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit,
+        }));
 
         handler.attach();
         const downEvent = dispatchPointer(line!, 'pointerdown', {
@@ -199,8 +200,8 @@ describe('PointerDragController', () => {
         });
 
         expect(beginPointerDragSession).not.toHaveBeenCalled();
-        expect(previewDropAtPoint).not.toHaveBeenCalled();
-        expect(commitDropAtPoint).not.toHaveBeenCalled();
+        expect(onDropPreview).not.toHaveBeenCalled();
+        expect(onPlatformCommit).not.toHaveBeenCalled();
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
         handler.destroy();
     });
@@ -215,16 +216,16 @@ describe('PointerDragController', () => {
         view.dom.appendChild(input);
         const blurSpy = vi.spyOn(input, 'blur');
 
-        const handler = new PointerDragController(view, {
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            previewDropAtPoint: vi.fn(),
-            hideDropIndicator: vi.fn(),
-            commitDropAtPoint: vi.fn(),
-        });
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
 
         handler.attach();
         const downEvent = dispatchPointer(line!, 'pointerdown', {
@@ -255,16 +256,16 @@ describe('PointerDragController', () => {
         expect(line).not.toBeNull();
         const sourceBlock = createBlock('- item', 0, 0);
 
-        const handler = new PointerDragController(view, {
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            previewDropAtPoint: vi.fn(),
-            hideDropIndicator: vi.fn(),
-            commitDropAtPoint: vi.fn(),
-        });
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
 
         handler.attach();
         dispatchPointer(line!, 'pointerdown', {
@@ -307,17 +308,17 @@ describe('PointerDragController', () => {
 
         const handle = appendHandleForBlockStart(view, 0);
         const sourceBlock = createBlock('- item', 0, 0);
-        const previewDropAtPoint = vi.fn();
+        const onDropPreview = vi.fn();
 
-        const handler = new PointerDragController(view, {
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            previewDropAtPoint,
-            hideDropIndicator: vi.fn(),
-            commitDropAtPoint: vi.fn(),
-        });
+            onDropPreview,
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
 
         handler.attach();
         dispatchPointer(handle, 'pointerdown', {
@@ -343,7 +344,7 @@ describe('PointerDragController', () => {
 
         expect(touchMove.defaultPrevented).toBe(true);
         expect(scroller.scrollTop).toBeGreaterThan(40);
-        expect(previewDropAtPoint).toHaveBeenLastCalledWith(12, 196, expect.objectContaining({
+        expect(onDropPreview).toHaveBeenLastCalledWith(12, 196, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 0,
                 endLine: 0,
@@ -373,16 +374,16 @@ describe('PointerDragController', () => {
             value: true,
         });
 
-        const handler = new PointerDragController(view, {
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            previewDropAtPoint: vi.fn(),
-            hideDropIndicator: vi.fn(),
-            commitDropAtPoint: vi.fn(),
-        });
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
 
         handler.attach();
         const downEvent = dispatchPointer(line!, 'pointerdown', {
@@ -411,19 +412,19 @@ describe('PointerDragController', () => {
         expect(line).not.toBeNull();
         const sourceBlock = createBlock('- item', 0, 0);
         const beginPointerDragSession = vi.fn();
-        const previewDropAtPoint = vi.fn();
-        const commitDropAtPoint = vi.fn();
+        const onDropPreview = vi.fn();
+        const onPlatformCommit = vi.fn();
 
-        const handler = new PointerDragController(view, {
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            previewDropAtPoint,
-            hideDropIndicator: vi.fn(),
-            commitDropAtPoint,
-        });
+            onDropPreview,
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit,
+        }));
 
         handler.attach();
         dispatchPointer(line!, 'pointerdown', {
@@ -447,8 +448,8 @@ describe('PointerDragController', () => {
         });
 
         expect(beginPointerDragSession).not.toHaveBeenCalled();
-        expect(previewDropAtPoint).not.toHaveBeenCalled();
-        expect(commitDropAtPoint).not.toHaveBeenCalled();
+        expect(onDropPreview).not.toHaveBeenCalled();
+        expect(onPlatformCommit).not.toHaveBeenCalled();
         handler.destroy();
     });
 
@@ -458,18 +459,18 @@ describe('PointerDragController', () => {
         expect(line).not.toBeNull();
         const sourceBlock = createBlock('- item', 0, 0);
         const beginPointerDragSession = vi.fn();
-        const commitDropAtPoint = vi.fn();
+        const onPlatformCommit = vi.fn();
 
-        const handler = new PointerDragController(view, {
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            previewDropAtPoint: vi.fn(),
-            hideDropIndicator: vi.fn(),
-            commitDropAtPoint,
-        });
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit,
+        }));
 
         handler.attach();
         dispatchPointer(line!, 'pointerdown', {
@@ -493,7 +494,7 @@ describe('PointerDragController', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(commitDropAtPoint).toHaveBeenCalledTimes(1);
+        expect(onPlatformCommit).toHaveBeenCalledTimes(1);
         handler.destroy();
     });
 
@@ -501,7 +502,7 @@ describe('PointerDragController', () => {
         const view = createViewStub(6);
         const sourceBlock = createBlock('> [!note] title', 2, 3);
         const beginPointerDragSession = vi.fn();
-        const previewDropAtPoint = vi.fn();
+        const onDropPreview = vi.fn();
 
         const callout = document.createElement('div');
         callout.className = 'cm-callout';
@@ -514,16 +515,16 @@ describe('PointerDragController', () => {
             value: () => createRect(40, 40, 200, 60),
         });
 
-        const handler = new PointerDragController(view, {
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            previewDropAtPoint,
-            hideDropIndicator: vi.fn(),
-            commitDropAtPoint: vi.fn(),
-        });
+            onDropPreview,
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
 
         handler.attach();
         dispatchPointer(calloutContent, 'pointerdown', {
@@ -547,7 +548,7 @@ describe('PointerDragController', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(previewDropAtPoint).toHaveBeenCalledWith(110, 70, expect.objectContaining({
+        expect(onDropPreview).toHaveBeenCalledWith(110, 70, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 2,
                 endLine: 3,
@@ -560,7 +561,7 @@ describe('PointerDragController', () => {
         const view = createViewStub(6);
         const sourceBlock = createBlock('$$ x^2 $$', 4, 4);
         const beginPointerDragSession = vi.fn();
-        const previewDropAtPoint = vi.fn();
+        const onDropPreview = vi.fn();
 
         const mathDisplay = document.createElement('div');
         mathDisplay.className = 'MathJax';
@@ -578,16 +579,16 @@ describe('PointerDragController', () => {
             value: () => createRect(36, 88, 220, 52),
         });
 
-        const handler = new PointerDragController(view, {
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            previewDropAtPoint,
-            hideDropIndicator: vi.fn(),
-            commitDropAtPoint: vi.fn(),
-        });
+            onDropPreview,
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
 
         handler.attach();
         dispatchPointer(mathContainer, 'pointerdown', {
@@ -611,7 +612,7 @@ describe('PointerDragController', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(previewDropAtPoint).toHaveBeenCalledWith(118, 110, expect.objectContaining({
+        expect(onDropPreview).toHaveBeenCalledWith(118, 110, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 4,
                 endLine: 4,
@@ -627,21 +628,21 @@ describe('PointerDragController', () => {
         const sourceBlock = createBlock('- item', 0, 0);
         const lifecycleEvents: Array<{ type: string; phase: string; pressReady?: boolean }> = [];
 
-        const handler = new PointerDragController(view, {
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            previewDropAtPoint: vi.fn(),
-            hideDropIndicator: vi.fn(),
-            commitDropAtPoint: vi.fn(),
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
             onDragLifecycleEvent: (event) => lifecycleEvents.push({
                 type: event.type,
                 phase: event.phase,
                 pressReady: event.type === 'drag_press_pending' ? event.pressReady : undefined,
             }),
-        });
+        }));
 
         handler.attach();
         dispatchPointer(line!, 'pointerdown', {
@@ -682,21 +683,21 @@ describe('PointerDragController', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const lifecycleEvents: Array<{ type: string; phase: string; pressReady?: boolean }> = [];
 
-        const handler = new PointerDragController(view, {
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMultiLineSelectionEnabled: () => false,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
-            previewDropAtPoint: vi.fn(),
-            hideDropIndicator: vi.fn(),
-            commitDropAtPoint: vi.fn(),
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
             onDragLifecycleEvent: (event) => lifecycleEvents.push({
                 type: event.type,
                 phase: event.phase,
                 pressReady: event.type === 'drag_press_pending' ? event.pressReady : undefined,
             }),
-        });
+        }));
 
         handler.attach();
         dispatchPointer(handle, 'pointerdown', {
