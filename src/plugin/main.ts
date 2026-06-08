@@ -1,4 +1,4 @@
-import { Plugin } from 'obsidian';
+import { MarkdownView, Platform, Plugin, setIcon } from 'obsidian';
 import { dragHandleExtension } from '../platform/codemirror/extension/editor-extension';
 import { ExternalFileDropController } from '../platform/obsidian/external-file-drop-controller';
 import {
@@ -31,6 +31,9 @@ import { registerMobileToolbarCommands } from './mobile-toolbar-commands';
 export default class DragNDropPlugin extends Plugin {
     settings: DragNDropSettings;
     private readonly dragLifecycleListeners = new Set<DragLifecycleListener>();
+    private readonly mobileDragModeActionByView = new WeakMap<MarkdownView, HTMLElement>();
+    private readonly mobileDragModeActionEls = new Set<HTMLElement>();
+    private mobileDragModeEnabled = false;
 
     async onload() {
 
@@ -39,6 +42,10 @@ export default class DragNDropPlugin extends Plugin {
         // 注册编辑器扩�?
         this.registerEditorExtension(dragHandleExtension(this));
         registerMobileToolbarCommands(this);
+        this.app.workspace.onLayoutReady(() => this.registerMobileDragModeActions());
+        this.registerEvent(this.app.workspace.on('layout-change', () => this.registerMobileDragModeActions()));
+        this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.registerMobileDragModeActions()));
+        this.registerEvent(this.app.workspace.on('file-open', () => this.registerMobileDragModeActions()));
         const externalFileDropController = new ExternalFileDropController(this);
         externalFileDropController.register();
 
@@ -48,6 +55,10 @@ export default class DragNDropPlugin extends Plugin {
 
     onunload() {
         this.dragLifecycleListeners.clear();
+        for (const actionEl of this.mobileDragModeActionEls) {
+            actionEl.remove();
+        }
+        this.mobileDragModeActionEls.clear();
     }
 
     async loadSettings() {
@@ -70,6 +81,8 @@ export default class DragNDropPlugin extends Plugin {
         this.settings.enableBlockSelectionHighlight = this.settings.enableBlockSelectionHighlight !== false;
         this.settings.enableListDropHighlight = this.settings.enableListDropHighlight !== false;
         this.settings.enableCrossFileDrag = this.settings.enableCrossFileDrag === true;
+        this.settings.requireMobileDragMode = this.settings.requireMobileDragMode !== false;
+        this.settings.disableMobileDragModeAfterDrop = this.settings.disableMobileDragModeAfterDrop !== false;
         this.settings.multiLineSelectionLongPressMs = normalizeMultiLineSelectionLongPressMs(
             this.settings.multiLineSelectionLongPressMs
         );
@@ -88,6 +101,7 @@ export default class DragNDropPlugin extends Plugin {
         const visibility: HandleVisibilityMode = this.settings.handleVisibility ?? 'hover';
         body.classList.toggle('dnd-handles-always', visibility === 'always');
         body.classList.toggle('dnd-handles-hidden', visibility === 'hidden');
+        body.classList.toggle('dnd-mobile-drag-mode-enabled', this.mobileDragModeEnabled);
         this.settings.multiLineSelectionLongPressMs = normalizeMultiLineSelectionLongPressMs(
             this.settings.multiLineSelectionLongPressMs
         );
@@ -168,6 +182,7 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     emitDragLifecycleEvent(event: DragLifecycleEvent): void {
+        this.handleMobileDragModeLifecycle(event);
         for (const listener of Array.from(this.dragLifecycleListeners)) {
             try {
                 listener(event);
@@ -175,5 +190,78 @@ export default class DragNDropPlugin extends Plugin {
                 console.error('[Dragger] drag lifecycle listener failed:', error);
             }
         }
+    }
+
+    isMobileDragModeEnabled(): boolean {
+        return this.mobileDragModeEnabled;
+    }
+
+    toggleMobileDragMode(): boolean {
+        this.setMobileDragModeEnabled(!this.mobileDragModeEnabled);
+        return this.mobileDragModeEnabled;
+    }
+
+    private setMobileDragModeEnabled(enabled: boolean): void {
+        if (this.mobileDragModeEnabled === enabled) return;
+        this.mobileDragModeEnabled = enabled;
+        this.applySettings();
+        this.syncMobileDragModeActionIcons();
+    }
+
+    private handleMobileDragModeLifecycle(event: DragLifecycleEvent): void {
+        if (event.type !== 'drag_drop_commit') return;
+        if (event.pointerType === 'mouse') return;
+        if (this.settings.disableMobileDragModeAfterDrop === false) return;
+        this.setMobileDragModeEnabled(false);
+    }
+
+    private registerMobileDragModeActions(): void {
+        if (!Platform.isMobile) return;
+
+        for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
+            const view = leaf.view;
+            if (!(view instanceof MarkdownView)) continue;
+
+            const existingActionEl = this.mobileDragModeActionByView.get(view);
+            if (existingActionEl?.isConnected) continue;
+            if (existingActionEl) {
+                this.mobileDragModeActionEls.delete(existingActionEl);
+            }
+
+            const actionEl = view.addAction(this.getMobileDragModeActionIcon(), this.getMobileDragModeActionTitle(), (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.toggleMobileDragMode();
+            });
+            this.mobileDragModeActionByView.set(view, actionEl);
+            this.mobileDragModeActionEls.add(actionEl);
+            this.syncMobileDragModeActionEl(actionEl);
+        }
+    }
+
+    private syncMobileDragModeActionIcons(): void {
+        for (const actionEl of Array.from(this.mobileDragModeActionEls)) {
+            if (!actionEl.isConnected) {
+                this.mobileDragModeActionEls.delete(actionEl);
+                continue;
+            }
+            this.syncMobileDragModeActionEl(actionEl);
+        }
+    }
+
+    private syncMobileDragModeActionEl(actionEl: HTMLElement): void {
+        const title = this.getMobileDragModeActionTitle();
+        setIcon(actionEl, this.getMobileDragModeActionIcon());
+        actionEl.setAttribute('aria-label', title);
+        actionEl.setAttribute('aria-pressed', String(this.mobileDragModeEnabled));
+        actionEl.setAttribute('title', title);
+    }
+
+    private getMobileDragModeActionIcon(): string {
+        return this.mobileDragModeEnabled ? 'check' : 'hand';
+    }
+
+    private getMobileDragModeActionTitle(): string {
+        return this.mobileDragModeEnabled ? 'Drag mode enabled' : 'Drag mode disabled';
     }
 }

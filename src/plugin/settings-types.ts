@@ -14,6 +14,8 @@ export interface DragNDropSettings {
     enableCrossFileDrag: boolean;
     enableMultiLineSelection: boolean;
     multiLineSelectionLongPressMs: number;
+    requireMobileDragMode: boolean;
+    disableMobileDragModeAfterDrop: boolean;
     enableMobileTextLongPressDrag: boolean;
     enableBlockSelectionHighlight: boolean;
     enableListDropHighlight: boolean;

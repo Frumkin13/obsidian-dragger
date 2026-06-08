@@ -74,6 +74,8 @@ export interface PointerDragControllerDeps {
     isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
     isMultiLineSelectionEnabled?: () => boolean;
     getMultiLineSelectionLongPressMs?: () => number;
+    isMobileDragModeRequired?: () => boolean;
+    isMobileDragModeEnabled?: () => boolean;
     isMobileTextLongPressDragEnabled?: () => boolean;
     beginPointerDragSession: (source: BlockSelection) => void;
     finishDragSession: () => void;
@@ -284,6 +286,10 @@ export class PointerDragController {
         clientY: number,
         pointerType: string | null
     ): void {
+        if (!this.canStartDragForPointer(pointerType)) {
+            this.resetInteractionSession({ shouldFinishDragSession: false, shouldHideDropPreview: true });
+            return;
+        }
         if (this.mobile.isMobileEnvironment()) {
             this.mobile.lockMobileInteraction();
             this.mobile.attachFocusGuard();
@@ -419,6 +425,7 @@ export class PointerDragController {
         if (!this.isSelectionDragGripHit(target, e.clientX, e.clientY, pointerType)) {
             return false;
         }
+        if (!this.canStartDragForPointer(pointerType)) return false;
 
         const committedSource = this.getCommittedSelection();
         if (!committedSource) return false;
@@ -742,6 +749,13 @@ export class PointerDragController {
     isMultiLineSelectionEnabled(): boolean {
         if (!this.deps.isMultiLineSelectionEnabled) return true;
         return this.deps.isMultiLineSelectionEnabled();
+    }
+
+    canStartDragForPointer(pointerType: string | null): boolean {
+        if (pointerType === 'mouse') return true;
+        if (!this.mobile.isMobileEnvironment()) return true;
+        if (this.deps.isMobileDragModeRequired?.() !== true) return true;
+        return this.deps.isMobileDragModeEnabled?.() === true;
     }
 
     getTouchRangeSelectLongPressMs(): number {

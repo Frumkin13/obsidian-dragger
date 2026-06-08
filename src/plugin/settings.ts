@@ -47,6 +47,8 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     enableCrossFileDrag: false,
     enableMultiLineSelection: true,
     multiLineSelectionLongPressMs: DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS,
+    requireMobileDragMode: true,
+    disableMobileDragModeAfterDrop: true,
     enableMobileTextLongPressDrag: true,
     enableBlockSelectionHighlight: true,
     enableListDropHighlight: true,
@@ -265,6 +267,26 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     text.inputEl.blur();
                 });
             });
+
+        new Setting(containerEl)
+            .setName(i.requireMobileDragMode)
+            .setDesc(i.requireMobileDragModeDesc)
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.requireMobileDragMode)
+                .onChange(async (value) => {
+                    this.plugin.settings.requireMobileDragMode = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName(i.disableMobileDragModeAfterDrop)
+            .setDesc(i.disableMobileDragModeAfterDropDesc)
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.disableMobileDragModeAfterDrop)
+                .onChange(async (value) => {
+                    this.plugin.settings.disableMobileDragModeAfterDrop = value;
+                    await this.plugin.saveSettings();
+                }));
 
         new Setting(containerEl)
             .setName(i.mobileTextLongPressDrag)

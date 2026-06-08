@@ -175,6 +175,8 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                     isPosInsideRenderedTableCell(this.view, blockInfo.from, { skipLayoutRead: true }),
                 isMultiLineSelectionEnabled: () => plugin.settings.enableMultiLineSelection,
                 getMultiLineSelectionLongPressMs: () => plugin.settings.multiLineSelectionLongPressMs,
+                isMobileDragModeRequired: () => plugin.settings.requireMobileDragMode,
+                isMobileDragModeEnabled: () => plugin.isMobileDragModeEnabled(),
                 isMobileTextLongPressDragEnabled: () => plugin.settings.enableMobileTextLongPressDrag,
                 beginPointerDragSession: (source) => {
                     this.ensureDragPerfSession();

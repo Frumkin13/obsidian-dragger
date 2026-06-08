@@ -78,6 +78,7 @@ export interface MobileSelectionActionHost {
     emitPressPendingLifecycle(source: BlockSelection, pointerType: string | null, pressReady: boolean): void;
     emitIdleLifecycle(): void;
     isMultiLineSelectionEnabled(): boolean;
+    canStartDragForPointer(pointerType: string | null): boolean;
 }
 
 export function handleMobilePointerDown(
@@ -139,6 +140,7 @@ function tryStartMobileHandleInteraction(
     if (!source) return true;
     const blockInfo = source.anchorBlock;
     if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return true;
+    if (!host.canStartDragForPointer(e.pointerType || null)) return false;
 
     if (host.isMultiLineSelectionEnabled() && host.committedRangeSelection) {
         host.beginRangeSelectionSession(source, e, handle, { skipLongPress: true });
@@ -157,6 +159,7 @@ function tryStartMobileSelectionDrag(
     if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'mobile')) return false;
     if (e.pointerType === 'mouse') return false;
     if (!handleEl.classList.contains('dnd-range-selected-handle')) return false;
+    if (!host.canStartDragForPointer(e.pointerType || null)) return false;
 
     const committedRequest = host.buildCommittedSelectionSelectionRequest();
     const source = committedRequest ? host.resolveBlockSelection(committedRequest) : null;
@@ -216,6 +219,7 @@ function tryStartMobileTextLongPressDrag(
     target: HTMLElement
 ): boolean {
     if (!shouldStartMobilePressDrag(host, e)) return false;
+    if (!host.canStartDragForPointer(e.pointerType || null)) return false;
 
     if (shouldDismissMobileEditorInputStateForPointerDown(host, target)) {
         dismissMobileEditorInputState(host);
@@ -245,6 +249,7 @@ export function handleMobileSelectingPointerMove(host: MobileSelectionActionHost
     if (interaction.type === 'drag') {
         const distance = Math.hypot(e.clientX - interaction.startX, e.clientY - interaction.startY);
         if (distance < MOBILE_DRAG_START_MOVE_THRESHOLD_PX) return;
+        if (!host.canStartDragForPointer(e.pointerType || null)) return;
 
         const source = interaction.selection;
         state.activeInteraction = null;

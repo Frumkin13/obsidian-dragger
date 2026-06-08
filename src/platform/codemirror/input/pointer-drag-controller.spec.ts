@@ -101,6 +101,45 @@ describe('PointerDragController', () => {
         handler.destroy();
     });
 
+    it('does not start touch handle drag when required mobile drag mode is disabled', () => {
+        const view = createViewStub(6);
+        const handle = appendHandleForBlockStart(view, 0);
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        const onDropPreview = vi.fn();
+
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileDragModeRequired: () => true,
+            isMobileDragModeEnabled: () => false,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            onDropPreview,
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
+
+        handler.attach();
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 90,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(300);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 90,
+            pointerType: 'touch',
+            clientX: 48,
+            clientY: 10,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(onDropPreview).not.toHaveBeenCalled();
+        handler.destroy();
+    });
+
     it('starts single-block touch drag from full line area when mobile text long-press drag is enabled', () => {
         const view = createViewStub(6);
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
@@ -114,6 +153,8 @@ describe('PointerDragController', () => {
         const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
+            isMobileDragModeRequired: () => true,
+            isMobileDragModeEnabled: () => true,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession,
@@ -153,6 +194,55 @@ describe('PointerDragController', () => {
         expect(onPlatformCommit).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
+        handler.destroy();
+    });
+
+    it('does not start touch text drag when required mobile drag mode is disabled', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        const onDropPreview = vi.fn();
+        const onPlatformCommit = vi.fn();
+
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileDragModeRequired: () => true,
+            isMobileDragModeEnabled: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            onDropPreview,
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit,
+        }));
+
+        handler.attach();
+        dispatchPointer(line!, 'pointerdown', {
+            pointerId: 94,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(300);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 94,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 94,
+            pointerType: 'touch',
+            clientX: 90,
+            clientY: 10,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(onDropPreview).not.toHaveBeenCalled();
+        expect(onPlatformCommit).not.toHaveBeenCalled();
         handler.destroy();
     });
 
