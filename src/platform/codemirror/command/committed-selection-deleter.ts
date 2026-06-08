@@ -1,5 +1,5 @@
 ﻿import { EditorView } from '@codemirror/view';
-import type { CommittedRangeSelection } from '../../../drag/selection/range-selection-state';
+import type { CommittedRangeSelection } from '../../../domain/selection/range-selection';
 import { createDeleteCommand } from '../../../domain/command/delete-command';
 import { createBlockSelection } from '../../../domain/selection/block-selection';
 import { planBlockCommandTransaction } from '../../../domain/transaction/block-command-transaction';

@@ -1,5 +1,6 @@
 import type { BlockSelection } from '../../../domain/selection/block-selection';
-import type { GestureCancelReason, InteractionState } from '../../../drag/state/drag-state';
+import type { GestureCancelReason } from '../../../drag/state/drag-state';
+import type { InteractionState } from './interaction-state';
 
 export interface InteractionCleanupHost {
     gesture: InteractionState;

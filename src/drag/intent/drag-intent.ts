@@ -1,6 +1,6 @@
 import type { BlockSelection } from '../../domain/selection/block-selection';
+import type { RangeSelectionOperation } from '../../domain/selection/block-selection';
 import type { GestureCancelReason } from '../state/drag-state';
-import type { RangeSelectionOperation } from '../selection/range-selection-state';
 
 export type RangeSelectionSeed = {
     selection: BlockSelection;

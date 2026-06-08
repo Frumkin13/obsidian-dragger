@@ -18,8 +18,8 @@ import {
     type BlockSelectionSegment,
     type SelectedBlockRange,
 } from '../../../domain/selection/block-ranges';
-import type { InteractionState } from '../../../drag/state/drag-state';
-import type { CommittedRangeSelection } from '../../../drag/selection/range-selection-state';
+import type { InteractionState } from '../input/interaction-state';
+import type { CommittedRangeSelection } from '../../../domain/selection/range-selection';
 
 export type RangeAnchorPoint = {
     x: number;

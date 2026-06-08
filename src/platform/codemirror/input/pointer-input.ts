@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import type { BlockInfo } from '../../../domain/block/block-types';
-import { buildRangeSelectionBoundaryFromBlock, type RangeSelectionBoundary } from '../../../drag/selection/range-selection-state';
+import { buildRangeSelectionBoundaryFromBlock, type RangeSelectionBoundary } from '../../../domain/selection/range-selection';
 
 export type PointerInputKind = 'down' | 'move' | 'up' | 'cancel' | 'lost_capture';
 export type KeyboardInputKind = 'keydown';

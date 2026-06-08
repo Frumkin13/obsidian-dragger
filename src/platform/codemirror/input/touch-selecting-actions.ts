@@ -13,9 +13,9 @@ import { RangeSelectionVisualManager } from '../preview/range-selection-visual-m
 import {
     buildRangeSelectionBoundaryFromBlock,
     collectSelectedBlocksBetween,
-    CommittedRangeSelection,
-    RangeSelectionBoundary,
-} from '../../../drag/selection/range-selection-state';
+    type CommittedRangeSelection,
+    type RangeSelectionBoundary,
+} from '../../../domain/selection/range-selection';
 import { resolveRangeBoundaryAtPoint } from './pointer-input';
 import {
     isSelectedBlockCoveredByBlocks,
@@ -25,12 +25,12 @@ import {
 } from '../../../domain/selection/block-ranges';
 import { autoScrollEditorNearViewportEdge } from './pointer-input';
 import { updateMouseRangeSelection } from './pointer-selecting-actions';
-import {
+import type {
     InteractionState,
     MobileSelectionData,
     MobileSelectionResizeHandle,
     PointerTerminalMode,
-} from '../../../drag/state/drag-state';
+} from './interaction-state';
 import { shouldStartMobilePressDrag as shouldStartMobilePressDragByInput } from './pointer-input';
 import { createRangeSelectionBoundaryResolver } from '../selection/block-boundary-resolver';
 import type { BlockSelectionRequest } from '../selection/block-selection-resolver';
@@ -64,7 +64,7 @@ export interface MobileSelectionActionHost {
     beginPressPendingDrag(
         source: BlockSelection,
         e: PointerEvent,
-        options?: { skipLongPress?: boolean; deferInterception?: boolean }
+        options?: { skipLongPress?: boolean; deferInterception?: boolean; mobileSelectionOnHold?: boolean }
     ): void;
     enterDraggingState(
         source: BlockSelection,
@@ -232,7 +232,9 @@ function tryStartMobileTextLongPressDrag(
     const blockInfo = source.anchorBlock;
     if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return false;
 
-    host.beginPressPendingDrag(source, e, shouldSuppressInput ? undefined : { deferInterception: true });
+    host.beginPressPendingDrag(source, e, shouldSuppressInput
+        ? (host.isMultiLineSelectionEnabled() ? { mobileSelectionOnHold: true } : undefined)
+        : { deferInterception: true });
     return true;
 }
 
@@ -295,7 +297,7 @@ export function enterMobileSelectionMode(host: MobileSelectionActionHost, e: Eve
     const boundaryAtCursor = createRangeSelectionBoundaryResolver(host.view.state)(line.number);
     const startLine = host.view.state.doc.line(boundaryAtCursor.startLineNumber);
     const endLine = host.view.state.doc.line(boundaryAtCursor.endLineNumber);
-    const blockInfo = {
+    enterMobileSelectionModeFromBlock(host, {
         type: BlockType.Paragraph,
         startLine: boundaryAtCursor.startLineNumber - 1,
         endLine: boundaryAtCursor.endLineNumber - 1,
@@ -303,7 +305,17 @@ export function enterMobileSelectionMode(host: MobileSelectionActionHost, e: Eve
         to: endLine.to,
         indentLevel: 0,
         content: host.view.state.doc.sliceString(startLine.from, endLine.to),
-    };
+    }, e);
+}
+
+export function enterMobileSelectionModeFromBlock(
+    host: MobileSelectionActionHost,
+    blockInfo: BlockInfo,
+    e: Event
+): void {
+    if (!host.mobile.isMobileEnvironment()) return;
+    if (!host.isMultiLineSelectionEnabled()) return;
+    if (host.gesture.phase !== 'idle' && host.gesture.phase !== 'press_pending') return;
     if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return;
 
     if (e instanceof CustomEvent && e.detail && typeof e.detail === 'object') {

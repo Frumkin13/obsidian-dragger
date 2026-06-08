@@ -140,7 +140,7 @@ describe('PointerDragController', () => {
         handler.destroy();
     });
 
-    it('starts single-block touch drag from full line area when mobile text long-press drag is enabled', () => {
+    it('starts single-block touch drag from text long-press while mobile drag mode is enabled', () => {
         const view = createViewStub(6);
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
         expect(line).not.toBeNull();
@@ -194,6 +194,63 @@ describe('PointerDragController', () => {
         expect(onPlatformCommit).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
+        handler.destroy();
+    });
+
+    it('enters mobile selection from text long-long-press while mobile drag mode is enabled', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const targetBlock = createBlock('- target', 2, 2);
+        const sourceHandle = appendHandleForBlockStart(view, 0);
+        const targetHandle = appendHandleForBlockStart(view, 2);
+        const beginPointerDragSession = vi.fn();
+        const onPlatformCommit = vi.fn();
+        const finishDragSession = vi.fn();
+
+        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
+                handle: (handle) => {
+                    if (handle === sourceHandle) return sourceBlock;
+                    if (handle === targetHandle) return targetBlock;
+                    return null;
+                },
+                point: (_x, y) => y >= 40 ? targetBlock : sourceBlock,
+            }),
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileDragModeRequired: () => true,
+            isMobileDragModeEnabled: () => true,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession,
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit,
+        }));
+
+        handler.attach();
+        dispatchPointer(line!, 'pointerdown', {
+            pointerId: 92,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(920);
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 92,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(onPlatformCommit).not.toHaveBeenCalled();
+        expect(finishDragSession).not.toHaveBeenCalled();
+        expect(sourceHandle.classList.contains('dnd-range-selected-handle')).toBe(true);
+        expect(targetHandle.classList.contains('dnd-range-selected-handle')).toBe(false);
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
         handler.destroy();
     });
 

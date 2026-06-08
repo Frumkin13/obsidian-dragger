@@ -5,9 +5,9 @@ import { resolveRangeBoundaryAtPoint } from './pointer-input';
 import { autoScrollEditorNearViewportEdge } from './pointer-input';
 import {
     buildRangeSelectionBoundaryFromBlock,
-    type MouseRangeSelectState,
     type RangeSelectionBoundary,
-} from '../../../drag/selection/range-selection-state';
+} from '../../../domain/selection/range-selection';
+import type { MouseRangeSelectState } from './range-selection-gesture-state';
 import { handleMobileSelectingPointerMove } from './touch-selecting-actions';
 import type { PointerDragController } from './pointer-drag-controller';
 
@@ -117,6 +117,12 @@ function handlePressPendingPointerMove(host: PointerMoveHost, e: PointerEvent): 
     e.stopPropagation();
     const source = pressState.selection;
     const pointerId = pressState.pointerId;
+    if (pressState.timeoutId !== null) {
+        window.clearTimeout(pressState.timeoutId);
+    }
+    if (pressState.mobileSelectionTimeoutId !== null) {
+        window.clearTimeout(pressState.mobileSelectionTimeoutId);
+    }
     host.clearCommittedRangeSelection();
     host.gesture = { phase: 'idle' };
     host.enterDraggingState(source, pointerId, e.clientX, e.clientY, e.pointerType || null);

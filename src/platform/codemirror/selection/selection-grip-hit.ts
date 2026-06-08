@@ -1,4 +1,4 @@
-import type { CommittedRangeSelection } from '../../../drag/selection/range-selection-state';
+import type { CommittedRangeSelection } from '../../../domain/selection/range-selection';
 import {
     CODEMIRROR_CONTENT_SELECTOR,
     CODEMIRROR_GUTTERS_SELECTOR,

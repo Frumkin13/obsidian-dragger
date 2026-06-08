@@ -1,5 +1,5 @@
 import { readPointerInput } from './pointer-input';
-import type { PointerTerminalMode } from '../../../drag/state/drag-state';
+import type { PointerTerminalMode } from './interaction-state';
 import { finishMobileSelectionPointer } from './touch-selecting-actions';
 import type { PointerDragController } from './pointer-drag-controller';
 

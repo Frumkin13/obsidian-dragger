@@ -10,6 +10,7 @@ export * from './domain/rules/drop-validation';
 export * from './domain/rules/insertion-rules';
 export * from './domain/selection/block-ranges';
 export * from './domain/selection/block-selection';
+export * from './domain/selection/range-selection';
 export * from './domain/selection/selection-ranges';
 export * from './domain/transaction/block-command-transaction';
 export * from './domain/transaction/block-transaction';

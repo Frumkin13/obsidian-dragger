@@ -5,19 +5,19 @@ import type { BlockSelectionRequest } from '../selection/block-selection-resolve
 import { cloneSelectedBlocks } from '../../../domain/selection/block-ranges';
 import type {
     CommittedRangeSelection,
-    MouseRangeSelectState,
     RangeSelectionBoundary,
-} from '../../../drag/selection/range-selection-state';
+} from '../../../domain/selection/range-selection';
 import {
     createInitialRangeSelectionState,
+    computeUpdatedSelectionState,
+    type MouseRangeSelectState,
     resolveRangeSelectConfig,
-} from '../../../drag/selection/range-selection-state';
+} from './range-selection-gesture-state';
 import {
     buildCommittedRangeSelection,
-    computeUpdatedSelectionState,
-} from '../../../drag/selection/range-selection-state';
+} from '../../../domain/selection/range-selection';
 import { RangeSelectionVisualManager } from '../preview/range-selection-visual-manager';
-import type { InteractionState } from '../../../drag/state/drag-state';
+import type { InteractionState } from './interaction-state';
 import { createRangeSelectionBoundaryResolver } from '../selection/block-boundary-resolver';
 
 const MOBILE_DRAG_LONG_PRESS_MS = 200;

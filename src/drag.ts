@@ -8,6 +8,5 @@ export * from './drag/lifecycle/drag-lifecycle-protocol';
 export * from './drag/pipeline/drag-controller';
 export * from './drag/pipeline/drag-flow-controller';
 export * from './drag/pipeline/drag-input';
-export * from './drag/selection/range-selection-state';
 export * from './drag/state/drag-session';
 export * from './drag/state/drag-state';

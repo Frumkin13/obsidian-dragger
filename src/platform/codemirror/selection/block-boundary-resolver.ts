@@ -1,6 +1,6 @@
 import { EditorState } from '@codemirror/state';
 import { detectBlock } from '../../../domain/block/block-detector';
-import type { RangeSelectionBoundaryResolver } from '../../../drag/selection/range-selection-state';
+import type { RangeSelectionBoundaryResolver } from '../../../domain/selection/range-selection';
 
 export function createRangeSelectionBoundaryResolver(state: EditorState): RangeSelectionBoundaryResolver {
     const doc = state.doc;

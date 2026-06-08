@@ -39,7 +39,6 @@ describe('headless drag architecture boundaries', () => {
             'intent',
             'lifecycle',
             'pipeline',
-            'selection',
             'state',
         ]);
     });

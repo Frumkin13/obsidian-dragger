@@ -1,6 +1,7 @@
 ﻿import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../../domain/block/block-types';
-import type { BlockSelection } from '../../../domain/selection/block-selection';
+import type { BlockSelection, RangeSelectionOperation } from '../../../domain/selection/block-selection';
+import type { SelectedBlockRange } from '../../../domain/selection/block-ranges';
 import type { DragDropSnapshot } from '../../../drag/drop/drag-drop-snapshot';
 import type { DragEffect } from '../../../drag/effects/drag-effect';
 import type { DragEffectExecutor } from '../../../drag/effects/drag-effect-executor';
@@ -10,10 +11,10 @@ import type { PointerDropCommitResolution } from './pointer-drag-target-router';
 import {
     type RangeSelectionBoundary,
     type CommittedRangeSelection,
-    type MouseRangeSelectState,
-    type RangeSelectionOperation,
-    type SelectedBlockRange,
-} from '../../../drag/selection/range-selection-state';
+} from '../../../domain/selection/range-selection';
+import type {
+    MouseRangeSelectState,
+} from './range-selection-gesture-state';
 import {
     shouldClearCommittedSelectionOnPointerDown as shouldClearCommittedSelectionOnPointerDownByGrip,
     isCommittedSelectionGripHit as isCommittedSelectionGripHitByGrip,
@@ -41,10 +42,8 @@ import {
     buildIdleLifecycleEvent,
     buildPressPendingLifecycleEvent,
 } from '../../../drag/lifecycle/drag-lifecycle';
-import {
-    GestureCancelReason,
-    InteractionState,
-} from '../../../drag/state/drag-state';
+import type { GestureCancelReason } from '../../../drag/state/drag-state';
+import type { InteractionState } from './interaction-state';
 import {
     isMobileEnvironment as isMobileEnvironmentByInput,
 } from './pointer-input';
@@ -56,6 +55,7 @@ import { handlePointerCancel, handlePointerUp } from './pointerup-handler';
 import { handleDesktopPointerDown } from './pointerdown-handler';
 import {
     enterMobileSelectionMode,
+    enterMobileSelectionModeFromBlock,
     finishMobileSelectionPointer,
     getMobileSelectionTemplateBlock,
     handleMobilePointerDown,
@@ -208,7 +208,7 @@ export class PointerDragController {
     beginPressPendingDrag(
         source: BlockSelection,
         e: PointerEvent,
-        options?: { skipLongPress?: boolean; deferInterception?: boolean }
+        options?: { skipLongPress?: boolean; deferInterception?: boolean; mobileSelectionOnHold?: boolean }
     ): void {
         const pointerType = e.pointerType || null;
         const suppressNativeInteraction = options?.deferInterception !== true;
@@ -244,6 +244,22 @@ export class PointerDragController {
                 }
                 this.emitPressPendingLifecycle(state.selection, state.pointerType, true);
             }, longPressMs);
+        const mobileSelectionTimeoutId = options?.mobileSelectionOnHold === true
+            ? window.setTimeout(() => {
+                if (this.gesture.phase !== 'press_pending') return;
+                const state = this.gesture.press;
+                if (state.pointerId !== e.pointerId) return;
+                if (state.timeoutId !== null) {
+                    window.clearTimeout(state.timeoutId);
+                }
+                if (state.mobileSelectionTimeoutId !== null) {
+                    window.clearTimeout(state.mobileSelectionTimeoutId);
+                }
+                this.pointer.detachPointerListeners();
+                this.pointer.releasePointerCapture();
+                enterMobileSelectionModeFromBlock(this, state.selection.anchorBlock, e);
+            }, this.getTouchRangeSelectLongPressMs())
+            : null;
         const startMoveThresholdPx = skipLongPress
             ? 2
             : (pointerType === 'mouse' ? 4 : 8);
@@ -258,6 +274,7 @@ export class PointerDragController {
             pointerType,
             longPressReady: skipLongPress,
             timeoutId,
+            mobileSelectionTimeoutId,
             cancelMoveThresholdPx: MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX,
             startMoveThresholdPx,
             suppressNativeInteraction,
@@ -271,6 +288,9 @@ export class PointerDragController {
         const state = this.gesture.press;
         if (state.timeoutId !== null) {
             window.clearTimeout(state.timeoutId);
+        }
+        if (state.mobileSelectionTimeoutId !== null) {
+            window.clearTimeout(state.mobileSelectionTimeoutId);
         }
         this.gesture = { phase: 'idle' };
     }
