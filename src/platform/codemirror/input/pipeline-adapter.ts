@@ -1,7 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../../domain/block/block-types';
 import type { BlockCommand } from '../../../domain/command/block-command';
-import type { BlockSelection, RangeSelectionOperation } from '../../../domain/selection/block-selection';
+import type { BlockSelection } from '../../../domain/selection/block-selection';
 import type { SelectedBlockRange } from '../../../domain/selection/block-ranges';
 import type { RangeSelectionBoundary, CommittedRangeSelection } from '../../../domain/selection/range-selection';
 import type { DragDropSnapshot } from '../../../drag/pipeline/pipeline-drop';
@@ -20,6 +20,7 @@ import {
     beginRangeSelectionSessionAction,
     clearMouseRangeSelectState as clearMouseRangeSelectStateAction,
     commitRangeSelection as commitRangeSelectionAction,
+    type RangeSelectionSessionOptions,
     updateMouseRangeSelection as updateMouseRangeSelectionAction,
 } from './pointer-selection';
 import { renderRangeSelectionPreview, RangeSelectionVisualManager } from '../preview/range-selection-visual-manager';
@@ -38,16 +39,17 @@ import {
 import { type BlockSelectionRequest } from '../selection/block-selection-resolver';
 import {
     INPUT_GUARD_MOBILE_DRAG_GESTURE,
+    INPUT_GUARD_MOBILE_SELECTION_GESTURE,
+    INPUT_GUARD_MOBILE_SELECTION_PASSIVE,
 } from './input-guards';
 import { RANGE_SELECTED_HANDLE_CLASS } from '../../../shared/dom-selectors';
 import { handlePointerCancel, handlePointerMove, handlePointerUp } from './pointer-drag';
-import { handleDesktopPointerDown } from './pointer-hold';
 import {
     enterMobileSelectionMode,
     enterMobileSelectionModeFromBlock,
     exitMobileSelectionMode,
     finishMobileSelectionPointer,
-    handleMobilePointerDown,
+    handlePointerDown,
 } from './pointer-selection';
 import {
     clampTouchRangeSelectLongPressMs,
@@ -106,14 +108,14 @@ export class PipelineAdapter {
         const target = input.target;
         if (!target) return;
 
-        this.runPointerDownPrelude(e, target);
-
-        if (this.resolvePointerDownMode(e) === 'mobile') {
-            handleMobilePointerDown(this, e, target);
-            return;
+        if (!this.isMultiLineSelectionEnabled()) {
+            this.clearCommittedRangeSelection();
         }
 
-        handleDesktopPointerDown(this, e, target);
+        const handled = handlePointerDown(this, e, target);
+        if (!handled) {
+            this.clearCommittedSelectionForPointerDown(e, target);
+        }
     };
     private readonly onLostPointerCapture = (e: PointerEvent) => this.handleLostPointerCapture(e);
     private readonly onWindowKeyDown = (e: KeyboardEvent) => this.handleWindowKeyDown(e);
@@ -182,27 +184,6 @@ export class PipelineAdapter {
         this.rangeVisual.scheduleRefresh();
     }
 
-    private runPointerDownPrelude(e: PointerEvent, target: HTMLElement): void {
-        if (!this.isMultiLineSelectionEnabled()) {
-            this.clearCommittedRangeSelection();
-            return;
-        }
-
-        const pointerType = e.pointerType || null;
-        const canHandleCommittedSelection = e.button === 0 && !!this.committedRangeSelection;
-        if (canHandleCommittedSelection && this.isSelectionDragGripHit(target, e.clientX, e.clientY, pointerType)) {
-            return;
-        }
-        if (canHandleCommittedSelection && this.shouldClearCommittedSelectionOnPointerDown(target, e.clientX, pointerType)) {
-            this.clearCommittedRangeSelection();
-        }
-    }
-
-    private resolvePointerDownMode(e: PointerEvent): 'desktop' | 'mobile' {
-        if (e.pointerType === 'mouse') return 'desktop';
-        return this.isMobileEnvironment() ? 'mobile' : 'desktop';
-    }
-
     private isMobileEnvironment(): boolean {
         return isMobileEnvironmentByInput();
     }
@@ -211,10 +192,13 @@ export class PipelineAdapter {
         source: BlockSelection,
         e: PointerEvent,
         handle: HTMLElement | null,
-        options?: { skipLongPress?: boolean; initialOperation?: RangeSelectionOperation }
+        options?: RangeSelectionSessionOptions
     ): void {
         void handle;
         beginRangeSelectionSessionAction(this, source, e, options);
+        if (e.pointerType !== 'mouse' && this.rangePointerSession?.isIntercepting) {
+            this.mobile.applyInputGuardMode(INPUT_GUARD_MOBILE_SELECTION_GESTURE, e.target);
+        }
     }
 
     activateMouseRangeSelectInterception(state: MouseRangeSelectState): void {
@@ -225,6 +209,7 @@ export class PipelineAdapter {
         source: BlockSelection,
         e: PointerEvent,
         options?: {
+            longPressMs?: number;
             skipLongPress?: boolean;
             deferInterception?: boolean;
             mobileSelectionOnHold?: boolean;
@@ -246,10 +231,10 @@ export class PipelineAdapter {
         }
 
         const sessionId = this.createSessionId();
-        const skipLongPress = options?.skipLongPress === true;
-        const longPressMs = pointerType === 'mouse'
+        const skipLongPress = options?.skipLongPress === true || options?.longPressMs === 0;
+        const longPressMs = options?.longPressMs ?? (pointerType === 'mouse'
             ? MOUSE_RANGE_SELECT_LONG_PRESS_MS
-            : MOBILE_DRAG_LONG_PRESS_MS;
+            : MOBILE_DRAG_LONG_PRESS_MS);
         const timeoutId = skipLongPress
             ? null
             : window.setTimeout(() => this.markPressReady(sessionId, e.pointerId, pointerType, e.target), longPressMs);
@@ -597,8 +582,12 @@ export class PipelineAdapter {
         this.clearMouseRangeSelectState({ preserveVisual: true });
         this.pointer.detachPointerListeners();
         this.pointer.releasePointerCapture();
-        this.mobile.clearInputGuardMode();
         this.dispatchPipeline({ type: 'selection_finish' });
+        if (this.mobileSelectionSession && this.pipelineState.type === 'selecting') {
+            this.mobile.applyInputGuardMode(INPUT_GUARD_MOBILE_SELECTION_PASSIVE);
+        } else {
+            this.mobile.clearInputGuardMode();
+        }
     }
 
     private shouldClearCommittedSelectionOnPointerDown(
@@ -615,6 +604,16 @@ export class PipelineAdapter {
             isWithinContentTolerance: (x) => this.mobile.isWithinContentTolerance(x),
             contentDOM: this.view.contentDOM,
         });
+    }
+
+    private clearCommittedSelectionForPointerDown(e: PointerEvent, target: HTMLElement): void {
+        if (!this.isMultiLineSelectionEnabled()) return;
+        if (e.button !== 0 || !this.committedRangeSelection) return;
+
+        const pointerType = e.pointerType || null;
+        if (this.isSelectionDragGripHit(target, e.clientX, e.clientY, pointerType)) return;
+        if (!this.shouldClearCommittedSelectionOnPointerDown(target, e.clientX, pointerType)) return;
+        this.clearCommittedRangeSelection();
     }
 
     private isSelectionDragGripHit(

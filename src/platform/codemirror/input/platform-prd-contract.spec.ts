@@ -52,4 +52,13 @@ describe('CodeMirror input PRD contracts', () => {
 
         expect(offenders).toEqual([]);
     });
+
+    it('keeps pointerdown translation on a single platform adapter path', () => {
+        const forbidden = /\b(?:handleDesktopPointerDown|handleMobilePointerDown|decideDesktopPointerDownAction)\b/;
+        const offenders = readInputProductionFiles()
+            .filter((file) => forbidden.test(file.text))
+            .map((file) => file.rel);
+
+        expect(offenders).toEqual([]);
+    });
 });

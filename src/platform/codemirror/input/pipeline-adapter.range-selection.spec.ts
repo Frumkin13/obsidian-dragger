@@ -855,43 +855,104 @@ describe('PipelineAdapter Range Selection', () => {
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(onPlatformCommit).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
-        beginPointerDragSession.mockClear();
-        onPlatformCommit.mockClear();
-        finishDragSession.mockClear();
-        onDropPreview.mockClear();
+        handler.destroy();
+    });
 
+    it('enters mobile selection from real handle long-press when text long-press selection is disabled', () => {
+        document.body.classList.add('is-mobile');
+        const view = createViewStub(6);
+        const handle = appendHandleForBlockStart(view, 1);
+        const sourceBlock = createBlock('- item', 1, 1);
+        const beginPointerDragSession = vi.fn();
+
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => false,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
+
+        handler.attach();
         dispatchPointer(handle, 'pointerdown', {
-            pointerId: 18,
+            pointerId: 181,
             pointerType: 'touch',
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(940);
-        dispatchPointer(window, 'pointermove', {
-            pointerId: 18,
-            pointerType: 'touch',
-            clientX: 12,
-            clientY: 105,
-        });
         dispatchPointer(window, 'pointerup', {
-            pointerId: 18,
+            pointerId: 181,
             pointerType: 'touch',
             clientX: 12,
-            clientY: 105,
+            clientY: 30,
         });
-        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as BlockSelection;
-        expect(selectedBlock.ranges[0].startLine).toBe(1);
-        expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(1);
-        expect(onDropPreview).toHaveBeenCalledWith(12, 105, expect.objectContaining({
-            ranges: [expect.objectContaining({
-                startLine: 1,
-                endLine: 1,
-            })],
-            }), 'touch');
-        expect(onPlatformCommit).toHaveBeenCalledTimes(1);
-        expect(finishDragSession).toHaveBeenCalledTimes(1);
-        expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
+        expect(handle.classList.contains('dnd-range-selected-handle')).toBe(false);
+
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 182,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(920);
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 182,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 30,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(handle.classList.contains('dnd-range-selected-handle')).toBe(true);
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
+
+        document.body.classList.remove('is-mobile');
+        handler.destroy();
+    });
+
+    it('enters mobile selection from real handle long-press when text long-press selection is enabled', () => {
+        document.body.classList.add('is-mobile');
+        const view = createViewStub(6);
+        const handle = appendHandleForBlockStart(view, 1);
+        const sourceBlock = createBlock('- item', 1, 1);
+        const beginPointerDragSession = vi.fn();
+
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
+
+        handler.attach();
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 183,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(920);
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 183,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 30,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(handle.classList.contains('dnd-range-selected-handle')).toBe(true);
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
+
+        document.body.classList.remove('is-mobile');
         handler.destroy();
     });
 
@@ -1652,7 +1713,7 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 
-    it('starts pointer drag immediately on mouse handle drag before long-press selection activates', () => {
+    it('starts pointer drag from zero-delay mouse handle hold before long-press selection activates', () => {
         const view = createViewStub(6);
         const handle = document.createElement('div');
         handle.className = 'dnd-drag-handle';
@@ -1832,6 +1893,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientY: 30,
         });
         vi.advanceTimersByTime(600);
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
         dispatchPointer(window, 'pointermove', {
             pointerId: 81,
             pointerType: 'mouse',
@@ -1846,12 +1908,7 @@ describe('PipelineAdapter Range Selection', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(onDropPreview).toHaveBeenCalledWith(12, 30, expect.objectContaining({
-            ranges: [expect.objectContaining({
-                startLine: 1,
-                endLine: 1,
-            })],
-            }), 'mouse');
+        expect(onDropPreview).toHaveBeenCalledTimes(1);
         expect(onDropPreview).toHaveBeenCalledWith(12, 90, expect.objectContaining({
             ranges: [expect.objectContaining({
                 startLine: 1,
@@ -2396,23 +2453,32 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 
-    it('ignores explicit content taps while mobile selection is active', () => {
+    it('adds disjoint mobile selection ranges from unselected text long-long-press without clearing short taps', () => {
         document.body.classList.add('is-mobile');
-        const view = createViewStub(4);
+        const view = createViewStub(8);
+        const farLine = view.contentDOM.querySelectorAll<HTMLElement>('.cm-line')[5];
+        expect(farLine).not.toBeNull();
         const firstHandle = appendHandleForBlockStart(view, 0);
         const secondHandle = appendHandleForBlockStart(view, 1);
-        const thirdHandle = appendHandleForBlockStart(view, 2);
+        const farHandle = appendHandleForBlockStart(view, 5);
+        const firstBlock = createBlock('line 1', 0, 0);
+        const secondBlock = createBlock('line 2', 1, 1);
+        const farBlock = createBlock('line 6', 5, 5);
 
         const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
                 handle: () => null,
                 point: (_x, y) => {
                     if (!Number.isFinite(y)) return null;
-                    const lineIndex = Math.max(0, Math.min(3, Math.floor(y / 20)));
-                    return createBlock(`line ${lineIndex + 1}`, lineIndex, lineIndex);
+                    if (y >= 100) return farBlock;
+                    if (y >= 20) return secondBlock;
+                    return firstBlock;
                 },
             }),
             isBlockInsideRenderedTableCell: () => false,
+            isMobileDragModeRequired: () => true,
+            isMobileDragModeEnabled: () => true,
+            isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession: vi.fn(),
             finishDragSession: vi.fn(),
             onDropPreview: vi.fn(),
@@ -2427,11 +2493,17 @@ describe('PipelineAdapter Range Selection', () => {
         }));
         vi.runOnlyPendingTimers();
 
-        dispatchPointer(view.contentDOM, 'pointerdown', {
+        dispatchPointer(farLine, 'pointerdown', {
             pointerId: 301,
             pointerType: 'touch',
             clientX: 120,
-            clientY: 25,
+            clientY: 105,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 301,
+            pointerType: 'touch',
+            clientX: 120,
+            clientY: 105,
         });
 
         let selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
@@ -2444,53 +2516,29 @@ describe('PipelineAdapter Range Selection', () => {
         const contentTouchMove = dispatchTouchMove(window);
         expect(contentTouchMove.defaultPrevented).toBe(false);
 
-        dispatchPointer(view.contentDOM, 'pointerdown', {
+        dispatchPointer(farLine, 'pointerdown', {
             pointerId: 302,
             pointerType: 'touch',
             clientX: 120,
-            clientY: 5,
+            clientY: 105,
+        });
+        vi.advanceTimersByTime(920);
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 302,
+            pointerType: 'touch',
+            clientX: 120,
+            clientY: 105,
         });
 
         selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
         expect(selectedHandles).toContain(firstHandle);
         expect(selectedHandles).not.toContain(secondHandle);
-        expect(selectedHandles).toHaveLength(1);
+        expect(selectedHandles).toContain(farHandle);
+        expect(selectedHandles).toHaveLength(2);
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
-
-        dispatchPointer(view.contentDOM, 'pointerdown', {
-            pointerId: 303,
-            pointerType: 'touch',
-            clientX: 120,
-            clientY: 25,
-        });
-
-        selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
-        expect(selectedHandles).toContain(firstHandle);
-        expect(selectedHandles).not.toContain(secondHandle);
-        expect(selectedHandles).toHaveLength(1);
         expect(view.dom.querySelector('.dnd-range-selected-line')).toBeNull();
-        expect(view.dom.querySelectorAll('.dnd-drag-source-line')).toHaveLength(1);
-
-        view.dom.dispatchEvent(new CustomEvent('dnd:enter-mobile-selection-mode', {
-            bubbles: true,
-            detail: { handled: false },
-        }));
-        vi.runOnlyPendingTimers();
-        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).toHaveLength(1);
-
-        dispatchPointer(view.contentDOM, 'pointerdown', {
-            pointerId: 304,
-            pointerType: 'touch',
-            clientX: 120,
-            clientY: Number.NaN,
-        });
-
-        selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
-        expect(selectedHandles).toContain(firstHandle);
-        expect(selectedHandles).toHaveLength(1);
-        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top.is-active')).not.toBeNull();
-        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom.is-active')).not.toBeNull();
-        expect(thirdHandle.classList.contains('dnd-range-selected-handle')).toBe(false);
+        expect(view.dom.querySelectorAll('.dnd-drag-source-line')).toHaveLength(2);
+        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
         document.body.classList.remove('is-mobile');
         handler.destroy();
     });

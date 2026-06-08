@@ -417,6 +417,7 @@ holding
 pointerdown(handle)
 -> platform hit-test: HoldTarget(selection = one block, source = handle)
 -> hold_start
+-> platform delay policy (0ms)
 -> hold_ready / drag_start
 -> dragging(BlockSelection)
 ```
@@ -425,7 +426,7 @@ pointerdown(handle)
 
 ```text
 touch pointerdown(handle)
--> platform handle affordance / hit-test: HoldTarget(selection = one block, source = handle)
+-> platform hit-test: HoldTarget(selection = one block, source = handle)
 -> hold_start
 -> platform delay policy
 -> hold_ready / drag_start
@@ -655,8 +656,7 @@ platform 必须在退出路径清理：
 ### 10.2 移动端
 
 - 不由 drag 层强制显示所有手柄。
-- 如果当前不是“始终显示手柄”，platform 必须实现移动端可用的手柄触达方式，例如触摸命中区、临时显示当前块手柄、或等价的 handle affordance。
-- 移动端手柄触达方式可以不同于桌面 hover，但必须翻译成同一个 `handle` input source。
+- 移动端手柄拖拽只来自真实手柄命中；如果当前不是“始终显示手柄”，隐藏手柄不能通过额外命中区伪装成手柄拖拽。
 - 不新增自定义右上角样式；如需要按钮，使用 Obsidian view action。
 - mobile drag mode 状态应通过图标状态表达，不用会遮挡 view action 的黑色提示。
 - 多选后使用整体框选视觉，不重写一套背景高亮。
@@ -721,7 +721,7 @@ platform 必须在退出路径清理：
 - platform 根据 state 执行输入抑制和滚动锁。
 - handle drag 不受 mobile drag mode 限制。
 - text long press drag 受 mobile drag mode 限制。
-- 移动端非“始终显示手柄”时的 platform handle affordance。
+- 隐藏手柄时不存在额外的移动端手柄命中区。
 - selecting passive 可滚动。
 - selecting adjusting / dragging 时 platform 可锁滚动。
 - selected text long press -> dragging current selection。
@@ -1114,7 +1114,7 @@ src/platform/codemirror/
     pointer-drag.ts
     pointer-selection.ts
     touch-delay-policy.ts
-    mobile-handle-affordance.ts
+    mobile-input-hit-test.ts
     input-guards.ts
     input-cleanup.ts
 
@@ -1264,11 +1264,11 @@ input/touch-delay-policy.ts                     60-100 lines
 - 不知道 selection lifecycle。
 
 ```text
-input/mobile-handle-affordance.ts               80-140 lines
+input/mobile-input-hit-test.ts                  80-140 lines
 ```
 
-- 当手柄设置不是“始终显示”时，实现移动端可触达手柄。
-- 可以临时显示当前块手柄、扩大命中区或等价触达。
+- 负责移动端环境判断、文本长按命中、embed 命中、滚动手势判断。
+- 不提供隐藏手柄的额外手柄命中区。
 - 最终必须输出 `source = handle` 的同一种 pipeline event。
 - 不修改 drag core。
 
@@ -1341,7 +1341,6 @@ transaction/undo-selection-anchor.ts            40-80 lines
 input/pipeline-adapter.spec.ts                  180-320 lines
 input/pointer-hold.spec.ts                      160-260 lines
 input/pointer-selection.spec.ts                 180-320 lines
-input/mobile-handle-affordance.spec.ts          120-220 lines
 preview/range-selection-visual-manager.spec.ts  120-220 lines
 ```
 
@@ -1401,8 +1400,8 @@ preview/range-selection-visual-manager.spec.ts  120-220 lines
 说明: 只画整体框选，不重复背景高亮和 selection 状态。
 
 当前: preview/handle-visibility-controller.ts
-目标: preview/handle-visibility-controller.ts + input/mobile-handle-affordance.ts
-说明: 视觉显示和移动端可触达策略分开。
+目标: preview/handle-visibility-controller.ts
+说明: 只负责真实手柄的视觉显示，不提供隐藏手柄的替代命中区。
 
 当前: extension/drag-driver.ts
 目标: extension/drag-driver.ts
@@ -1434,7 +1433,7 @@ preview/range-selection-visual-manager.spec.ts  120-220 lines
 2. 删除 drag 层 mobile/desktop 概念，只保留 input source、guard dependency、phase。
 3. 把 mobile drag mode gating 改成 platform text-drag guard：只限制 text source，不限制 handle source。
 4. 把 `pointer-drag-controller.ts` 拆成 CodeMirror platform adapter、pointer session、hold、drag、selection。
-5. 为移动端非“始终显示手柄”补明确的 platform handle affordance。
+5. 删除移动端隐藏手柄的额外手柄命中区；手柄拖拽只从真实手柄命中进入。
 6. 让 selected text long press 生成平台无关的 `hold_start(selection)` event。
 7. 把 selection 生命周期判断收束到 drag pipeline 规则。
 8. 删除 platform 中重复的业务判断和旧 UI 死代码。
@@ -1449,4 +1448,3 @@ preview/range-selection-visual-manager.spec.ts  120-220 lines
 - 选中文本区域的 hit-test 是否按整块 source outline 判断，还是按具体 selected line DOM 判断？
 - 多区域选择移动端是否允许从任一选中区域长按拖拽整个 selection？
 - 关闭 mobile drag mode 时，如果当前正在 active drag，应该 cancel 还是允许本次 drag 完成？
-- 移动端非“始终显示手柄”时的最佳 handle affordance 是临时显示手柄、扩大命中区，还是提供和文本长按不同的触摸入口？

@@ -4,12 +4,11 @@ import { safeCoordsAtPos, resolveLineNumberFromDomNodes } from '../../dom/elemen
 import { findEmbedElementAtPoint } from '../../dom/embed-probe';
 
 const MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX = 16;
-const MOBILE_HANDLE_AFFORDANCE_WIDTH_PX = 48;
 const MOBILE_LINE_HIT_Y_TOLERANCE_PX = 8;
 const MOBILE_EMBED_HIT_PADDING_PX = 6;
 const MOBILE_RANGE_SELECT_SCROLL_CANCEL_THRESHOLD_PX = 14;
 
-export class MobileHandleAffordance {
+export class MobileInputHitTest {
     constructor(private readonly view: EditorView) {}
 
     isMobileEnvironment(): boolean {
@@ -57,16 +56,6 @@ export class MobileHandleAffordance {
         }
 
         return false;
-    }
-
-    isWithinMobileHandleAffordanceArea(target: HTMLElement | null, clientX: number, clientY: number): boolean {
-        const lineNumber = target ? this.resolveLineNumberFromTarget(target, target.closest<HTMLElement>('.cm-line')) : null;
-        if (lineNumber === null) return false;
-        const contentRect = this.view.contentDOM.getBoundingClientRect();
-        if (!Number.isFinite(contentRect.left)) return false;
-        if (clientX < contentRect.left - MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX) return false;
-        if (clientX > contentRect.left + MOBILE_HANDLE_AFFORDANCE_WIDTH_PX) return false;
-        return this.isWithinLineDragArea(lineNumber, clientX, clientY);
     }
 
     isMostlyVerticalScrollGesture(dx: number, dy: number): boolean {

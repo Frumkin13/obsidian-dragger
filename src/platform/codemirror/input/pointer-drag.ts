@@ -40,6 +40,11 @@ export function handlePointerMove(host: PointerMoveHost, e: PointerEvent): void 
         case 'ready_to_drag':
             handlePressPendingPointerMove(host, e);
             return;
+        case 'idle':
+            if (host.rangePointerSession) {
+                handleRangeSelectingPointerMove(host, e);
+            }
+            return;
         default:
             return;
     }
@@ -95,7 +100,8 @@ function scheduleDragAutoScroll(host: PointerMoveHost, dragState: { autoScrollFr
 
 function handleRangeSelectingPointerMove(host: PointerMoveHost, e: PointerEvent): void {
     const rangeState = host.rangePointerSession;
-    if (host.pipelineState.type !== 'selecting' || !rangeState) return;
+    if (!rangeState) return;
+    if (rangeState.pipelineStarted && host.pipelineState.type !== 'selecting') return;
     if (rangeState.pointerId !== -1 && e.pointerId !== rangeState.pointerId) return;
     handleRangeSelectionPointerMove(host, e, rangeState);
 }
@@ -166,7 +172,11 @@ function handleRangeSelectionPointerMove(
         } else {
             if (!state.dragReady) {
                 if (distance > MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX) {
-                    host.abortForGestureCancel('press_cancelled', pointerType);
+                    if (state.pipelineStarted) {
+                        host.abortForGestureCancel('press_cancelled', pointerType);
+                    } else {
+                        host.finishRangeSelectionSession();
+                    }
                 }
                 return;
             }
@@ -247,6 +257,11 @@ function handlePointerTerminal(
         case 'ready_to_drag':
             finishPressPendingPointer(host, e, mode);
             return;
+        case 'idle':
+            if (host.rangePointerSession) {
+                finishRangeSelectingPointer(host, e, mode);
+            }
+            return;
         default:
             return;
     }
@@ -287,9 +302,17 @@ function finishRangeSelectingPointer(
     mode: PointerTerminalMode
 ): void {
     const rangeState = host.rangePointerSession;
-    if (host.pipelineState.type !== 'selecting' || !rangeState) return;
+    if (!rangeState) return;
     if (rangeState.pointerId !== -1 && e.pointerId !== rangeState.pointerId) return;
+    if (host.pipelineState.type !== 'selecting') {
+        host.finishRangeSelectionSession();
+        return;
+    }
     if (mode === 'cancel') {
+        if (!rangeState.pipelineStarted) {
+            host.finishRangeSelectionSession();
+            return;
+        }
         host.abortForGestureCancel('pointer_cancelled', e.pointerType || null);
         return;
     }
@@ -302,7 +325,11 @@ function finishRangeSelectingPointer(
             host.finishRangeSelectionSession();
             return;
         }
-        host.abortForGestureCancel('press_cancelled', e.pointerType || null);
+        if (rangeState.pipelineStarted) {
+            host.abortForGestureCancel('press_cancelled', e.pointerType || null);
+        } else {
+            host.finishRangeSelectionSession();
+        }
         return;
     }
     e.preventDefault();

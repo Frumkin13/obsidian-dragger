@@ -1,7 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { MOBILE_GESTURE_LOCK_CLASS } from '../../../shared/dom-selectors';
 import { DND_MOBILE_GESTURE_LOCK_COUNT_ATTR } from '../../../shared/dom-attrs';
-import { MobileHandleAffordance } from './mobile-handle-affordance';
+import { MobileInputHitTest } from './mobile-input-hit-test';
 
 export type InputGuardMode =
     | { type: 'idle' }
@@ -42,7 +42,7 @@ export class InputGuardController {
     private scrollSuppressed = false;
     private focusGuardAttached = false;
     private readonly onDocumentFocusIn: (e: FocusEvent) => void;
-    private readonly mobileHandleAffordance: MobileHandleAffordance;
+    private readonly mobileInputHitTest: MobileInputHitTest;
     private savedContentEditable: string | null = null;
 
     constructor(
@@ -50,31 +50,27 @@ export class InputGuardController {
         onFocusIn: (e: FocusEvent) => void
     ) {
         this.onDocumentFocusIn = onFocusIn;
-        this.mobileHandleAffordance = new MobileHandleAffordance(view);
+        this.mobileInputHitTest = new MobileInputHitTest(view);
     }
 
     isMobileEnvironment(): boolean {
-        return this.mobileHandleAffordance.isMobileEnvironment();
+        return this.mobileInputHitTest.isMobileEnvironment();
     }
 
     isWithinContentTolerance(clientX: number): boolean {
-        return this.mobileHandleAffordance.isWithinContentTolerance(clientX);
+        return this.mobileInputHitTest.isWithinContentTolerance(clientX);
     }
 
     isWithinEditorTolerance(clientX: number): boolean {
-        return this.mobileHandleAffordance.isWithinEditorTolerance(clientX);
+        return this.mobileInputHitTest.isWithinEditorTolerance(clientX);
     }
 
     isWithinMobileTextLineOrEmbedArea(target: HTMLElement | null, clientX: number, clientY: number): boolean {
-        return this.mobileHandleAffordance.isWithinMobileTextLineOrEmbedArea(target, clientX, clientY);
-    }
-
-    isWithinMobileHandleAffordanceArea(target: HTMLElement | null, clientX: number, clientY: number): boolean {
-        return this.mobileHandleAffordance.isWithinMobileHandleAffordanceArea(target, clientX, clientY);
+        return this.mobileInputHitTest.isWithinMobileTextLineOrEmbedArea(target, clientX, clientY);
     }
 
     isMostlyVerticalScrollGesture(dx: number, dy: number): boolean {
-        return this.mobileHandleAffordance.isMostlyVerticalScrollGesture(dx, dy);
+        return this.mobileInputHitTest.isMostlyVerticalScrollGesture(dx, dy);
     }
 
     applyInputGuardMode(mode: InputGuardMode, keyboardTarget?: EventTarget | null): void {
