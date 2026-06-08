@@ -9,10 +9,6 @@ import {
     type RangeSelectionBoundary,
 } from '../../../domain/selection/range-selection';
 import type { MouseRangeSelectState } from './range-selection-gesture-state';
-import {
-    finishMobileSelectionPointer,
-    handleMobileSelectingPointerMove,
-} from './pointer-selection';
 import type { PipelineAdapter } from './pipeline-adapter';
 import type { PointerTerminalMode } from './pointer-session';
 import {
@@ -32,8 +28,6 @@ export function handlePointerMove(host: PointerMoveHost, e: PointerEvent): void 
         case 'selecting':
             if (host.rangePointerSession) {
                 handleRangeSelectingPointerMove(host, e);
-            } else {
-                handleMobileSelectingPointerMove(host, e);
             }
             return;
         case 'holding':
@@ -162,12 +156,10 @@ function handleRangeSelectionPointerMove(
             if (distance >= MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX) {
                 e.preventDefault();
                 e.stopPropagation();
-                const source = host.resolveBlockSelection(host.buildDirectRangeSelectionSelectionRequest(state));
-                if (!source) return;
                 const pointerId = state.pointerId;
                 host.clearCommittedRangeSelection();
                 host.clearMouseRangeSelectState();
-                host.enterDraggingState(source, pointerId, e.clientX, e.clientY, pointerType);
+                host.enterDraggingState(state.sourceSelection, pointerId, e.clientX, e.clientY, pointerType, state.sourceKind);
             }
         } else {
             if (!state.dragReady) {
@@ -183,12 +175,10 @@ function handleRangeSelectionPointerMove(
             if (distance >= MOBILE_DRAG_START_MOVE_THRESHOLD_PX) {
                 e.preventDefault();
                 e.stopPropagation();
-                const source = host.resolveBlockSelection(host.buildDirectRangeSelectionSelectionRequest(state));
-                if (!source) return;
                 const pointerId = state.pointerId;
                 host.clearCommittedRangeSelection();
                 host.clearMouseRangeSelectState();
-                host.enterDraggingState(source, pointerId, e.clientX, e.clientY, pointerType);
+                host.enterDraggingState(state.sourceSelection, pointerId, e.clientX, e.clientY, pointerType, state.sourceKind);
             }
         }
         return;
@@ -249,8 +239,6 @@ function handlePointerTerminal(
         case 'selecting':
             if (host.rangePointerSession) {
                 finishRangeSelectingPointer(host, e, mode);
-            } else {
-                finishMobileSelectionPointer(host, e, mode);
             }
             return;
         case 'holding':
@@ -304,6 +292,13 @@ function finishRangeSelectingPointer(
     const rangeState = host.rangePointerSession;
     if (!rangeState) return;
     if (rangeState.pointerId !== -1 && e.pointerId !== rangeState.pointerId) return;
+    if (mode === 'up' && !rangeState.longPressReady && rangeState.pointerType === 'mouse') {
+        e.preventDefault();
+        e.stopPropagation();
+        host.deps.openBlockTypeMenu?.(rangeState.sourceSelection.anchorBlock, e);
+        host.finishRangeSelectionSession();
+        return;
+    }
     if (host.pipelineState.type !== 'selecting') {
         host.finishRangeSelectionSession();
         return;
@@ -320,8 +315,7 @@ function finishRangeSelectingPointer(
         if (mode === 'up' && rangeState.pointerType === 'mouse') {
             e.preventDefault();
             e.stopPropagation();
-            const source = host.resolveBlockSelection(host.buildDirectRangeSelectionSelectionRequest(rangeState));
-            if (source) host.deps.openBlockTypeMenu?.(source.anchorBlock, e);
+            host.deps.openBlockTypeMenu?.(rangeState.sourceSelection.anchorBlock, e);
             host.finishRangeSelectionSession();
             return;
         }

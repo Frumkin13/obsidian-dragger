@@ -3,6 +3,7 @@ import type { DocLikeWithRange } from '../../../domain/markdown/document-types';
 import type { BlockSelection, RangeSelectionOperation } from '../../../domain/selection/block-selection';
 import type { SelectedBlockRange } from '../../../domain/selection/block-ranges';
 import type { GuardId } from '../../../drag/pipeline/pipeline-event';
+import type { HoldTarget } from '../../../drag/pipeline/pipeline-state';
 
 export type RangeSelectConfig = {
     longPressMs: number;
@@ -10,11 +11,11 @@ export type RangeSelectConfig = {
 
 export type MouseRangeSelectState = {
     anchorBlock: BlockInfo;
-    directBlock: BlockInfo;
     sourceSelection: BlockSelection;
     baseSelectedBlocks: SelectedBlockRange[];
     initialOperation?: RangeSelectionOperation;
     guardDeps?: GuardId[];
+    sourceKind: HoldTarget['source'];
     pipelineStarted: boolean;
     selectionGestureStarted: boolean;
     pointerId: number;
@@ -37,6 +38,7 @@ type CreateInitialRangeSelectionStateOptions = {
     baseSelectedBlocks: SelectedBlockRange[];
     initialOperation?: RangeSelectionOperation;
     guardDeps?: GuardId[];
+    sourceKind?: HoldTarget['source'];
     doc: DocLikeWithRange;
     pointerId: number;
     startX: number;
@@ -75,11 +77,11 @@ export function createInitialRangeSelectionState(
 
     return {
         anchorBlock: options.blockInfo,
-        directBlock: options.blockInfo,
         sourceSelection: options.sourceSelection,
         baseSelectedBlocks: options.baseSelectedBlocks,
         initialOperation: options.initialOperation,
         guardDeps: options.guardDeps,
+        sourceKind: options.sourceKind ?? 'handle',
         pipelineStarted: false,
         selectionGestureStarted: false,
         pointerId: options.pointerId,

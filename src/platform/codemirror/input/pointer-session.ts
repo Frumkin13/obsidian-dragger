@@ -1,5 +1,4 @@
 import { EditorView } from '@codemirror/view';
-import type { RangeSelectionBoundary } from '../../../domain/selection/range-selection';
 
 export type ActivePointerDrag = {
     sessionId: string;
@@ -18,7 +17,6 @@ export type PointerPressSession = {
     pointerType: string | null;
     longPressReady: boolean;
     timeoutId: number | null;
-    mobileSelectionTimeoutId: number | null;
     cancelMoveThresholdPx: number;
     startMoveThresholdPx: number;
     suppressNativeInteraction: boolean;
@@ -26,21 +24,7 @@ export type PointerPressSession = {
 
 export type PointerTerminalMode = 'up' | 'cancel';
 
-export type MobileSelectionResizeHandle = 'top' | 'bottom';
-
 export type RangeSelectionPointerSession = import('./range-selection-gesture-state').MouseRangeSelectState;
-
-export type MobileSelectionInteraction =
-    | {
-        type: 'resize';
-        pointerId: number;
-    };
-
-export type MobileSelectionSession = {
-    fixedBoundary: RangeSelectionBoundary;
-    movingBoundary: RangeSelectionBoundary;
-    activeInteraction: MobileSelectionInteraction | null;
-};
 
 export class PointerSession {
     private pointerListenersAttached = false;

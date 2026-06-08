@@ -28,7 +28,6 @@ import { InputGuardController } from './input-guards';
 import {
     PointerSession,
     type ActivePointerDrag,
-    type MobileSelectionSession,
     type PointerPressSession,
     type RangeSelectionPointerSession,
 } from './pointer-session';
@@ -46,9 +45,7 @@ import { RANGE_SELECTED_HANDLE_CLASS } from '../../../shared/dom-selectors';
 import { handlePointerCancel, handlePointerMove, handlePointerUp } from './pointer-drag';
 import {
     enterMobileSelectionMode,
-    enterMobileSelectionModeFromBlock,
     exitMobileSelectionMode,
-    finishMobileSelectionPointer,
     handlePointerDown,
 } from './pointer-selection';
 import {
@@ -96,7 +93,6 @@ export class PipelineAdapter {
     pressSession: PointerPressSession | null = null;
     activeDragSession: ActivePointerDrag | null = null;
     rangePointerSession: RangeSelectionPointerSession | null = null;
-    mobileSelectionSession: MobileSelectionSession | null = null;
     committedRangeSelection: CommittedRangeSelection | null = null;
     readonly rangeVisual: RangeSelectionVisualManager;
     readonly mobile: InputGuardController;
@@ -212,7 +208,6 @@ export class PipelineAdapter {
             longPressMs?: number;
             skipLongPress?: boolean;
             deferInterception?: boolean;
-            mobileSelectionOnHold?: boolean;
             sourceKind?: HoldTarget['source'];
         }
     ): void {
@@ -238,15 +233,6 @@ export class PipelineAdapter {
         const timeoutId = skipLongPress
             ? null
             : window.setTimeout(() => this.markPressReady(sessionId, e.pointerId, pointerType, e.target), longPressMs);
-        const mobileSelectionTimeoutId = options?.mobileSelectionOnHold === true
-            ? window.setTimeout(() => {
-                if (!this.pressSession || this.pressSession.sessionId !== sessionId || this.pressSession.pointerId !== e.pointerId) return;
-                this.clearPointerPressState();
-                this.pointer.detachPointerListeners();
-                this.pointer.releasePointerCapture();
-                enterMobileSelectionModeFromBlock(this, source.anchorBlock, e);
-            }, this.getTouchRangeSelectLongPressMs())
-            : null;
         const startMoveThresholdPx = skipLongPress
             ? 2
             : (pointerType === 'mouse' ? 4 : 8);
@@ -261,7 +247,6 @@ export class PipelineAdapter {
             pointerType,
             longPressReady: skipLongPress,
             timeoutId,
-            mobileSelectionTimeoutId,
             cancelMoveThresholdPx: MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX,
             startMoveThresholdPx,
             suppressNativeInteraction,
@@ -297,7 +282,6 @@ export class PipelineAdapter {
         const state = this.pressSession;
         if (!state) return;
         if (state.timeoutId !== null) window.clearTimeout(state.timeoutId);
-        if (state.mobileSelectionTimeoutId !== null) window.clearTimeout(state.mobileSelectionTimeoutId);
         this.pressSession = null;
     }
 
@@ -566,10 +550,6 @@ export class PipelineAdapter {
         };
     }
 
-    buildDirectRangeSelectionSelectionRequest(state: MouseRangeSelectState): BlockSelectionRequest {
-        return { kind: 'block', block: state.directBlock };
-    }
-
     resolveBlockSelection(request: BlockSelectionRequest): BlockSelection | null {
         return this.deps.resolveBlockSelection(request);
     }
@@ -583,7 +563,7 @@ export class PipelineAdapter {
         this.pointer.detachPointerListeners();
         this.pointer.releasePointerCapture();
         this.dispatchPipeline({ type: 'selection_finish' });
-        if (this.mobileSelectionSession && this.pipelineState.type === 'selecting') {
+        if (this.mobile.isMobileEnvironment() && this.pipelineState.type === 'selecting') {
             this.mobile.applyInputGuardMode(INPUT_GUARD_MOBILE_SELECTION_PASSIVE);
         } else {
             this.mobile.clearInputGuardMode();
@@ -648,10 +628,6 @@ export class PipelineAdapter {
     private handleLostPointerCapture(e: PointerEvent): void {
         readPointerInput('lost_capture', e);
         if (!this.hasActivePointerSession()) return;
-        if (this.pipelineState.type === 'selecting' && this.mobileSelectionSession?.activeInteraction) {
-            finishMobileSelectionPointer(this, e, 'cancel');
-            return;
-        }
         this.abortForSessionInterrupted(e.pointerType || null);
     }
 
@@ -744,7 +720,7 @@ export class PipelineAdapter {
     private hasActivePointerSession(): boolean {
         if (this.activeDragSession || this.pressSession) return true;
         if (this.pipelineState.type === 'selecting') {
-            return !!this.rangePointerSession || !!this.mobileSelectionSession?.activeInteraction;
+            return !!this.rangePointerSession;
         }
         return false;
     }
@@ -752,6 +728,7 @@ export class PipelineAdapter {
     private shouldSuppressTextInputForActiveInteraction(): boolean {
         if (this.pipelineState.type === 'dragging') return true;
         if (this.pipelineState.type === 'selecting') return true;
+        if (this.rangePointerSession?.isIntercepting) return true;
         if (this.pressSession) return this.pressSession.suppressNativeInteraction;
         return false;
     }
@@ -759,8 +736,9 @@ export class PipelineAdapter {
     private shouldSuppressScrollForActiveInteraction(): boolean {
         if (this.pipelineState.type === 'dragging') return true;
         if (this.pipelineState.type === 'selecting') {
-            return !!this.rangePointerSession?.isIntercepting || !!this.mobileSelectionSession?.activeInteraction;
+            return !!this.rangePointerSession?.isIntercepting;
         }
+        if (this.rangePointerSession?.isIntercepting) return true;
         if (this.pressSession) return this.pressSession.suppressNativeInteraction;
         return false;
     }
@@ -827,7 +805,6 @@ export class PipelineAdapter {
             window.clearTimeout(this.rangePointerSession.dragTimeoutId);
         }
         this.rangePointerSession = null;
-        this.mobileSelectionSession = null;
         this.activeDragSession = null;
     }
 

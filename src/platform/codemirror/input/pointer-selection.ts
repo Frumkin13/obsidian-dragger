@@ -15,15 +15,9 @@ import {
     buildRangeSelectionBoundaryFromBlock,
 } from '../../../domain/selection/range-selection';
 import { RangeSelectionVisualManager } from '../preview/range-selection-visual-manager';
-import type {
-    MobileSelectionResizeHandle,
-    MobileSelectionSession,
-    PointerTerminalMode,
-} from './pointer-session';
-import type { PipelineState } from '../../../drag/pipeline/pipeline-state';
+import type { HoldTarget, PipelineState } from '../../../drag/pipeline/pipeline-state';
 import type { GuardId } from '../../../drag/pipeline/pipeline-event';
 import { createRangeSelectionBoundaryResolver } from '../selection/block-boundary-resolver';
-import { safePosAtCoords, resolveLineNumberFromPos } from '../../dom/element-probe';
 import { InputGuardController } from './input-guards';
 import { PointerSession } from './pointer-session';
 import {
@@ -33,8 +27,6 @@ import {
     RANGE_SELECTED_HANDLE_CLASS,
 } from '../../../shared/dom-selectors';
 import {
-    autoScrollEditorNearViewportEdge,
-    resolveRangeBoundaryAtPoint,
     shouldStartMobilePressDrag as shouldStartMobilePressDragByInput,
 } from './pointer-hit-test';
 import {
@@ -66,7 +58,6 @@ export interface RangeSelectionActionHost {
 
     getTouchRangeSelectLongPressMs(): number;
     resolveBlockSelection(request: BlockSelectionRequest): BlockSelection | null;
-    buildDirectRangeSelectionSelectionRequest(state: MouseRangeSelectState): BlockSelectionRequest;
     dispatchPipeline(event: PipelineEvent): unknown;
 }
 
@@ -74,6 +65,7 @@ export type RangeSelectionSessionOptions = {
     skipLongPress?: boolean;
     initialOperation?: RangeSelectionOperation;
     guardDeps?: GuardId[];
+    sourceKind?: HoldTarget['source'];
     deferPipelineStart?: boolean;
     deferInterception?: boolean;
     allowSecondaryDrag?: boolean;
@@ -101,6 +93,7 @@ export function beginRangeSelectionSessionAction(
         baseSelectedBlocks: committedBlocksSnapshot,
         initialOperation: options?.initialOperation,
         guardDeps: options?.guardDeps,
+        sourceKind: options?.sourceKind,
         doc: host.view.state.doc,
         pointerId: e.pointerId,
         startX: e.clientX,
@@ -119,6 +112,7 @@ export function beginRangeSelectionSessionAction(
             if (state.pipelineStarted && host.pipelineState.type !== 'selecting') return;
             if (state.pointerId !== e.pointerId) return;
             state.dragReady = true;
+            activateMouseRangeSelectInterception(host, state);
         }, MOBILE_DRAG_LONG_PRESS_MS);
     }
     const shouldDeferNativeInterception = options?.deferInterception === true || shouldDeferInterception;
@@ -267,7 +261,7 @@ export interface PointerInteractionHost {
     readonly mobile: InputGuardController;
     readonly pointer: PointerSession;
     pipelineState: PipelineState;
-    mobileSelectionSession: MobileSelectionSession | null;
+    rangePointerSession: MouseRangeSelectState | null;
     committedRangeSelection: CommittedRangeSelection | null;
 
     dispatchPipeline(event: PipelineEvent): unknown;
@@ -282,7 +276,7 @@ export interface PointerInteractionHost {
     beginPressPendingDrag(
         source: BlockSelection,
         e: PointerEvent,
-        options?: { longPressMs?: number; skipLongPress?: boolean; deferInterception?: boolean; mobileSelectionOnHold?: boolean; sourceKind?: 'handle' | 'text' | 'selected_text' | 'command' }
+        options?: { longPressMs?: number; skipLongPress?: boolean; deferInterception?: boolean; sourceKind?: 'handle' | 'text' | 'selected_text' | 'command' }
     ): void;
     enterDraggingState(
         source: BlockSelection,
@@ -353,7 +347,7 @@ function tryStartSelectionResize(
     policy: PointerInputPolicy
 ): boolean {
     if (!policy.canResizeSelection) return false;
-    if (host.pipelineState.type !== 'selecting' || !host.mobileSelectionSession) return false;
+    if (host.pipelineState.type !== 'selecting' || host.pipelineState.selection.phase !== 'passive') return false;
 
     const handleEl = target.closest<HTMLElement>(`.${MOBILE_SELECTION_RESIZE_HANDLE_CLASS}`);
     if (!handleEl) return false;
@@ -361,11 +355,7 @@ function tryStartSelectionResize(
     const rawHandle = handleEl.getAttribute('data-dnd-mobile-selection-handle');
     if (rawHandle !== 'top' && rawHandle !== 'bottom') return false;
 
-    host.mobileSelectionSession.activeInteraction = {
-        type: 'resize',
-        pointerId: e.pointerId,
-    };
-    startMobileSelectionResize(host, rawHandle);
+    if (!startMobileSelectionResize(host, e, rawHandle)) return false;
 
     e.preventDefault();
     e.stopPropagation();
@@ -417,11 +407,11 @@ function resolveHandleRangeSelectionPolicy(
     if (!host.isMultiLineSelectionEnabled()) return null;
     if (policy.platform === 'mobile') {
         if (host.committedRangeSelection) return { skipLongPress: true };
-        return { deferPipelineStart: true, guardDeps: ['mobile-text-drag-mode'] };
+        return { deferPipelineStart: true, guardDeps: ['mobile-text-drag-mode'], sourceKind: 'handle' };
     }
     return host.committedRangeSelection || e.shiftKey
         ? { skipLongPress: true }
-        : {};
+        : { deferPipelineStart: true };
 }
 
 function tryStartRangeSelectionFromHandleWhileSelecting(
@@ -429,7 +419,7 @@ function tryStartRangeSelectionFromHandleWhileSelecting(
     handle: HTMLElement,
     e: PointerEvent
 ): boolean {
-    if (host.pipelineState.type !== 'selecting' || !host.mobileSelectionSession) return false;
+    if (host.pipelineState.type !== 'selecting' || host.pipelineState.selection.phase !== 'passive') return false;
     if (e.pointerType === 'mouse') return false;
     if (targetIsInsideMobileSelection(handle)) return false;
 
@@ -442,9 +432,9 @@ function startRangeSelectionThroughSharedSession(
     host: PointerInteractionHost,
     source: BlockSelection,
     e: PointerEvent,
-    options?: Pick<RangeSelectionSessionOptions, 'skipLongPress' | 'deferPipelineStart' | 'deferInterception' | 'allowSecondaryDrag'>
+    options?: Pick<RangeSelectionSessionOptions, 'skipLongPress' | 'deferPipelineStart' | 'deferInterception' | 'allowSecondaryDrag' | 'sourceKind'>
 ): boolean {
-    if (host.pipelineState.type !== 'selecting' || !host.mobileSelectionSession) return false;
+    if (host.pipelineState.type !== 'selecting' || host.pipelineState.selection.phase !== 'passive') return false;
     if (e.pointerType === 'mouse') return false;
     const blockInfo = source.anchorBlock;
     if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return false;
@@ -476,6 +466,7 @@ function tryStartTextRangeSelection(
         deferPipelineStart: true,
         deferInterception: true,
         allowSecondaryDrag: false,
+        sourceKind: 'text',
     });
 }
 
@@ -525,48 +516,24 @@ function tryStartTextLongPressDrag(
     const blockInfo = source.anchorBlock;
     if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return false;
 
+    if (host.isMultiLineSelectionEnabled()) {
+        host.beginRangeSelectionSession(source, e, null, {
+            deferPipelineStart: true,
+            deferInterception: !shouldSuppressInput,
+            guardDeps: ['mobile-text-drag-mode'],
+            sourceKind: 'text',
+        });
+        return true;
+    }
+
     host.beginPressPendingDrag(source, e, shouldSuppressInput
-        ? (host.isMultiLineSelectionEnabled() ? { mobileSelectionOnHold: true, sourceKind: 'text' } : { sourceKind: 'text' })
+        ? { sourceKind: 'text' }
         : { deferInterception: true, sourceKind: 'text' });
     return true;
 }
 
 function targetIsInsideMobileSelection(target: HTMLElement): boolean {
     return !!target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`);
-}
-
-export function handleMobileSelectingPointerMove(host: PointerInteractionHost, e: PointerEvent): void {
-    if (host.pipelineState.type !== 'selecting' || !host.mobileSelectionSession) return;
-    const interaction = host.mobileSelectionSession.activeInteraction;
-    if (!interaction || e.pointerId !== interaction.pointerId) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    const targetBoundary = resolveMobileSelectionBoundaryAtPoint(host, e.clientX, e.clientY);
-    if (!targetBoundary) return;
-    updateMobileSelectionResize(host, targetBoundary);
-    autoScrollEditorNearViewportEdge(host.view, e.clientY);
-}
-
-export function finishMobileSelectionPointer(
-    host: PointerInteractionHost,
-    e: PointerEvent,
-    mode: PointerTerminalMode
-): void {
-    if (host.pipelineState.type !== 'selecting' || !host.mobileSelectionSession) return;
-    const interaction = host.mobileSelectionSession.activeInteraction;
-    if (!interaction || e.pointerId !== interaction.pointerId) return;
-    if (mode === 'up') {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-    host.mobileSelectionSession.activeInteraction = null;
-    finishNativeMobileSelectionSession(host);
-    if (!hasMobileSelection(host)) {
-        exitMobileSelectionMode(host);
-        return;
-    }
-    host.dispatchPipeline({ type: 'selection_finish' });
 }
 
 export function enterMobileSelectionMode(host: PointerInteractionHost, e: Event): void {
@@ -603,15 +570,9 @@ export function enterMobileSelectionModeFromBlock(
     if (e instanceof CustomEvent && e.detail && typeof e.detail === 'object') {
         (e.detail as { handled?: boolean }).handled = true;
     }
-    const boundary = buildRangeSelectionBoundaryFromBlock(host.view.state.doc, blockInfo);
     const selection = host.resolveBlockSelection({ kind: 'block', block: blockInfo });
     if (!selection) return;
 
-    host.mobileSelectionSession = {
-        fixedBoundary: boundary,
-        movingBoundary: boundary,
-        activeInteraction: null,
-    };
     host.dispatchPipeline({
         type: 'selection_start',
         seed: {
@@ -632,44 +593,68 @@ export function enterMobileSelectionModeFromBlock(
 
 function startMobileSelectionResize(
     host: PointerInteractionHost,
-    handle: MobileSelectionResizeHandle
-): void {
-    if (host.pipelineState.type !== 'selecting' || !host.mobileSelectionSession) return;
+    e: PointerEvent,
+    handle: 'top' | 'bottom'
+): boolean {
+    if (host.pipelineState.type !== 'selecting') return false;
     const selectedBlocks = selectedBlocksFromPipeline(host.pipelineState);
-    if (selectedBlocks.length === 0) return;
+    if (selectedBlocks.length === 0) return false;
     const firstBlock = selectedBlocks[0];
     const lastBlock = selectedBlocks[selectedBlocks.length - 1];
-    host.mobileSelectionSession.fixedBoundary = buildMobileSelectionResizeBoundary(handle === 'top' ? lastBlock : firstBlock);
-    host.mobileSelectionSession.movingBoundary = buildMobileSelectionResizeBoundary(handle === 'top' ? firstBlock : lastBlock);
+    const fixedBoundary = buildMobileSelectionResizeBoundary(handle === 'top' ? lastBlock : firstBlock);
+    const movingBoundary = buildMobileSelectionResizeBoundary(handle === 'top' ? firstBlock : lastBlock);
+    const sourceSelection = host.pipelineState.selection.selection;
     host.dispatchPipeline({
         type: 'selection_start',
         seed: {
-            selection: host.pipelineState.selection.selection,
+            selection: sourceSelection,
             range: {
                 type: 'resize',
                 doc: host.view.state.doc,
                 selectedBlocks,
-                fixedBoundary: host.mobileSelectionSession.fixedBoundary,
-                movingBoundary: host.mobileSelectionSession.movingBoundary,
+                fixedBoundary,
+                movingBoundary,
                 resolveBoundary: createRangeSelectionBoundaryResolver(host.view.state),
             },
         },
         guardDeps: ['mobile-text-drag-mode'],
     });
+    host.rangePointerSession = createMobileResizeRangeSession({
+        sourceSelection,
+        selectedBlocks,
+        movingBoundary,
+        e,
+    });
+    return true;
 }
 
-function updateMobileSelectionResize(
-    host: PointerInteractionHost,
-    movingBoundary: RangeSelectionBoundary
-): void {
-    if (!host.mobileSelectionSession) return;
-    host.mobileSelectionSession.movingBoundary = movingBoundary;
-    host.dispatchPipeline({
-        type: 'selection_change',
-        boundary: movingBoundary,
-        docLines: host.view.state.doc.lines,
-        resolveBoundary: createRangeSelectionBoundaryResolver(host.view.state),
-    });
+function createMobileResizeRangeSession(options: {
+    sourceSelection: BlockSelection;
+    selectedBlocks: SelectedBlockRange[];
+    movingBoundary: RangeSelectionBoundary;
+    e: PointerEvent;
+}): MouseRangeSelectState {
+    const pointerType = options.e.pointerType || null;
+    return {
+        anchorBlock: options.sourceSelection.anchorBlock,
+        sourceSelection: options.sourceSelection,
+        baseSelectedBlocks: options.selectedBlocks,
+        sourceKind: 'handle',
+        pipelineStarted: true,
+        selectionGestureStarted: true,
+        pointerId: options.e.pointerId,
+        startX: options.e.clientX,
+        startY: options.e.clientY,
+        latestX: options.e.clientX,
+        latestY: options.e.clientY,
+        pointerType,
+        dragReady: false,
+        longPressReady: true,
+        isIntercepting: true,
+        timeoutId: null,
+        dragTimeoutId: null,
+        currentLineNumber: options.movingBoundary.representativeLineNumber,
+    };
 }
 
 function buildMobileSelectionResizeBoundary(block: SelectedBlockRange): RangeSelectionBoundary {
@@ -680,15 +665,9 @@ function buildMobileSelectionResizeBoundary(block: SelectedBlockRange): RangeSel
     };
 }
 
-function finishNativeMobileSelectionSession(host: PointerInteractionHost): void {
-    host.pointer.detachPointerListeners();
-    host.pointer.releasePointerCapture();
-    host.mobile.applyInputGuardMode(INPUT_GUARD_MOBILE_SELECTION_PASSIVE);
-}
-
 export function exitMobileSelectionMode(host: PointerInteractionHost): void {
-    if (!host.mobileSelectionSession && host.pipelineState.type !== 'selecting') return;
-    host.mobileSelectionSession = null;
+    if (!host.committedRangeSelection && host.pipelineState.type !== 'selecting') return;
+    host.rangePointerSession = null;
     host.pointer.detachPointerListeners();
     host.pointer.releasePointerCapture();
     host.mobile.clearInputGuardMode();
@@ -696,65 +675,6 @@ export function exitMobileSelectionMode(host: PointerInteractionHost): void {
     if (host.pipelineState.type === 'selecting') {
         host.dispatchPipeline({ type: 'selection_clear' });
     }
-}
-
-function hasMobileSelection(host: PointerInteractionHost): boolean {
-    return host.pipelineState.type === 'selecting'
-        && host.pipelineState.selection.selection.ranges.length > 0;
-}
-
-function resolveMobileSelectionBoundaryAtPoint(
-    host: PointerInteractionHost,
-    clientX: number,
-    clientY: number
-): RangeSelectionBoundary | null {
-    const contentRect = host.view.contentDOM.getBoundingClientRect();
-    const probeXs = resolveMobileSelectionProbeXs(clientX, contentRect);
-    for (const probeX of probeXs) {
-        const lineNumber = resolveLineNumberAtMobileSelectionPoint(host, probeX, clientY, contentRect);
-        if (lineNumber === null) continue;
-        const boundary = createRangeSelectionBoundaryResolver(host.view.state)(lineNumber);
-        return {
-            startLineNumber: boundary.startLineNumber,
-            endLineNumber: boundary.endLineNumber,
-            representativeLineNumber: lineNumber,
-        };
-    }
-
-    for (const probeX of probeXs) {
-        const boundary = resolveRangeBoundaryAtPoint(
-            host.view,
-            probeX,
-            clientY,
-            (x, y) => host.resolveBlockSelection({ kind: 'point', clientX: x, clientY: y })?.anchorBlock ?? null
-        );
-        if (boundary) return boundary;
-    }
-    return null;
-}
-
-function resolveMobileSelectionProbeXs(clientX: number, contentRect: DOMRect): number[] {
-    const values = [clientX];
-    if (Number.isFinite(contentRect.left) && Number.isFinite(contentRect.right) && contentRect.right > contentRect.left) {
-        values.push((contentRect.left + contentRect.right) / 2);
-        values.push(contentRect.left + Math.min(48, Math.max(8, (contentRect.right - contentRect.left) * 0.12)));
-    }
-    return [...new Set(values.map((value) => Math.round(value)))];
-}
-
-function resolveLineNumberAtMobileSelectionPoint(
-    host: PointerInteractionHost,
-    clientX: number,
-    clientY: number,
-    contentRect: DOMRect
-): number | null {
-    if (Number.isFinite(contentRect.left) && Number.isFinite(contentRect.right) && contentRect.right > contentRect.left) {
-        const x = Math.max(contentRect.left + 2, Math.min(contentRect.right - 2, clientX));
-        const pos = safePosAtCoords(host.view, { x, y: clientY });
-        if (pos !== null) return resolveLineNumberFromPos(host.view, pos);
-    }
-    const secondaryPos = safePosAtCoords(host.view, { x: clientX, y: clientY });
-    return secondaryPos === null ? null : resolveLineNumberFromPos(host.view, secondaryPos);
 }
 
 function shouldStartMobilePressDrag(host: PointerInteractionHost, e: PointerEvent): boolean {
