@@ -13,18 +13,18 @@ import {
 import { isPosInsideRenderedTableCell } from '../../dom/table-guard';
 import { applyMoveCommand, type MoveCommandApplierDeps } from '../transaction/move-command-applier';
 import { DropTargetResolver, type DropTargetResolverDeps } from '../drop/drop-target-resolver';
-import type { DropValidationResult } from '../drop/drop-resolution';
+import type { DropValidationResult } from '../drop/codemirror-drop-snapshot';
 import { DropIndicatorManager } from '../preview/drop-indicator';
 import { getVisibleHandleForBlockStart } from '../preview/handle-renderer';
 import { HandleVisibilityController } from '../preview/handle-visibility-controller';
-import { PointerDragController, type PipelineOutputExecutor } from '../input/pointer-drag-controller';
+import { PipelineAdapter, type PipelineOutputExecutor } from '../input/pipeline-adapter';
 import { buildIdleLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
 import { createEditorContext, EditorContext } from './editor-context';
 
 import type { BlockSelection } from '../../../domain/selection/block-selection';
-import type { DragDocumentRelation, DragSelectionScope } from '../drop/drop-resolution';
+import type { DragDocumentRelation, DragSelectionScope } from '../drop/codemirror-drop-snapshot';
 import type { DragLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
 import { DND_DRAG_SOURCE_HIGHLIGHT_ATTR, DND_DRAG_SOURCE_STYLE_ATTR } from '../../../shared/dom-attrs';
 import { normalizeBlockSelectionVisualStyle } from '../../../plugin/settings';
@@ -45,11 +45,11 @@ import {
     hidePointerDropPreviews,
     applyPointerBlockCommand,
     buildPointerBlockCommandAtPoint,
-    PointerDragTargetClient,
-    registerPointerDragTargetClient,
+    PointerHitTestClient,
+    registerPointerHitTestClient,
     showPointerDropPreview,
     resolvePointerDropSnapshotAtPoint,
-} from '../input/pointer-drag-target-router';
+} from '../input/pointer-hit-test';
 import { openBlockTypeMenu } from '../../../plugin/block-type-menu';
 import { buildMoveCommandDecision } from '../command/move-command-decision';
 import type { BlockCommand } from '../../../domain/command/block-command';
@@ -88,7 +88,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private readonly dropIndicator: DropIndicatorManager;
         private readonly dropTargetResolver: DropTargetResolver;
         private readonly moveCommandDeps: MoveCommandApplierDeps;
-        private readonly pointerDragController: PointerDragController;
+        private readonly pipelineAdapter: PipelineAdapter;
         private readonly handleVisibility: HandleVisibilityController;
         private readonly lifecycleEmitter = new DragLifecycleEmitter(
             (event) => plugin.emitDragLifecycleEvent(event)
@@ -98,8 +98,8 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private readonly onDocumentPointerMove = (e: PointerEvent) => this.handleDocumentPointerMove(e);
         private readonly onSettingsUpdated = () => this.handleSettingsUpdated();
         private readonly pointerMoveClient: GlobalPointerMoveClient;
-        private readonly pointerDragTargetClient: PointerDragTargetClient;
-        private readonly unregisterPointerDragTargetClient: () => void;
+        private readonly pointerHitTestClient: PointerHitTestClient;
+        private readonly unregisterPointerHitTestClient: () => void;
         private cachedHandleGutterSide: 'left' | 'right';
 
         constructor(view: EditorView) {
@@ -161,7 +161,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                     parseLineWithQuote: this.context.parseLineWithQuote,
                 }),
             };
-            this.pointerDragTargetClient = {
+            this.pointerHitTestClient = {
                 containsPoint: (clientX, clientY) => this.containsPoint(clientX, clientY),
                 resolveDropSnapshotAtPoint: (clientX, clientY, selection, pointerType) =>
                     this.resolveDropSnapshotAtPoint(selection, clientX, clientY, pointerType),
@@ -172,24 +172,24 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                     this.buildBlockCommandAtPoint(source, clientX, clientY, pointerType),
                 applyBlockCommand: (command) => this.applyBlockCommand(command),
             };
-            this.unregisterPointerDragTargetClient = registerPointerDragTargetClient(this.pointerDragTargetClient);
+            this.unregisterPointerHitTestClient = registerPointerHitTestClient(this.pointerHitTestClient);
             const pipelineOutputExecutor: PipelineOutputExecutor = {
                 showDropPreview: (selection, drop, pointerType) =>
                     showPointerDropPreview(
-                        this.pointerDragTargetClient,
+                        this.pointerHitTestClient,
                         selection,
                         drop,
                         pointerType ?? null
                     ),
                 hideDropPreview: () => hidePointerDropPreviews(),
                 applyCommand: (command) =>
-                    applyPointerBlockCommand(this.pointerDragTargetClient, command),
+                    applyPointerBlockCommand(this.pointerHitTestClient, command),
                 emitLifecycle: (event) => {
                     this.handleSourceVisualByLifecycle(event);
                     this.emitDragLifecycle(event);
                 },
             };
-            this.pointerDragController = new PointerDragController(this.view, {
+            this.pipelineAdapter = new PipelineAdapter(this.view, {
                 resolveBlockSelection: (request) => this.context.selection.resolveSelection(request),
                 getVisibleHandleForBlockStart: (blockStart) =>
                     getVisibleHandleForBlockStart(this.view, blockStart),
@@ -214,7 +214,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 },
                 resolveDropSnapshotAtPoint: (clientX, clientY, selection, pointerType) =>
                     resolvePointerDropSnapshotAtPoint(
-                        this.pointerDragTargetClient,
+                        this.pointerHitTestClient,
                         clientX,
                         clientY,
                         selection,
@@ -222,17 +222,13 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                     ),
                 buildBlockCommandAtPoint: (source, clientX, clientY, pointerType) =>
                     buildPointerBlockCommandAtPoint(
-                        this.pointerDragTargetClient,
+                        this.pointerHitTestClient,
                         source,
                         clientX,
                         clientY,
                         pointerType ?? null
                     ),
                 pipelineOutputExecutor,
-                onDragLifecycleEvent: (event) => {
-                    this.handleSourceVisualByLifecycle(event);
-                    this.emitDragLifecycle(event);
-                },
                 openBlockTypeMenu: (blockInfo, event) => {
                     const anchor = Math.max(0, Math.min(this.view.state.doc.length, blockInfo.from));
                     this.view.dispatch({ selection: { anchor }, scrollIntoView: false });
@@ -251,7 +247,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
 
             startViewLifecycle({
                 view: this.view,
-                pointerDragController: this.pointerDragController,
+                pipelineAdapter: this.pipelineAdapter,
                 pointerMoveClient: this.pointerMoveClient,
                 onSettingsUpdated: this.onSettingsUpdated,
             });
@@ -263,7 +259,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             this.syncViewDomState();
             applyViewUpdate(update, {
                 refreshDecorationsAndEmbeds: () => this.refreshDecorationsAndEmbeds(),
-                pointerDragController: this.pointerDragController,
+                pipelineAdapter: this.pipelineAdapter,
                 handleVisibility: this.handleVisibility,
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
                 reResolveActiveHandle: () => {
@@ -283,11 +279,11 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
                 pointerMoveClient: this.pointerMoveClient,
                 onSettingsUpdated: this.onSettingsUpdated,
-                pointerDragController: this.pointerDragController,
+                pipelineAdapter: this.pipelineAdapter,
             });
             this.handleVisibility.clearGrabbedLineNumbers();
             this.handleVisibility.setActiveVisibleHandle(null);
-            this.unregisterPointerDragTargetClient();
+            this.unregisterPointerHitTestClient();
             finishDragSession(this.view);
             this.flushDragPerfSession('destroy');
             clearEditorRootClasses(this.view);
@@ -417,7 +413,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 this.handleVisibility.setActiveVisibleHandle(null);
                 return;
             }
-            if (this.pointerDragController.isGestureActive()) {
+            if (this.pipelineAdapter.isGestureActive()) {
                 this.handleVisibility.setActiveVisibleHandle(this.handleVisibility.getActiveHandle());
                 return;
             }
@@ -463,11 +459,11 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private handleSettingsUpdated(): void {
             this.cachedHandleGutterSide = this.resolveConfiguredHandleGutterSide();
             this.syncViewDomState();
-            this.pointerDragController.handleMobileDragAvailabilityChanged(
+            this.pipelineAdapter.handleMobileDragAvailabilityChanged(
                 plugin.settings.requireMobileDragMode !== true || plugin.isMobileDragModeEnabled()
             );
             this.refreshDecorationsAndEmbeds();
-            this.pointerDragController.refreshSelectionVisual();
+            this.pipelineAdapter.refreshSelectionVisual();
             this.handleVisibility.refreshGrabVisualState();
         }
 

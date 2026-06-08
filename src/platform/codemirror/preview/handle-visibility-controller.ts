@@ -3,17 +3,13 @@ import { BlockInfo } from '../../../domain/block/block-types';
 import type { HoverContentRect, HoverPointerSnapshot } from '../extension/hover-pointer-types';
 import {
     DRAG_HANDLE_CLASS,
-    DRAG_SOURCE_LINE_CLASS,
-    DRAG_SOURCE_LINE_SINGLE_CLASS,
-    DRAG_SOURCE_LINE_FIRST_CLASS,
-    DRAG_SOURCE_LINE_MIDDLE_CLASS,
-    DRAG_SOURCE_LINE_LAST_CLASS,
     DRAG_SOURCE_EMBED_CLASS,
 } from '../../../shared/dom-selectors';
 import { getMainContentLineElementForLine } from '../../dom/line-dom';
 import { resolveLineNumberFromDomNodes } from '../../dom/element-probe';
 import { mergeLineRanges, isLineNumberInRanges } from '../../../domain/markdown/line-range';
 import { collectEmbedRoots } from '../../dom/embed-probe';
+import { addSourceLineClasses, removeSourceLineClasses } from './source-line-visual';
 
 export interface HandleVisibilityDeps {
     getBlockInfoForHandle: (handle: HTMLElement) => BlockInfo | null;
@@ -26,13 +22,6 @@ type GrabLineRange = {
     startLineNumber: number;
     endLineNumber: number;
 };
-
-const DRAG_SOURCE_LINE_VARIANT_CLASSES = [
-    DRAG_SOURCE_LINE_SINGLE_CLASS,
-    DRAG_SOURCE_LINE_FIRST_CLASS,
-    DRAG_SOURCE_LINE_MIDDLE_CLASS,
-    DRAG_SOURCE_LINE_LAST_CLASS,
-] as const;
 
 type ActiveHoverBlock = {
     startLineNumber: number;
@@ -165,8 +154,7 @@ export class HandleVisibilityController {
 
     private clearGrabbedLineVisualClasses(): void {
         for (const lineEl of this.grabbedLineEls) {
-            lineEl.classList.remove(DRAG_SOURCE_LINE_CLASS);
-            lineEl.classList.remove(...DRAG_SOURCE_LINE_VARIANT_CLASSES);
+            removeSourceLineClasses(lineEl);
         }
         this.grabbedLineEls.clear();
         for (const embedEl of this.grabbedEmbedEls) {
@@ -191,21 +179,11 @@ export class HandleVisibilityController {
             for (let lineNumber = from; lineNumber <= to; lineNumber++) {
                 const lineEl = getMainContentLineElementForLine(this.view, lineNumber);
                 if (!lineEl) continue;
-                lineEl.classList.add(
-                    DRAG_SOURCE_LINE_CLASS,
-                    this.getBlockSelectionLineVariantClass(lineNumber, from, to)
-                );
+                addSourceLineClasses(lineEl, lineNumber, from, to);
                 this.grabbedLineEls.add(lineEl);
             }
         }
         this.applyGrabbedEmbedVisualState();
-    }
-
-    private getBlockSelectionLineVariantClass(lineNumber: number, from: number, to: number): string {
-        if (from === to) return DRAG_SOURCE_LINE_SINGLE_CLASS;
-        if (lineNumber === from) return DRAG_SOURCE_LINE_FIRST_CLASS;
-        if (lineNumber === to) return DRAG_SOURCE_LINE_LAST_CLASS;
-        return DRAG_SOURCE_LINE_MIDDLE_CLASS;
     }
 
     private applyGrabbedEmbedVisualState(): void {

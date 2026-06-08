@@ -15,7 +15,7 @@ import { getRenderedMainLineNumberAtPoint } from '../../dom/line-hit';
 import type { BlockSelection } from '../../../domain/selection/block-selection';
 import { createListDropTargetResolver, type ListDropTargetResolver } from './list-drop-target-resolver';
 import { getPreviousNonEmptyLineNumber } from '../../../domain/rules/container-policy';
-import type { DragSelectionScope, DropRejectReason, DropResolution, DropValidationResult } from './drop-resolution';
+import type { DragSelectionScope, DropRejectReason, DropResolution, DropValidationResult } from './codemirror-drop-snapshot';
 
 type PerfDurationKey =
     | 'resolve_total'

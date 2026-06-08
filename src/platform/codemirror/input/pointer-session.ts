@@ -1,6 +1,48 @@
 import { EditorView } from '@codemirror/view';
+import type { RangeSelectionBoundary } from '../../../domain/selection/range-selection';
 
-export class PointerSessionController {
+export type ActivePointerDrag = {
+    sessionId: string;
+    pointerId: number;
+    pointerType: string | null;
+    autoScrollFrameId: number | null;
+};
+
+export type PointerPressSession = {
+    sessionId: string;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    latestX: number;
+    latestY: number;
+    pointerType: string | null;
+    longPressReady: boolean;
+    timeoutId: number | null;
+    mobileSelectionTimeoutId: number | null;
+    cancelMoveThresholdPx: number;
+    startMoveThresholdPx: number;
+    suppressNativeInteraction: boolean;
+};
+
+export type PointerTerminalMode = 'up' | 'cancel';
+
+export type MobileSelectionResizeHandle = 'top' | 'bottom';
+
+export type RangeSelectionPointerSession = import('./range-selection-gesture-state').MouseRangeSelectState;
+
+export type MobileSelectionInteraction =
+    | {
+        type: 'resize';
+        pointerId: number;
+    };
+
+export type MobileSelectionSession = {
+    fixedBoundary: RangeSelectionBoundary;
+    movingBoundary: RangeSelectionBoundary;
+    activeInteraction: MobileSelectionInteraction | null;
+};
+
+export class PointerSession {
     private pointerListenersAttached = false;
     private touchBlockerAttached = false;
     private pointerCaptureTarget: Element | null = null;

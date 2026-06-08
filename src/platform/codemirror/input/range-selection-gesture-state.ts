@@ -1,17 +1,5 @@
 import type { BlockInfo } from '../../../domain/block/block-types';
-import type { RangeSelectionOperation } from '../../../domain/selection/block-selection';
-import {
-    isSelectedBlockCoveredByBlocks,
-    mergeSelectedBlocks,
-    subtractSelectedBlocks,
-    type SelectedBlockRange,
-} from '../../../domain/selection/block-ranges';
 import type { DocLikeWithRange } from '../../../domain/markdown/document-types';
-import {
-    collectSelectedBlocksBetween,
-    type RangeSelectionBoundary,
-    type RangeSelectionBoundaryResolver,
-} from '../../../domain/selection/range-selection';
 
 export type RangeSelectConfig = {
     longPressMs: number;
@@ -20,8 +8,6 @@ export type RangeSelectConfig = {
 export type MouseRangeSelectState = {
     anchorBlock: BlockInfo;
     directBlock: BlockInfo;
-    operation: RangeSelectionOperation;
-    preferLongPressDrag: boolean;
     selectionGestureStarted: boolean;
     pointerId: number;
     startX: number;
@@ -34,53 +20,17 @@ export type MouseRangeSelectState = {
     isIntercepting: boolean;
     timeoutId: number | null;
     dragTimeoutId: number | null;
-    anchorStartLineNumber: number;
-    anchorEndLineNumber: number;
     currentLineNumber: number;
-    committedBlocksSnapshot: SelectedBlockRange[];
-    selectionBlocks: SelectedBlockRange[];
 };
 
 type CreateInitialRangeSelectionStateOptions = {
     blockInfo: BlockInfo;
     doc: DocLikeWithRange;
-    committedBlocksSnapshot: SelectedBlockRange[];
     pointerId: number;
     startX: number;
     startY: number;
     pointerType: string | null;
-    initialOperation?: RangeSelectionOperation;
 };
-
-export function computeUpdatedSelectionState(
-    docLines: number,
-    state: MouseRangeSelectState,
-    target: RangeSelectionBoundary,
-    resolveBoundary: RangeSelectionBoundaryResolver
-): {
-    currentLineNumber: number;
-    selectionBlocks: SelectedBlockRange[];
-} {
-    const activeBlocks = collectSelectedBlocksBetween(
-        docLines,
-        state.anchorStartLineNumber,
-        state.anchorEndLineNumber,
-        target.startLineNumber,
-        target.endLineNumber,
-        resolveBoundary
-    );
-
-    const selectionBlocks = state.operation === 'remove'
-        ? subtractSelectedBlocks(docLines, state.committedBlocksSnapshot, activeBlocks)
-        : mergeSelectedBlocks(docLines, [
-            ...state.committedBlocksSnapshot,
-            ...activeBlocks,
-        ]);
-    return {
-        currentLineNumber: target.representativeLineNumber,
-        selectionBlocks,
-    };
-}
 
 export function resolveRangeSelectConfig(
     pointerType: string | null,
@@ -111,23 +61,9 @@ export function createInitialRangeSelectionState(
         return null;
     }
 
-    const anchorBlock = {
-        startLineNumber: anchorStartLineNumber,
-        endLineNumber: anchorEndLineNumber,
-    };
-    const operation: RangeSelectionOperation = options.initialOperation ?? (isSelectedBlockCoveredByBlocks(
-        options.doc.lines,
-        anchorBlock,
-        options.committedBlocksSnapshot
-    ) ? 'remove' : 'add');
-    const selectionBlocks = operation === 'remove'
-        ? subtractSelectedBlocks(options.doc.lines, options.committedBlocksSnapshot, [anchorBlock])
-        : mergeSelectedBlocks(options.doc.lines, [...options.committedBlocksSnapshot, anchorBlock]);
     return {
         anchorBlock: options.blockInfo,
         directBlock: options.blockInfo,
-        operation,
-        preferLongPressDrag: false,
         selectionGestureStarted: false,
         pointerId: options.pointerId,
         startX: options.startX,
@@ -140,10 +76,6 @@ export function createInitialRangeSelectionState(
         isIntercepting: options.pointerType !== 'mouse',
         timeoutId: null,
         dragTimeoutId: null,
-        anchorStartLineNumber,
-        anchorEndLineNumber,
         currentLineNumber: anchorEndLineNumber,
-        committedBlocksSnapshot: options.committedBlocksSnapshot,
-        selectionBlocks,
     };
 }

@@ -2,7 +2,7 @@
 import { BlockType } from '../../../domain/block/block-types';
 import { createSingleBlockSelection } from '../../../domain/selection/block-selection';
 import { buildMoveCommandDecision } from './move-command-decision';
-import type { DropValidationResult } from '../drop/drop-resolution';
+import type { DropValidationResult } from '../drop/codemirror-drop-snapshot';
 
 function createSelection() {
     return createSingleBlockSelection({

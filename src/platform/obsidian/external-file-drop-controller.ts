@@ -8,9 +8,9 @@ import {
 import { FileMoveApplier } from './file-move-applier';
 import type { BlockSelection } from '../../domain/selection/block-selection';
 import {
-    PointerDragTargetClient,
-    registerPointerDragTargetClient,
-} from '../codemirror/input/pointer-drag-target-router';
+    PointerHitTestClient,
+    registerPointerHitTestClient,
+} from '../codemirror/input/pointer-hit-test';
 import type { DragDropSnapshot } from '../../drag/pipeline/pipeline-drop';
 
 type FileDropTarget = {
@@ -31,7 +31,7 @@ export class ExternalFileDropController {
     private readonly fileMoveApplier: FileMoveApplier;
     private highlightedTarget: HTMLElement | null = null;
 
-    private readonly pointerDragTargetClient: PointerDragTargetClient = {
+    private readonly pointerHitTestClient: PointerHitTestClient = {
         containsPoint: (clientX, clientY) => this.resolveDropTargetAtPoint(clientX, clientY) !== null,
         resolveDropSnapshotAtPoint: (clientX, clientY) => this.resolveDropSnapshotAtPoint(clientX, clientY),
         showDropPreview: (_source, drop) => {
@@ -60,7 +60,7 @@ export class ExternalFileDropController {
     }
 
     register(): void {
-        const unregister = registerPointerDragTargetClient(this.pointerDragTargetClient);
+        const unregister = registerPointerHitTestClient(this.pointerHitTestClient);
         this.plugin.register(() => {
             unregister();
             this.clearHighlight();

@@ -1,6 +1,6 @@
 ﻿import { EditorView } from '@codemirror/view';
 import { prewarmFenceScan } from '../../../domain/markdown/fence-scanner';
-import { PointerDragController } from '../input/pointer-drag-controller';
+import { PipelineAdapter } from '../input/pipeline-adapter';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import {
     GlobalPointerMoveClient,
@@ -10,7 +10,7 @@ import {
 
 export interface ViewLifecycleStartDeps {
     view: EditorView;
-    pointerDragController: PointerDragController;
+    pipelineAdapter: PipelineAdapter;
     pointerMoveClient: GlobalPointerMoveClient;
     onSettingsUpdated: () => void;
 }
@@ -19,11 +19,11 @@ export interface ViewLifecycleDestroyDeps {
     semanticRefreshScheduler: SemanticRefreshScheduler;
     pointerMoveClient: GlobalPointerMoveClient;
     onSettingsUpdated: () => void;
-    pointerDragController: PointerDragController;
+    pipelineAdapter: PipelineAdapter;
 }
 
 export function startViewLifecycle(deps: ViewLifecycleStartDeps): void {
-    deps.pointerDragController.attach();
+    deps.pipelineAdapter.attach();
     registerGlobalPointerMoveClient(deps.pointerMoveClient);
     window.addEventListener('dnd:settings-updated', deps.onSettingsUpdated);
     scheduleFenceScanWarmup(deps.view);
@@ -33,7 +33,7 @@ export function destroyViewLifecycle(deps: ViewLifecycleDestroyDeps): void {
     deps.semanticRefreshScheduler.destroy();
     unregisterGlobalPointerMoveClient(deps.pointerMoveClient);
     window.removeEventListener('dnd:settings-updated', deps.onSettingsUpdated);
-    deps.pointerDragController.destroy();
+    deps.pipelineAdapter.destroy();
 }
 
 function scheduleFenceScanWarmup(view: EditorView): void {

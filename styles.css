@@ -141,11 +141,6 @@
     accent-color: var(--dnd-handle-color-hover, var(--dnd-handle-color, var(--interactive-accent)));
 }
 
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line {
-    background: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
-    border-radius: 4px;
-}
-
 /* 统一拖拽视觉样式变量（源块 + 列表落点） */
 body,
 body[data-dnd-drag-source-style="subtle"],
@@ -232,37 +227,6 @@ body[data-dnd-drag-source-style="filled"],
         inset -1px 0 0 var(--dnd-drag-source-border),
         inset 0 1px 0 var(--dnd-drag-source-border),
         inset 0 -1px 0 var(--dnd-drag-source-border);
-}
-
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line {
-    background: var(--dnd-drag-source-selected-bg);
-    box-shadow:
-        inset 1px 0 0 var(--dnd-drag-source-selected-border),
-        inset -1px 0 0 var(--dnd-drag-source-selected-border);
-}
-
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-single,
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-first {
-    box-shadow:
-        inset 1px 0 0 var(--dnd-drag-source-selected-border),
-        inset -1px 0 0 var(--dnd-drag-source-selected-border),
-        inset 0 1px 0 var(--dnd-drag-source-selected-border);
-}
-
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-single,
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-last {
-    box-shadow:
-        inset 1px 0 0 var(--dnd-drag-source-selected-border),
-        inset -1px 0 0 var(--dnd-drag-source-selected-border),
-        inset 0 -1px 0 var(--dnd-drag-source-selected-border);
-}
-
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-range-selected-line.dnd-drag-source-line-single {
-    box-shadow:
-        inset 1px 0 0 var(--dnd-drag-source-selected-border),
-        inset -1px 0 0 var(--dnd-drag-source-selected-border),
-        inset 0 1px 0 var(--dnd-drag-source-selected-border),
-        inset 0 -1px 0 var(--dnd-drag-source-selected-border);
 }
 
 body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line,

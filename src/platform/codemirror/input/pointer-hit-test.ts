@@ -1,6 +1,112 @@
 import { EditorView } from '@codemirror/view';
 import type { BlockInfo } from '../../../domain/block/block-types';
+import type { BlockCommand } from '../../../domain/command/block-command';
+import type { BlockSelection } from '../../../domain/selection/block-selection';
 import { buildRangeSelectionBoundaryFromBlock, type RangeSelectionBoundary } from '../../../domain/selection/range-selection';
+import type { DragDropSnapshot, DropResolution } from '../../../drag/pipeline/pipeline-drop';
+
+export type PointerDropCommitResolution = DropResolution;
+
+export interface PointerHitTestClient {
+    containsPoint: (clientX: number, clientY: number) => boolean;
+    resolveDropSnapshotAtPoint: (
+        clientX: number,
+        clientY: number,
+        source: BlockSelection,
+        pointerType: string | null
+    ) => DragDropSnapshot;
+    showDropPreview: (source: BlockSelection, drop: DragDropSnapshot, pointerType: string | null) => void;
+    hideDropPreview: () => void;
+    buildBlockCommandAtPoint: (
+        source: BlockSelection,
+        clientX: number,
+        clientY: number,
+        pointerType: string | null
+    ) => PointerDropCommitResolution;
+    applyBlockCommand: (command: BlockCommand) => void;
+}
+
+const clients = new Set<PointerHitTestClient>();
+let activeClient: PointerHitTestClient | null = null;
+
+function resolveClientAtPoint(clientX: number, clientY: number): PointerHitTestClient | null {
+    for (const client of clients) {
+        if (client.containsPoint(clientX, clientY)) return client;
+    }
+    return null;
+}
+
+function setActiveClient(nextClient: PointerHitTestClient | null): void {
+    if (activeClient && activeClient !== nextClient) {
+        activeClient.hideDropPreview();
+    }
+    activeClient = nextClient;
+}
+
+export function registerPointerHitTestClient(client: PointerHitTestClient): () => void {
+    clients.add(client);
+    return () => {
+        clients.delete(client);
+        if (activeClient === client) {
+            client.hideDropPreview();
+            activeClient = null;
+        }
+    };
+}
+
+export function showPointerDropPreview(
+    fallbackClient: PointerHitTestClient,
+    source: BlockSelection,
+    drop: DragDropSnapshot,
+    pointerType: string | null
+): void {
+    const targetClient = activeClient ?? fallbackClient;
+    targetClient.showDropPreview(source, drop, pointerType);
+}
+
+export function resolvePointerDropSnapshotAtPoint(
+    fallbackClient: PointerHitTestClient,
+    clientX: number,
+    clientY: number,
+    source: BlockSelection,
+    pointerType: string | null
+): DragDropSnapshot {
+    const targetClient = resolveClientAtPoint(clientX, clientY) ?? fallbackClient;
+    setActiveClient(targetClient);
+    return targetClient.resolveDropSnapshotAtPoint(clientX, clientY, source, pointerType);
+}
+
+export function buildPointerBlockCommandAtPoint(
+    fallbackClient: PointerHitTestClient,
+    source: BlockSelection,
+    clientX: number,
+    clientY: number,
+    pointerType: string | null
+): PointerDropCommitResolution {
+    const targetClient = resolveClientAtPoint(clientX, clientY) ?? activeClient ?? fallbackClient;
+    setActiveClient(targetClient);
+    return targetClient.buildBlockCommandAtPoint(source, clientX, clientY, pointerType);
+}
+
+export function applyPointerBlockCommand(
+    fallbackClient: PointerHitTestClient,
+    command: BlockCommand
+): void {
+    const targetClient = activeClient ?? fallbackClient;
+    targetClient.applyBlockCommand(command);
+}
+
+export function hidePointerDropPreviews(): void {
+    for (const client of clients) {
+        client.hideDropPreview();
+    }
+    activeClient = null;
+}
+
+export function resetPointerHitTestForTests(): void {
+    clients.clear();
+    activeClient = null;
+}
 
 export type PointerInputKind = 'down' | 'move' | 'up' | 'cancel' | 'lost_capture';
 export type KeyboardInputKind = 'keydown';
@@ -86,14 +192,6 @@ export function isMobileEnvironment(): boolean {
 export function shouldStartMobilePressDrag(e: PointerEvent): boolean {
     return e.pointerType === 'touch'
         && e.button === 0;
-}
-
-export function shouldDisableMobileTextLongPressDragInInputState(view: EditorView): boolean {
-    const activeEl = document.activeElement as HTMLElement | null;
-    if (!activeEl) return false;
-    if (!view.dom.contains(activeEl)) return false;
-    if (activeEl.isContentEditable) return true;
-    return activeEl.matches('input, textarea, select');
 }
 
 export function autoScrollNearViewportEdge(scroller: HTMLElement, clientY: number): boolean {

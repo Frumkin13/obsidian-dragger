@@ -1,28 +1,28 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it, vi } from 'vitest';
-import { PointerDragController } from './pointer-drag-controller';
+import { PipelineAdapter } from './pipeline-adapter';
 import {
     registerMouseHandlerTestHooks,
     createBlock,
-    createPointerDragControllerDeps,
+    createPipelineAdapterDeps,
     createViewStub,
     appendHandleForBlockStart,
     dispatchPointer,
     dispatchTouchMove,
     createRect,
     resolveBlockSelectionFromTestBlocks,
-} from './pointer-drag-controller.test-helpers';
+} from './pipeline-adapter.test-helpers';
 
 registerMouseHandlerTestHooks();
 
-describe('PointerDragController', () => {
+describe('PipelineAdapter', () => {
     it('does not commit range selection from mobile hotzone long-press without movement', () => {
         const view = createViewStub();
         const sourceBlock = createBlock();
         const beginPointerDragSession = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => null, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -65,7 +65,7 @@ describe('PointerDragController', () => {
         const beginPointerDragSession = vi.fn();
         const onPlatformCommit = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => null, point: () => createBlock() }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -101,14 +101,14 @@ describe('PointerDragController', () => {
         handler.destroy();
     });
 
-    it('does not start touch handle drag when required mobile drag mode is disabled', () => {
+    it('starts touch handle drag when required mobile drag mode is disabled', () => {
         const view = createViewStub(6);
         const handle = appendHandleForBlockStart(view, 0);
         const sourceBlock = createBlock('- item', 0, 0);
         const beginPointerDragSession = vi.fn();
         const onDropPreview = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileDragModeRequired: () => true,
@@ -135,8 +135,8 @@ describe('PointerDragController', () => {
             clientY: 10,
         });
 
-        expect(beginPointerDragSession).not.toHaveBeenCalled();
-        expect(onDropPreview).not.toHaveBeenCalled();
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(onDropPreview).toHaveBeenCalledTimes(1);
         handler.destroy();
     });
 
@@ -150,7 +150,7 @@ describe('PointerDragController', () => {
         const onPlatformCommit = vi.fn();
         const finishDragSession = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileDragModeRequired: () => true,
@@ -209,7 +209,7 @@ describe('PointerDragController', () => {
         const onPlatformCommit = vi.fn();
         const finishDragSession = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
                 handle: (handle) => {
                     if (handle === sourceHandle) return sourceBlock;
@@ -263,7 +263,7 @@ describe('PointerDragController', () => {
         const onDropPreview = vi.fn();
         const onPlatformCommit = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileDragModeRequired: () => true,
@@ -306,6 +306,48 @@ describe('PointerDragController', () => {
         handler.destroy();
     });
 
+    it('exits deferred selected-text hold when mobile drag mode becomes unavailable', () => {
+        document.body.classList.add('is-mobile');
+        const view = createViewStub(6);
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileDragModeRequired: () => true,
+            isMobileDragModeEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
+
+        const source = handler.resolveBlockSelection({ kind: 'block', block: sourceBlock });
+        expect(source).not.toBeNull();
+        const event = dispatchPointer(document.createElement('div'), 'pointerdown', {
+            pointerId: 991,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+
+        handler.beginPressPendingDrag(source!, event, {
+            sourceKind: 'selected_text',
+            deferInterception: true,
+        });
+        expect(handler.pipelineState.type).toBe('holding');
+        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
+
+        handler.handleMobileDragAvailabilityChanged(false);
+
+        expect(handler.pipelineState.type).toBe('idle');
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        document.body.classList.remove('is-mobile');
+        handler.destroy();
+    });
+
     it('does not blur focused editor on a short tap before drag mode is enabled', () => {
         const view = createViewStub(6);
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
@@ -321,7 +363,7 @@ describe('PointerDragController', () => {
             value: true,
         });
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
@@ -366,7 +408,7 @@ describe('PointerDragController', () => {
         view.dom.appendChild(input);
         const blurSpy = vi.spyOn(input, 'blur');
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
@@ -406,7 +448,7 @@ describe('PointerDragController', () => {
         expect(line).not.toBeNull();
         const sourceBlock = createBlock('- item', 0, 0);
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
@@ -460,7 +502,7 @@ describe('PointerDragController', () => {
         const sourceBlock = createBlock('- item', 0, 0);
         const onDropPreview = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
@@ -526,7 +568,7 @@ describe('PointerDragController', () => {
             value: true,
         });
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileDragModeRequired: () => true,
@@ -571,7 +613,7 @@ describe('PointerDragController', () => {
         const onDropPreview = vi.fn();
         const onPlatformCommit = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => false,
@@ -617,7 +659,7 @@ describe('PointerDragController', () => {
         const beginPointerDragSession = vi.fn();
         const onPlatformCommit = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
@@ -671,7 +713,7 @@ describe('PointerDragController', () => {
             value: () => createRect(40, 40, 200, 60),
         });
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
@@ -735,7 +777,7 @@ describe('PointerDragController', () => {
             value: () => createRect(36, 88, 220, 52),
         });
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
@@ -784,7 +826,7 @@ describe('PointerDragController', () => {
         const sourceBlock = createBlock('- item', 0, 0);
         const lifecycleEvents: Array<{ type: string; phase: string; pressReady?: boolean }> = [];
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileTextLongPressDragEnabled: () => true,
@@ -839,7 +881,7 @@ describe('PointerDragController', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const lifecycleEvents: Array<{ type: string; phase: string; pressReady?: boolean }> = [];
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMultiLineSelectionEnabled: () => false,

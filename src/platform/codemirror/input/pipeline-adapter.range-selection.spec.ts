@@ -3,11 +3,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../../domain/block/block-types';
 import { type BlockSelection } from '../../../domain/selection/block-selection';
-import { PointerDragController } from './pointer-drag-controller';
+import { PipelineAdapter } from './pipeline-adapter';
 import {
     registerMouseHandlerTestHooks,
     createBlock,
-    createPointerDragControllerDeps,
+    createPipelineAdapterDeps,
     createViewStub,
     appendHandleForBlockStart,
     appendHandleGutterMarker,
@@ -15,11 +15,11 @@ import {
     dispatchTouchMove,
     createRect,
     resolveBlockSelectionFromTestBlocks,
-} from './pointer-drag-controller.test-helpers';
+} from './pipeline-adapter.test-helpers';
 
 registerMouseHandlerTestHooks();
 
-describe('PointerDragController Range Selection', () => {
+describe('PipelineAdapter Range Selection', () => {
     it('supports mouse two-stage flow: first select range, then long-press selected bar to drag', () => {
         const view = createViewStub(8);
         const handle = appendHandleForBlockStart(view, 1);
@@ -32,7 +32,7 @@ describe('PointerDragController Range Selection', () => {
         const onPlatformCommit = vi.fn();
         const endBlock = createBlock('line 6', 5, 5);
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -124,7 +124,7 @@ describe('PointerDragController Range Selection', () => {
         appendHandleForBlockStart(view, 5);
 
         const sourceBlock = createBlock('- item', 1, 1);
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
@@ -179,7 +179,7 @@ describe('PointerDragController Range Selection', () => {
 
         const sourceBlock = createBlock('anchor', 1, 1);
         const codeBlock = createBlock('```ts', 4, 6);
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
                 handle: (handle) => {
                     if (handle === anchorHandle) return sourceBlock;
@@ -238,7 +238,7 @@ describe('PointerDragController Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const endBlock = createBlock('- end', 5, 5);
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 160 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
@@ -283,7 +283,7 @@ describe('PointerDragController Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const endBlock = createBlock('- end', 5, 5);
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
@@ -328,7 +328,7 @@ describe('PointerDragController Range Selection', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
         const onDropPreview = vi.fn();
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -407,7 +407,7 @@ describe('PointerDragController Range Selection', () => {
         const endBlock = createBlock('line 6', 5, 5);
         const beginPointerDragSession = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -480,7 +480,7 @@ describe('PointerDragController Range Selection', () => {
         const beginPointerDragSession = vi.fn();
         const onDropPreview = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -554,7 +554,7 @@ describe('PointerDragController Range Selection', () => {
         const endBlock = createBlock('line 6', 5, 5);
         const onPlatformCommit = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
@@ -631,7 +631,7 @@ describe('PointerDragController Range Selection', () => {
         const beginPointerDragSession = vi.fn();
         const onDropPreview = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -707,7 +707,7 @@ describe('PointerDragController Range Selection', () => {
         const endBlock = createBlock('line 6', 5, 5);
         const beginPointerDragSession = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -770,7 +770,7 @@ describe('PointerDragController Range Selection', () => {
         appendHandleForBlockStart(view, 4);
 
         const sourceBlock = createBlock('- item', 1, 1);
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => null, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
@@ -821,7 +821,7 @@ describe('PointerDragController Range Selection', () => {
         const onHideDropPreview = vi.fn();
         const onPlatformCommit = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -904,7 +904,7 @@ describe('PointerDragController Range Selection', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
         const onPlatformCommit = vi.fn();
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             getMultiLineSelectionLongPressMs: () => 1200,
@@ -949,7 +949,7 @@ describe('PointerDragController Range Selection', () => {
         appendHandleForBlockStart(view, 5);
 
         const sourceBlock = createBlock('- item', 1, 1);
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
@@ -1004,7 +1004,7 @@ describe('PointerDragController Range Selection', () => {
         appendHandleForBlockStart(view, 1);
 
         const sourceBlock = createBlock('- item', 1, 1);
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
@@ -1039,7 +1039,7 @@ describe('PointerDragController Range Selection', () => {
         appendHandleForBlockStart(view, 1);
 
         const sourceBlock = createBlock('- item', 1, 1);
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
@@ -1071,7 +1071,7 @@ describe('PointerDragController Range Selection', () => {
         const handle = appendHandleForBlockStart(view, 1);
 
         const sourceBlock = createBlock('- item', 1, 1);
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
@@ -1117,7 +1117,7 @@ describe('PointerDragController Range Selection', () => {
         appendHandleForBlockStart(view, 5);
 
         const sourceBlock = createBlock('- item', 1, 1);
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
@@ -1184,7 +1184,7 @@ describe('PointerDragController Range Selection', () => {
         appendHandleForBlockStart(view, 5, () => 102 - scrollOffset);
 
         const sourceBlock = createBlock('- item', 1, 1);
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
@@ -1241,7 +1241,7 @@ describe('PointerDragController Range Selection', () => {
         const sourceBlock = createBlock('line 2', 1, 1);
         const middleBlock = createBlock('line 5', 4, 4);
         const endBlock = createBlock('line 8', 7, 7);
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
                 handle: (handle) => {
                     if (handle === topHandle) return sourceBlock;
@@ -1325,7 +1325,7 @@ describe('PointerDragController Range Selection', () => {
         const beginPointerDragSession = vi.fn();
         const onDropPreview = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 20 ? listParentBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -1452,7 +1452,7 @@ describe('PointerDragController Range Selection', () => {
             return originalPosAtDOM(node, offset);
         };
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 82 && y <= 138 ? calloutBlock : null) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -1536,7 +1536,7 @@ describe('PointerDragController Range Selection', () => {
         const onDropPreview = vi.fn();
         const onPlatformCommit = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
                 handle: (handle) => {
                     if (handle === handleA) return blockA;
@@ -1662,7 +1662,7 @@ describe('PointerDragController Range Selection', () => {
         const onDropPreview = vi.fn();
         const onPlatformCommit = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -1724,7 +1724,7 @@ describe('PointerDragController Range Selection', () => {
             value: vibrate,
         });
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -1770,7 +1770,7 @@ describe('PointerDragController Range Selection', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const beginPointerDragSession = vi.fn();
         const onDropPreview = vi.fn();
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -1813,7 +1813,7 @@ describe('PointerDragController Range Selection', () => {
         const onDropPreview = vi.fn();
         const onPlatformCommit = vi.fn();
         const finishDragSession = vi.fn();
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             isMultiLineSelectionEnabled: () => false,
@@ -1876,7 +1876,7 @@ describe('PointerDragController Range Selection', () => {
         const onPlatformCommit = vi.fn();
         const finishDragSession = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
             isBlockInsideRenderedTableCell: () => false,
             isMultiLineSelectionEnabled: () => false,
@@ -1930,7 +1930,7 @@ describe('PointerDragController Range Selection', () => {
         const endBlock = createBlock('line 6', 5, 5);
         const beginPointerDragSession = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -1994,7 +1994,7 @@ describe('PointerDragController Range Selection', () => {
         const onDropPreview = vi.fn();
         const onPlatformCommit = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             isMobileDragModeRequired: () => true,
@@ -2063,6 +2063,52 @@ describe('PointerDragController Range Selection', () => {
         handler.destroy();
     });
 
+    it('drags selected mobile handles even when mobile text drag mode is disabled', () => {
+        document.body.classList.add('is-mobile');
+        const view = createViewStub(8);
+        const handle = appendHandleForBlockStart(view, 0);
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        let mobileDragModeEnabled = true;
+
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileDragModeRequired: () => true,
+            isMobileDragModeEnabled: () => mobileDragModeEnabled,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
+
+        handler.attach();
+        view.dom.dispatchEvent(new CustomEvent('dnd:enter-mobile-selection-mode', {
+            bubbles: true,
+            detail: { handled: false },
+        }));
+        mobileDragModeEnabled = false;
+
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 405,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 10,
+        });
+        vi.advanceTimersByTime(220);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 405,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 30,
+        });
+
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        document.body.classList.remove('is-mobile');
+        handler.destroy();
+    });
+
     it('keeps mobile selection highlight visible while dragging from selected handles', () => {
         document.body.classList.add('is-mobile');
         const view = createViewStub(8);
@@ -2071,7 +2117,7 @@ describe('PointerDragController Range Selection', () => {
         const beginPointerDragSession = vi.fn();
         const onDropPreview = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
@@ -2139,7 +2185,7 @@ describe('PointerDragController Range Selection', () => {
         ];
         const beginPointerDragSession = vi.fn();
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
                 handle: () => null,
                 point: (_x, y) => {
@@ -2252,7 +2298,7 @@ describe('PointerDragController Range Selection', () => {
         const middleBlock = createBlock('line 2', 1, 1);
         const farBlock = createBlock('line 6', 5, 5);
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
                 handle: (handle) => {
                     if (handle === firstHandle) return firstBlock;
@@ -2311,7 +2357,7 @@ describe('PointerDragController Range Selection', () => {
         const handle = appendHandleForBlockStart(view, 0);
         const sourceBlock = createBlock('line 1', 0, 0);
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
                 handle: () => sourceBlock,
                 point: () => sourceBlock,
@@ -2333,6 +2379,10 @@ describe('PointerDragController Range Selection', () => {
         expect(handle.classList.contains('dnd-range-selected-handle')).toBe(true);
         expect(view.dom.querySelector('.dnd-drag-source-line')).not.toBeNull();
         expect(view.contentDOM.getAttribute('contenteditable')).toBe('false');
+        expect(handler.pipelineState.type).toBe('selecting');
+        if (handler.pipelineState.type === 'selecting') {
+            expect(handler.pipelineState.selection.phase).toBe('passive');
+        }
 
         handler.handleMobileDragAvailabilityChanged(false);
 
@@ -2353,7 +2403,7 @@ describe('PointerDragController Range Selection', () => {
         const secondHandle = appendHandleForBlockStart(view, 1);
         const thirdHandle = appendHandleForBlockStart(view, 2);
 
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
                 handle: () => null,
                 point: (_x, y) => {
@@ -2450,7 +2500,7 @@ describe('PointerDragController Range Selection', () => {
         const view = createViewStub(8);
         appendHandleForBlockStart(view, 0);
         const sourceBlock = createBlock('- item', 0, 0);
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
@@ -2486,7 +2536,7 @@ describe('PointerDragController Range Selection', () => {
 
         const sourceBlock = createBlock('- item', 1, 1);
         const endBlock = createBlock('line 6', 5, 5);
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),
@@ -2538,7 +2588,7 @@ describe('PointerDragController Range Selection', () => {
         const sourceBlock = createBlock('- item', 1, 1);
         const endBlock = createBlock('line 6', 5, 5);
         const onHideDropPreview = vi.fn();
-        const handler = new PointerDragController(view, createPointerDragControllerDeps({
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession: vi.fn(),

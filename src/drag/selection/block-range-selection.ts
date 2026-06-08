@@ -56,6 +56,32 @@ export function createBlockRangeSelectionState(options: {
     });
 }
 
+export function createBlockRangeResizeSelectionState(options: {
+    doc: DocLikeWithRange;
+    selectedBlocks: SelectedBlockRange[];
+    fixedBoundary: RangeSelectionBoundary;
+    movingBoundary: RangeSelectionBoundary;
+    resolveBoundary: RangeSelectionBoundaryResolver;
+}): BlockRangeSelectionState {
+    const activeBlocks = collectSelectedBlocksBetween(
+        options.doc.lines,
+        options.fixedBoundary.startLineNumber,
+        options.fixedBoundary.endLineNumber,
+        options.movingBoundary.startLineNumber,
+        options.movingBoundary.endLineNumber,
+        options.resolveBoundary
+    );
+    return applyBlockRangeSelection({
+        docLines: options.doc.lines,
+        operation: 'add',
+        baseBlocks: subtractSelectedBlocks(options.doc.lines, options.selectedBlocks, activeBlocks),
+        activeBlocks,
+    }, {
+        anchorStartLineNumber: options.fixedBoundary.startLineNumber,
+        anchorEndLineNumber: options.fixedBoundary.endLineNumber,
+    });
+}
+
 export function updateBlockRangeSelectionState(
     state: Pick<BlockRangeSelectionState, 'anchorStartLineNumber' | 'anchorEndLineNumber' | 'operation' | 'baseBlocks'>,
     options: {

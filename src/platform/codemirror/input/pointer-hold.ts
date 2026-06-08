@@ -1,15 +1,48 @@
 ﻿import type { EditorView } from '@codemirror/view';
-import type { BlockSelection } from '../../../domain/selection/block-selection';
-import type { PointerDownAction } from './pointerdown-action';
+import { DRAG_HANDLE_CLASS, EMBED_HANDLE_CLASS } from '../../../shared/dom-selectors';
+import type { BlockSelection, RangeSelectionOperation } from '../../../domain/selection/block-selection';
 import type { BlockSelectionRequest } from '../selection/block-selection-resolver';
-import type { PointerDragControllerDeps } from './pointer-drag-controller';
-import type { PointerSessionController } from './pointer-session-controller';
-import type { RangeSelectionOperation } from '../../../domain/selection/block-selection';
 import type { CommittedRangeSelection } from '../../../domain/selection/range-selection';
-import { decideDesktopPointerDownAction } from './pointerdown-action';
-import { isSelectionAction } from './pointerdown-action';
-import type { RangeSelectionOptions } from './pointerdown-action';
+import type { PipelineAdapterDeps } from './pipeline-adapter';
+import type { PointerSession } from './pointer-session';
 
+export type RangeSelectionOptions = {
+    skipLongPress?: boolean;
+    initialOperation?: RangeSelectionOperation;
+};
+
+export type PointerDownAction =
+    | { type: 'ignore' }
+    | { type: 'start_drag'; selectionRequest: BlockSelectionRequest }
+    | { type: 'start_range_selection'; selectionRequest: BlockSelectionRequest; options?: RangeSelectionOptions };
+
+export function isSelectionAction(action: PointerDownAction): action is Extract<PointerDownAction, { selectionRequest: BlockSelectionRequest }> {
+    return 'selectionRequest' in action;
+}
+
+export function decideDesktopPointerDownAction(params: {
+    target: HTMLElement;
+    event: PointerEvent;
+    hasCommittedSelection: boolean;
+    multiLineSelectionEnabled: boolean;
+}): PointerDownAction {
+    const handle = params.target.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`);
+    if (!handle || handle.classList.contains(EMBED_HANDLE_CLASS)) return { type: 'ignore' };
+    if (params.event.button !== 0) return { type: 'ignore' };
+
+    const selectionRequest = { kind: 'handle' as const, handle };
+    if (params.multiLineSelectionEnabled) {
+        return {
+            type: 'start_range_selection',
+            selectionRequest,
+            options: params.hasCommittedSelection || params.event.shiftKey
+                ? { skipLongPress: true }
+                : undefined,
+        };
+    }
+
+    return { type: 'start_drag', selectionRequest };
+}
 export type PointerDownActionHost = {
     resolveBlockSelection(request: BlockSelectionRequest): BlockSelection | null;
     isBlockInsideRenderedTableCell(source: BlockSelection): boolean;
@@ -38,11 +71,11 @@ function executePointerDownAction(host: PointerDownActionHost, action: PointerDo
 
 export interface DesktopPointerDownHost {
     readonly view: EditorView;
-    readonly deps: PointerDragControllerDeps;
-    readonly pointer: PointerSessionController;
+    readonly deps: PipelineAdapterDeps;
+    readonly pointer: PointerSession;
     committedRangeSelection: CommittedRangeSelection | null;
 
-    resolveBlockSelection: PointerDragControllerDeps['resolveBlockSelection'];
+    resolveBlockSelection: PipelineAdapterDeps['resolveBlockSelection'];
     beginRangeSelectionSession(
         source: BlockSelection,
         e: PointerEvent,
@@ -65,6 +98,8 @@ export function handleDesktopPointerDown(
     e: PointerEvent,
     target: HTMLElement
 ): boolean {
+    if (host.tryStartCommittedSelectionDrag(e, target)) return true;
+
     const action = decideDesktopPointerDownAction({
         target,
         event: e,
@@ -87,6 +122,5 @@ export function handleDesktopPointerDown(
         }, action);
     }
 
-    if (host.tryStartCommittedSelectionDrag(e, target)) return true;
     return false;
 }

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createSingleBlockSelection } from '../../domain/selection/block-selection';
 import { BlockType } from '../../domain/block/block-types';
-import { createBlockRangeSelectionState } from '../selection/block-range-selection';
 import { reducePipeline } from './pipeline-reducer';
 import type { PipelineState } from './pipeline-state';
 
@@ -57,14 +56,17 @@ describe('drag pipeline reducer', () => {
     });
 
     it('updates selecting state through drag selection policy', () => {
-        const rangeState = createBlockRangeSelectionState({
-            doc: { lines: 3 },
-            blockInfo: block,
-            selectedBlocks: [],
-        });
         const start = reducePipeline({ type: 'idle' }, {
             type: 'selection_start',
-            seed: { selection, rangeState: rangeState! },
+            seed: {
+                selection,
+                range: {
+                    type: 'range',
+                    doc: { lines: 3 },
+                    blockInfo: block,
+                    selectedBlocks: [],
+                },
+            },
         });
 
         const changed = reducePipeline(start.state, {

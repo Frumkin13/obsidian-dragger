@@ -1,36 +1,43 @@
-import type { BlockSelection } from '../../../domain/selection/block-selection';
 import { DRAG_HANDLE_CLASS, EMBED_HANDLE_CLASS } from '../../../shared/dom-selectors';
-import { readPointerInput } from './pointer-input';
-import { resolveRangeBoundaryAtPoint } from './pointer-input';
-import { autoScrollEditorNearViewportEdge } from './pointer-input';
+import {
+    autoScrollEditorNearViewportEdge,
+    readPointerInput,
+    resolveRangeBoundaryAtPoint,
+} from './pointer-hit-test';
 import {
     buildRangeSelectionBoundaryFromBlock,
     type RangeSelectionBoundary,
 } from '../../../domain/selection/range-selection';
 import type { MouseRangeSelectState } from './range-selection-gesture-state';
-import { handleMobileSelectingPointerMove } from './touch-selecting-actions';
-import type { PointerDragController } from './pointer-drag-controller';
+import {
+    finishMobileSelectionPointer,
+    handleMobileSelectingPointerMove,
+} from './pointer-selection';
+import type { PipelineAdapter } from './pipeline-adapter';
+import type { PointerTerminalMode } from './pointer-session';
+import {
+    MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX,
+    MOBILE_DRAG_START_MOVE_THRESHOLD_PX,
+    MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX,
+} from './touch-delay-policy';
 
-const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
-const MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX = 12;
-const MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX = 4;
-
-export type PointerMoveHost = PointerDragController;
+export type PointerMoveHost = PipelineAdapter;
 
 export function handlePointerMove(host: PointerMoveHost, e: PointerEvent): void {
     readPointerInput('move', e);
-    switch (host.gesture.phase) {
+    switch (host.pipelineState.type) {
         case 'dragging':
             handleDraggingPointerMove(host, e);
             return;
         case 'selecting':
-            if (host.gesture.selection.mode === 'range') {
+            if (host.rangePointerSession) {
                 handleRangeSelectingPointerMove(host, e);
             } else {
                 handleMobileSelectingPointerMove(host, e);
             }
             return;
-        case 'press_pending':
+        case 'holding':
+        case 'ready_to_drag':
             handlePressPendingPointerMove(host, e);
             return;
         default:
@@ -39,18 +46,18 @@ export function handlePointerMove(host: PointerMoveHost, e: PointerEvent): void 
 }
 
 function handleDraggingPointerMove(host: PointerMoveHost, e: PointerEvent): void {
-    if (host.gesture.phase !== 'dragging') return;
-    const dragState = host.gesture.drag;
+    const dragState = host.activeDragSession;
+    if (!dragState || host.pipelineState.type !== 'dragging') return;
     if (e.pointerId !== dragState.pointerId) return;
     e.preventDefault();
     e.stopPropagation();
     host.updateActiveDragPointer(e.clientX, e.clientY, e.pointerType || null);
-    const drop = host.resolveActiveDragDropSnapshot(dragState.selection);
-    host.applyPipelineOutputs(host.previewActiveDrag({
+    const drop = host.resolveActiveDragDropSnapshot(host.pipelineState.drag.selection);
+    host.previewActiveDrag({
         pointerId: e.pointerId,
         pointerType: e.pointerType || null,
         drop,
-    }));
+    });
     if (autoScrollDrag(host, dragState)) {
         scheduleDragAutoScroll(host, dragState);
     }
@@ -58,18 +65,19 @@ function handleDraggingPointerMove(host: PointerMoveHost, e: PointerEvent): void
 
 function autoScrollDrag(
     host: PointerMoveHost,
-    dragState: { selection: BlockSelection; pointerId: number }
+    dragState: { pointerId: number }
 ): boolean {
+    if (host.pipelineState.type !== 'dragging') return false;
     const pointer = host.getActiveDragPointer();
     if (!pointer) return false;
     const didScroll = autoScrollEditorNearViewportEdge(host.view, pointer.clientY);
     if (didScroll) {
-        const drop = host.resolveActiveDragDropSnapshot(dragState.selection);
-        host.applyPipelineOutputs(host.previewActiveDrag({
+        const drop = host.resolveActiveDragDropSnapshot(host.pipelineState.drag.selection);
+        host.previewActiveDrag({
             pointerId: dragState.pointerId,
             pointerType: pointer.pointerType,
             drop,
-        }));
+        });
     }
     return didScroll;
 }
@@ -77,8 +85,8 @@ function autoScrollDrag(
 function scheduleDragAutoScroll(host: PointerMoveHost, dragState: { autoScrollFrameId: number | null }): void {
     if (dragState.autoScrollFrameId !== null) return;
     dragState.autoScrollFrameId = window.requestAnimationFrame(() => {
-        if (host.gesture.phase !== 'dragging') return;
-        const state = host.gesture.drag;
+        if (host.pipelineState.type !== 'dragging' || !host.activeDragSession) return;
+        const state = host.activeDragSession;
         state.autoScrollFrameId = null;
         if (!autoScrollDrag(host, state)) return;
         scheduleDragAutoScroll(host, state);
@@ -86,15 +94,15 @@ function scheduleDragAutoScroll(host: PointerMoveHost, dragState: { autoScrollFr
 }
 
 function handleRangeSelectingPointerMove(host: PointerMoveHost, e: PointerEvent): void {
-    if (!(host.gesture.phase === 'selecting' && host.gesture.selection.mode === 'range')) return;
-    const rangeState = host.gesture.selection.rangeSelect;
+    const rangeState = host.rangePointerSession;
+    if (host.pipelineState.type !== 'selecting' || !rangeState) return;
     if (rangeState.pointerId !== -1 && e.pointerId !== rangeState.pointerId) return;
     handleRangeSelectionPointerMove(host, e, rangeState);
 }
 
 function handlePressPendingPointerMove(host: PointerMoveHost, e: PointerEvent): void {
-    if (host.gesture.phase !== 'press_pending') return;
-    const pressState = host.gesture.press;
+    const pressState = host.pressSession;
+    if (!pressState) return;
     if (e.pointerId !== pressState.pointerId) return;
 
     pressState.latestX = e.clientX;
@@ -112,20 +120,17 @@ function handlePressPendingPointerMove(host: PointerMoveHost, e: PointerEvent): 
     }
 
     if (distance < pressState.startMoveThresholdPx) return;
+    if (host.pipelineState.type !== 'ready_to_drag') return;
 
     e.preventDefault();
     e.stopPropagation();
-    const source = pressState.selection;
+    const source = host.pipelineState.hold.target.selection;
+    const sourceKind = host.pipelineState.hold.target.source;
     const pointerId = pressState.pointerId;
-    if (pressState.timeoutId !== null) {
-        window.clearTimeout(pressState.timeoutId);
+    if (sourceKind !== 'selected_text' && !host.getCommittedSelection()) {
+        host.clearCommittedRangeSelection();
     }
-    if (pressState.mobileSelectionTimeoutId !== null) {
-        window.clearTimeout(pressState.mobileSelectionTimeoutId);
-    }
-    host.clearCommittedRangeSelection();
-    host.gesture = { phase: 'idle' };
-    host.enterDraggingState(source, pointerId, e.clientX, e.clientY, e.pointerType || null);
+    host.enterDraggingState(source, pointerId, e.clientX, e.clientY, e.pointerType || null, sourceKind);
 }
 
 function handleRangeSelectionPointerMove(
@@ -179,23 +184,6 @@ function handleRangeSelectionPointerMove(
         return;
     }
 
-    if (pointerType === 'mouse' && state.preferLongPressDrag && !state.selectionGestureStarted) {
-        if (!state.dragReady) {
-            if (distance < MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX) return;
-        } else {
-            if (distance < MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX) return;
-            e.preventDefault();
-            e.stopPropagation();
-            const source = host.getCommittedSelection() ?? host.resolveBlockSelection(host.buildActiveRangeSelectionSelectionRequest(state));
-            if (!source) return;
-            const pointerId = state.pointerId;
-            host.clearCommittedRangeSelection();
-            host.clearMouseRangeSelectState();
-            host.enterDraggingState(source, pointerId, e.clientX, e.clientY, pointerType);
-            return;
-        }
-    }
-
     host.activateMouseRangeSelectInterception(state);
     e.preventDefault();
     e.stopPropagation();
@@ -227,4 +215,109 @@ function resolveHandleRangeBoundaryAtPoint(
     const source = host.resolveBlockSelection({ kind: 'handle', handle });
     if (!source) return null;
     return buildRangeSelectionBoundaryFromBlock(host.view.state.doc, source.anchorBlock);
+}
+
+export function handlePointerUp(host: PipelineAdapter, e: PointerEvent): void {
+    readPointerInput('up', e);
+    handlePointerTerminal(host, e, 'up');
+}
+
+export function handlePointerCancel(host: PipelineAdapter, e: PointerEvent): void {
+    readPointerInput('cancel', e);
+    handlePointerTerminal(host, e, 'cancel');
+}
+
+function handlePointerTerminal(
+    host: PipelineAdapter,
+    e: PointerEvent,
+    mode: PointerTerminalMode
+): void {
+    switch (host.pipelineState.type) {
+        case 'dragging':
+            finishPointerDrag(host, e, mode === 'up');
+            return;
+        case 'selecting':
+            if (host.rangePointerSession) {
+                finishRangeSelectingPointer(host, e, mode);
+            } else {
+                finishMobileSelectionPointer(host, e, mode);
+            }
+            return;
+        case 'holding':
+        case 'ready_to_drag':
+            finishPressPendingPointer(host, e, mode);
+            return;
+        default:
+            return;
+    }
+}
+
+function finishPointerDrag(host: PipelineAdapter, e: PointerEvent, shouldDrop: boolean): void {
+    const state = host.activeDragSession;
+    if (!state || host.pipelineState.type !== 'dragging') return;
+    if (e.pointerId !== state.pointerId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (shouldDrop) {
+        host.updateActiveDragPointer(e.clientX, e.clientY, e.pointerType || null);
+        const resolved = host.buildActiveDragCommand(host.pipelineState.drag.selection);
+        host.commitActiveDrag({
+            pointerId: e.pointerId,
+            pointerType: e.pointerType || null,
+            resolved,
+        });
+    } else {
+        host.cancelActiveDrag({
+            pointerId: e.pointerId,
+            pointerType: e.pointerType || null,
+            reason: 'pointer_cancelled',
+        });
+    }
+    host.cleanupAfterPointerDrag({
+        shouldFinishDragSession: true,
+        shouldHideDropPreview: true,
+        cancelReason: null,
+        pointerType: e.pointerType || null,
+    });
+}
+
+function finishRangeSelectingPointer(
+    host: PipelineAdapter,
+    e: PointerEvent,
+    mode: PointerTerminalMode
+): void {
+    const rangeState = host.rangePointerSession;
+    if (host.pipelineState.type !== 'selecting' || !rangeState) return;
+    if (rangeState.pointerId !== -1 && e.pointerId !== rangeState.pointerId) return;
+    if (mode === 'cancel') {
+        host.abortForGestureCancel('pointer_cancelled', e.pointerType || null);
+        return;
+    }
+    if (!rangeState.longPressReady) {
+        if (mode === 'up' && rangeState.pointerType === 'mouse') {
+            e.preventDefault();
+            e.stopPropagation();
+            const source = host.resolveBlockSelection(host.buildDirectRangeSelectionSelectionRequest(rangeState));
+            if (source) host.deps.openBlockTypeMenu?.(source.anchorBlock, e);
+            host.finishRangeSelectionSession();
+            return;
+        }
+        host.abortForGestureCancel('press_cancelled', e.pointerType || null);
+        return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    host.commitRangeSelection(rangeState);
+    host.finishRangeSelectionSession();
+}
+
+function finishPressPendingPointer(
+    host: PipelineAdapter,
+    e: PointerEvent,
+    mode: PointerTerminalMode
+): void {
+    const pressState = host.pressSession;
+    if (!pressState) return;
+    if (e.pointerId !== pressState.pointerId) return;
+    host.abortForGestureCancel(mode === 'up' ? 'press_cancelled' : 'pointer_cancelled', e.pointerType || null);
 }

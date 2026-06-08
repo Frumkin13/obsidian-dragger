@@ -1,10 +1,16 @@
 import type { PipelineEvent } from './pipeline-event';
 import {
+    buildIdleLifecycleEvent,
     buildPressPendingLifecycleEvent,
     type PipelineOutput,
 } from './pipeline-output';
 import type { BlockSelection } from '../../domain/selection/block-selection';
-import { updateBlockRangeSelectionState } from '../selection/block-range-selection';
+import {
+    createBlockRangeResizeSelectionState,
+    createBlockRangeSelectionState,
+    updateBlockRangeSelectionState,
+    type BlockRangeSelectionState,
+} from '../selection/block-range-selection';
 import { drop, dragOver, startDragDrop } from './pipeline-drop';
 import { clearSelection, cancelPipeline, destroyPipeline, exitForUnavailableGuard } from './pipeline-exit';
 import { withGuardDeps } from './pipeline-guard';
@@ -23,7 +29,7 @@ export function reducePipeline<TPreview>(
         case 'hold_start':
             return enterHolding(state, event);
         case 'hold_ready':
-            return markHoldReady(state, event.sessionId);
+            return markHoldReady(state, event);
         case 'selection_start':
             return enterSelecting(state, event);
         case 'selection_change':
@@ -63,16 +69,16 @@ function enterHolding<TPreview>(
         state: next,
         outputs: [
             { type: 'state_changed', state: next },
-            { type: 'lifecycle', event: buildPressPendingLifecycleEvent(event.target.selection, null, false) },
+            { type: 'lifecycle', event: buildPressPendingLifecycleEvent(event.target.selection, event.pointerType ?? null, false) },
         ],
     };
 }
 
 function markHoldReady<TPreview>(
     state: PipelineState,
-    sessionId: string
+    event: Extract<PipelineEvent<TPreview>, { type: 'hold_ready' }>
 ): PipelineReduceResult<TPreview> {
-    if (state.type !== 'holding' || state.hold.sessionId !== sessionId) {
+    if (state.type !== 'holding' || state.hold.sessionId !== event.sessionId) {
         return { state, outputs: [] };
     }
     const next: PipelineState = {
@@ -83,31 +89,49 @@ function markHoldReady<TPreview>(
         state: next,
         outputs: [
             { type: 'state_changed', state: next },
-            { type: 'lifecycle', event: buildPressPendingLifecycleEvent(state.hold.target.selection, null, true) },
+            { type: 'lifecycle', event: buildPressPendingLifecycleEvent(state.hold.target.selection, event.pointerType ?? null, true) },
         ],
     };
 }
 
 function enterSelecting<TPreview>(
-    _state: PipelineState,
+    state: PipelineState,
     event: Extract<PipelineEvent<TPreview>, { type: 'selection_start' }>
 ): PipelineReduceResult<TPreview> {
+    const rangeState = createSelectionRangeState(event.seed);
+    if (event.seed.range && !rangeState) {
+        return { state, outputs: [] };
+    }
+    const selectionRangeState = rangeState ?? undefined;
+    const selection = rangeState
+        ? buildSelectionFromRangeState(event.seed.selection, rangeState.selectionBlocks)
+        : event.seed.selection;
     const next: PipelineState = {
         type: 'selecting',
         selection: {
-            selection: event.seed.selection,
+            selection,
             phase: 'adjusting',
             guardDeps: withGuardDeps(event.guardDeps),
-            rangeState: event.seed.rangeState,
+            rangeState: selectionRangeState,
         },
     };
     return {
         state: next,
         outputs: [
             { type: 'state_changed', state: next },
-            { type: 'selection_changed', selection: event.seed.selection },
+            { type: 'selection_changed', selection },
         ],
     };
+}
+
+function createSelectionRangeState(
+    seed: Extract<PipelineEvent, { type: 'selection_start' }>['seed']
+): BlockRangeSelectionState | null | undefined {
+    if (!seed.range) return undefined;
+    if (seed.range.type === 'resize') {
+        return createBlockRangeResizeSelectionState(seed.range);
+    }
+    return createBlockRangeSelectionState(seed.range);
 }
 
 function updateSelecting<TPreview>(
@@ -201,7 +225,7 @@ function startDragging<TPreview>(
             ...startDragDrop({
                 selection: next.drag.selection,
                 drop: event.drop,
-                pointerType: null,
+                pointerType: event.pointerType ?? null,
             }),
         ],
     };
@@ -228,7 +252,7 @@ function updateDragging<TPreview>(
             ...dragOver({
                 selection: next.drag.selection,
                 drop: event.drop,
-                pointerType: null,
+                pointerType: event.pointerType ?? null,
             }),
         ],
     };
@@ -248,8 +272,9 @@ function dropDragging<TPreview>(
             ...drop({
                 selection: state.drag.selection,
                 resolution: event.resolution,
-                pointerType: null,
+                pointerType: event.pointerType ?? null,
             }),
+            { type: 'lifecycle', event: buildIdleLifecycleEvent() },
         ],
     };
 }

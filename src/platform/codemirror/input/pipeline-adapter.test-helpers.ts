@@ -8,8 +8,8 @@ import { buildSelectionFromSelectedBlocks, buildSingleBlockSelectionRanges } fro
 import type { BlockCommand } from '../../../domain/command/block-command';
 import type { DragDropSnapshot } from '../../../drag/pipeline/pipeline-drop';
 import type { DragLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
-import type { PointerDropCommitResolution } from './pointer-drag-target-router';
-import type { PipelineOutputExecutor, PointerDragControllerDeps } from './pointer-drag-controller';
+import type { PointerDropCommitResolution } from './pointer-hit-test';
+import type { PipelineOutputExecutor, PipelineAdapterDeps } from './pipeline-adapter';
 
 type RectLike = {
     left: number;
@@ -27,14 +27,14 @@ const originalMatchMedia = window.matchMedia;
 const originalVibrate = (navigator as Navigator & { vibrate?: (pattern: number | number[]) => boolean }).vibrate;
 let originalElementFromPoint: ((this: void, x: number, y: number) => Element | null) | undefined;
 
-type PointerDragControllerTestDeps = Omit<
-    Partial<PointerDragControllerDeps>,
+type PipelineAdapterTestDeps = Omit<
+    Partial<PipelineAdapterDeps>,
     'resolveDropSnapshotAtPoint' | 'buildBlockCommandAtPoint' | 'pipelineOutputExecutor'
 > & {
-    resolveBlockSelection: PointerDragControllerDeps['resolveBlockSelection'];
-    isBlockInsideRenderedTableCell: PointerDragControllerDeps['isBlockInsideRenderedTableCell'];
-    beginPointerDragSession: PointerDragControllerDeps['beginPointerDragSession'];
-    finishDragSession: PointerDragControllerDeps['finishDragSession'];
+    resolveBlockSelection: PipelineAdapterDeps['resolveBlockSelection'];
+    isBlockInsideRenderedTableCell: PipelineAdapterDeps['isBlockInsideRenderedTableCell'];
+    beginPointerDragSession: PipelineAdapterDeps['beginPointerDragSession'];
+    finishDragSession: PipelineAdapterDeps['finishDragSession'];
     resolveDropSnapshotAtPoint?: (clientX: number, clientY: number, source: BlockSelection, pointerType: string | null) => DragDropSnapshot;
     buildBlockCommandAtPoint?: (source: BlockSelection, clientX: number, clientY: number, pointerType: string | null) => PointerDropCommitResolution;
     pipelineOutputExecutor?: PipelineOutputExecutor;
@@ -45,7 +45,7 @@ type PointerDragControllerTestDeps = Omit<
     onDragLifecycleEvent?: (event: DragLifecycleEvent) => void;
 };
 
-export function createPointerDragControllerDeps(deps: PointerDragControllerTestDeps): PointerDragControllerDeps {
+export function createPipelineAdapterDeps(deps: PipelineAdapterTestDeps): PipelineAdapterDeps {
     let lastDropPoint: { clientX: number; clientY: number } | null = null;
     const resolveDropSnapshotAtPoint = (
         clientX: number,

@@ -3,14 +3,14 @@ import type { BlockInfo } from '../../../domain/block/block-types';
 import {
     hidePointerDropPreviews,
     buildPointerBlockCommandAtPoint,
-    registerPointerDragTargetClient,
-    resetPointerDragTargetRouterForTests,
+    registerPointerHitTestClient,
+    resetPointerHitTestForTests,
     resolvePointerDropSnapshotAtPoint,
     showPointerDropPreview,
-    type PointerDragTargetClient,
-} from './pointer-drag-target-router';
+    type PointerHitTestClient,
+} from './pointer-hit-test';
 
-function createClient(name: string, hitRect: { left: number; top: number; right: number; bottom: number }): PointerDragTargetClient {
+function createClient(name: string, hitRect: { left: number; top: number; right: number; bottom: number }): PointerHitTestClient {
     return {
         containsPoint: (x, y) => x >= hitRect.left && x <= hitRect.right && y >= hitRect.top && y <= hitRect.bottom,
         resolveDropSnapshotAtPoint: vi.fn(() => ({ target: null, rejectReason: null })),
@@ -18,21 +18,21 @@ function createClient(name: string, hitRect: { left: number; top: number; right:
         hideDropPreview: vi.fn(),
         buildBlockCommandAtPoint: vi.fn(() => ({ type: 'platform_commit', drop: { target: null, rejectReason: null } })),
         applyBlockCommand: vi.fn(),
-    } satisfies PointerDragTargetClient & { name?: string };
+    } satisfies PointerHitTestClient & { name?: string };
 }
 
 const sourceBlock = { startLine: 1, endLine: 1 } as BlockInfo;
 
 afterEach(() => {
-    resetPointerDragTargetRouterForTests();
+    resetPointerHitTestForTests();
 });
 
-describe('pointer-drag-target-router', () => {
+describe('pointer-hit-test', () => {
     it('routes drop indicator updates to the client under the pointer and hides the previous target', () => {
         const fallback = createClient('fallback', { left: 0, top: 0, right: 100, bottom: 100 });
         const other = createClient('other', { left: 200, top: 0, right: 300, bottom: 100 });
-        registerPointerDragTargetClient(fallback);
-        registerPointerDragTargetClient(other);
+        registerPointerHitTestClient(fallback);
+        registerPointerHitTestClient(other);
 
         const fallbackDrop = resolvePointerDropSnapshotAtPoint(fallback, 10, 10, sourceBlock, 'mouse');
         showPointerDropPreview(fallback, sourceBlock, fallbackDrop, 'mouse');
@@ -48,8 +48,8 @@ describe('pointer-drag-target-router', () => {
     it('uses the active target for drop when the pointer leaves registered editors', () => {
         const fallback = createClient('fallback', { left: 0, top: 0, right: 100, bottom: 100 });
         const other = createClient('other', { left: 200, top: 0, right: 300, bottom: 100 });
-        registerPointerDragTargetClient(fallback);
-        registerPointerDragTargetClient(other);
+        registerPointerHitTestClient(fallback);
+        registerPointerHitTestClient(other);
 
         resolvePointerDropSnapshotAtPoint(fallback, 220, 10, sourceBlock, 'mouse');
         buildPointerBlockCommandAtPoint(fallback, sourceBlock, 500, 500, 'mouse');
@@ -61,8 +61,8 @@ describe('pointer-drag-target-router', () => {
     it('clears all visible target indicators', () => {
         const fallback = createClient('fallback', { left: 0, top: 0, right: 100, bottom: 100 });
         const other = createClient('other', { left: 200, top: 0, right: 300, bottom: 100 });
-        registerPointerDragTargetClient(fallback);
-        registerPointerDragTargetClient(other);
+        registerPointerHitTestClient(fallback);
+        registerPointerHitTestClient(other);
 
         hidePointerDropPreviews();
 
