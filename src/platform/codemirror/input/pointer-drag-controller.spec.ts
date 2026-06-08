@@ -246,7 +246,7 @@ describe('PointerDragController', () => {
         handler.destroy();
     });
 
-    it('does not start text long-press drag from a short focused editor tap', () => {
+    it('does not blur focused editor on a short tap before drag mode is enabled', () => {
         const view = createViewStub(6);
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
         expect(line).not.toBeNull();
@@ -280,7 +280,7 @@ describe('PointerDragController', () => {
             clientY: 10,
         });
         expect(downEvent.defaultPrevented).toBe(false);
-        expect(blurSpy).toHaveBeenCalledTimes(1);
+        expect(blurSpy).not.toHaveBeenCalled();
 
         dispatchPointer(window, 'pointerup', {
             pointerId: 913,
@@ -451,13 +451,15 @@ describe('PointerDragController', () => {
         handler.destroy();
     });
 
-    it('blurs focused mobile editor and continues the same long-press drag intent', () => {
+    it('prevents editor input focus while mobile drag mode is enabled', () => {
         const view = createViewStub(6);
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
         expect(line).not.toBeNull();
         const sourceBlock = createBlock('- item', 0, 0);
         const beginPointerDragSession = vi.fn();
-        const blurSpy = vi.spyOn(view.contentDOM, 'blur');
+        const input = document.createElement('textarea');
+        view.dom.appendChild(input);
+        const blurSpy = vi.spyOn(input, 'blur');
 
         Object.defineProperty(view, 'hasFocus', {
             configurable: true,
@@ -467,6 +469,8 @@ describe('PointerDragController', () => {
         const handler = new PointerDragController(view, createPointerDragControllerDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
+            isMobileDragModeRequired: () => true,
+            isMobileDragModeEnabled: () => true,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -483,8 +487,10 @@ describe('PointerDragController', () => {
             clientY: 10,
         });
 
-        expect(downEvent.defaultPrevented).toBe(false);
-        expect(blurSpy).toHaveBeenCalledTimes(1);
+        expect(downEvent.defaultPrevented).toBe(true);
+        const blurCountAfterPointerDown = blurSpy.mock.calls.length;
+        input.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: true }));
+        expect(blurSpy.mock.calls.length).toBeGreaterThan(blurCountAfterPointerDown);
         vi.advanceTimersByTime(220);
         dispatchPointer(window, 'pointermove', {
             pointerId: 914,

@@ -204,8 +204,28 @@ export default class DragNDropPlugin extends Plugin {
     private setMobileDragModeEnabled(enabled: boolean): void {
         if (this.mobileDragModeEnabled === enabled) return;
         this.mobileDragModeEnabled = enabled;
+        if (enabled) {
+            this.dismissActiveMobileInput();
+        }
         this.applySettings();
         this.syncMobileDragModeActionIcons();
+    }
+
+    private dismissActiveMobileInput(): void {
+        if (!Platform.isMobile) return;
+        const active = document.activeElement;
+        if (!(active instanceof HTMLElement)) return;
+        const shouldBlur = active instanceof HTMLInputElement
+            || active instanceof HTMLTextAreaElement
+            || active.isContentEditable
+            || !!active.closest('.cm-content');
+        if (!shouldBlur) return;
+        active.blur();
+        try {
+            window.getSelection()?.removeAllRanges();
+        } catch {
+            // ignore selection clear failures on limited mobile webviews
+        }
     }
 
     private handleMobileDragModeLifecycle(event: DragLifecycleEvent): void {

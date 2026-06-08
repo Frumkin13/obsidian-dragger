@@ -758,6 +758,13 @@ export class PointerDragController {
         return this.deps.isMobileDragModeEnabled?.() === true;
     }
 
+    isMobileDragModeActiveForPointer(pointerType: string | null): boolean {
+        if (pointerType === 'mouse') return false;
+        if (!this.mobile.isMobileEnvironment()) return false;
+        return this.deps.isMobileDragModeRequired?.() === true
+            && this.deps.isMobileDragModeEnabled?.() === true;
+    }
+
     getTouchRangeSelectLongPressMs(): number {
         if (!this.deps.getMultiLineSelectionLongPressMs) {
             return TOUCH_RANGE_SELECT_LONG_PRESS_MS;

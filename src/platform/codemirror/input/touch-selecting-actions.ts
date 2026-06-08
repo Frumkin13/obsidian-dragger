@@ -79,6 +79,7 @@ export interface MobileSelectionActionHost {
     emitIdleLifecycle(): void;
     isMultiLineSelectionEnabled(): boolean;
     canStartDragForPointer(pointerType: string | null): boolean;
+    isMobileDragModeActiveForPointer(pointerType: string | null): boolean;
 }
 
 export function handleMobilePointerDown(
@@ -220,10 +221,7 @@ function tryStartMobileTextLongPressDrag(
 ): boolean {
     if (!shouldStartMobilePressDrag(host, e)) return false;
     if (!host.canStartDragForPointer(e.pointerType || null)) return false;
-
-    if (shouldDismissMobileEditorInputStateForPointerDown(host, target)) {
-        dismissMobileEditorInputState(host);
-    }
+    const shouldSuppressInput = host.isMobileDragModeActiveForPointer(e.pointerType || null);
 
     const inTextLineOrEmbedArea = isMobileTextLongPressDragEnabled(host)
         && host.mobile.isWithinMobileTextLineOrEmbedArea(target, e.clientX, e.clientY);
@@ -234,7 +232,7 @@ function tryStartMobileTextLongPressDrag(
     const blockInfo = source.anchorBlock;
     if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return false;
 
-    host.beginPressPendingDrag(source, e, { deferInterception: true });
+    host.beginPressPendingDrag(source, e, shouldSuppressInput ? undefined : { deferInterception: true });
     return true;
 }
 
@@ -559,25 +557,6 @@ function shouldStartMobilePressDrag(host: MobileSelectionActionHost, e: PointerE
     if (host.gesture.phase !== 'idle') return false;
     if (!host.mobile.isMobileEnvironment()) return false;
     return shouldStartMobilePressDragByInput(e);
-}
-
-function shouldDismissMobileEditorInputStateForPointerDown(
-    host: MobileSelectionActionHost,
-    target: HTMLElement | null
-): boolean {
-    if (!shouldDisableMobileTextLongPressDragInInputState(host)) return false;
-    if (!target) return true;
-    return host.view.dom.contains(target);
-}
-
-function shouldDisableMobileTextLongPressDragInInputState(host: MobileSelectionActionHost): boolean {
-    if (!host.view.hasFocus) return false;
-    return host.view.state.selection.main.empty;
-}
-
-function dismissMobileEditorInputState(host: MobileSelectionActionHost): void {
-    if (!host.view.hasFocus) return;
-    host.view.contentDOM.blur();
 }
 
 function isMobileTextLongPressDragEnabled(host: MobileSelectionActionHost): boolean {
