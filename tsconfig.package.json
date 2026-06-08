@@ -1,0 +1,20 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "allowJs": false,
+        "declaration": true,
+        "emitDeclarationOnly": true,
+        "declarationDir": "dist/npm/types",
+        "rootDir": "src",
+        "skipLibCheck": true,
+        "stripInternal": true
+    },
+    "include": [
+        "src/index.ts",
+        "src/domain/**/*.ts",
+        "src/drag/**/*.ts"
+    ],
+    "exclude": [
+        "src/**/*.spec.ts"
+    ]
+}

@@ -8,6 +8,7 @@ import {
     commitDragPipeline,
     updateDragPipeline,
 } from './drag-controller';
+import { DragFlowController } from './drag-flow-controller';
 
 function createSelection() {
     return createSingleBlockSelection({
@@ -115,5 +116,35 @@ describe('headless drag pipeline', () => {
         });
 
         expect(effects.map((effect) => effect.type)).toEqual(['hide_drop_preview', 'emit_lifecycle']);
+    });
+
+    it('runs begin preview commit through a reusable flow controller', () => {
+        const selection = createSelection();
+        const flow = new DragFlowController();
+
+        const began = flow.begin({
+            selection,
+            pointerId: 7,
+            pointerType: 'mouse',
+            drop: createDrop(),
+        });
+        expect(flow.getActiveDrag()).toBe(began.drag);
+
+        const previewEffects = flow.preview({
+            pointerId: 7,
+            pointerType: 'mouse',
+            drop: createDrop(),
+        });
+        expect(previewEffects.map((effect) => effect.type)).toEqual(['show_drop_preview', 'emit_lifecycle']);
+
+        const command = createMoveCommand(selection, createDrop().target);
+        const commitEffects = flow.commit({
+            pointerId: 7,
+            pointerType: 'mouse',
+            command,
+            drop: createDrop(),
+        });
+        expect(commitEffects[0]).toEqual({ type: 'apply_command', command });
+        expect(flow.getActiveDrag()).toBeNull();
     });
 });

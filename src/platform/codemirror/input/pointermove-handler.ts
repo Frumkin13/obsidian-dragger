@@ -10,7 +10,6 @@ import {
 } from '../../../drag/selection/range-selection-state';
 import { handleMobileSelectingPointerMove } from './touch-selecting-actions';
 import type { PointerDragController } from './pointer-drag-controller';
-import { updateDragPipeline } from '../../../drag/pipeline/drag-controller';
 
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
 const MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX = 12;
@@ -47,7 +46,7 @@ function handleDraggingPointerMove(host: PointerMoveHost, e: PointerEvent): void
     e.stopPropagation();
     host.updateActiveDragPointer(e.clientX, e.clientY, e.pointerType || null);
     const drop = host.resolveActiveDragDropSnapshot(dragState.selection);
-    host.applyDragEffects(updateDragPipeline(dragState, {
+    host.applyDragEffects(host.previewActiveDrag({
         pointerId: e.pointerId,
         pointerType: e.pointerType || null,
         drop,

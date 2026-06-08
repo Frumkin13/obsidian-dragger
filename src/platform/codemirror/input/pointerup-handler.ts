@@ -2,7 +2,6 @@ import { readPointerInput } from './pointer-input';
 import type { PointerTerminalMode } from '../../../drag/state/drag-state';
 import { finishMobileSelectionPointer } from './touch-selecting-actions';
 import type { PointerDragController } from './pointer-drag-controller';
-import { cancelDragPipeline, commitDragPipeline } from '../../../drag/pipeline/drag-controller';
 
 export function handlePointerUp(host: PointerDragController, e: PointerEvent): void {
     readPointerInput('up', e);
@@ -47,15 +46,13 @@ function finishPointerDrag(host: PointerDragController, e: PointerEvent, shouldD
     if (shouldDrop) {
         host.updateActiveDragPointer(e.clientX, e.clientY, e.pointerType || null);
         const resolved = host.buildActiveDragCommand(state.selection);
-        host.applyDragEffects(commitDragPipeline(state, {
+        host.applyDragEffects(host.commitActiveDrag({
             pointerId: e.pointerId,
             pointerType: e.pointerType || null,
-            command: resolved.command,
-            drop: resolved.drop,
-            didCommit: resolved.didCommit,
+            resolved,
         }));
     } else {
-        host.applyDragEffects(cancelDragPipeline(state, {
+        host.applyDragEffects(host.cancelActiveDrag({
             pointerId: e.pointerId,
             pointerType: e.pointerType || null,
             reason: 'pointer_cancelled',
