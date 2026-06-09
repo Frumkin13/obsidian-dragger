@@ -52,6 +52,11 @@ export type AnchorSnapshot = {
     byBlockLineNumber: Map<number, RangeAnchorPoint>;
 };
 
+export type RangeSelectionVisualOptions = {
+    showSourceOutline?: boolean;
+    showMobileResizeHandles?: boolean;
+};
+
 function getHandleBlockLineNumber(handle: HTMLElement): number | null {
     const blockStartAttr = handle.getAttribute('data-block-start');
     if (!blockStartAttr) return null;
@@ -207,15 +212,11 @@ function viewportYToEditorLocalY(view: EditorView, viewportY: number): number {
 }
 
 class RangeSelectionOverlayRenderer {
-    private readonly topResizeHandleEl: HTMLElement;
-    private readonly bottomResizeHandleEl: HTMLElement;
+    private readonly resizeHandleEls = new Map<string, HTMLElement>();
 
     constructor(
         private readonly view: EditorView
-    ) {
-        this.topResizeHandleEl = this.createResizeHandle('top');
-        this.bottomResizeHandleEl = this.createResizeHandle('bottom');
-    }
+    ) { }
 
     render(
         blocks: SelectedBlockRange[],
@@ -240,35 +241,53 @@ class RangeSelectionOverlayRenderer {
             viewportYToEditorLocalY(this.view, viewportY) - getHostOrigin(host).y
         );
 
-        const mobileResizeAnchors = options?.showMobileResizeHandles
-            ? this.resolveMobileResizeAnchors(blocks)
-            : null;
-        this.renderResizeHandle(this.topResizeHandleEl, mobileResizeAnchors?.top ?? null, viewportXToHostLocalX, viewportYToHostLocalY, !!options?.showMobileResizeHandles);
-        this.renderResizeHandle(this.bottomResizeHandleEl, mobileResizeAnchors?.bottom ?? null, viewportXToHostLocalX, viewportYToHostLocalY, !!options?.showMobileResizeHandles);
+        if (!options?.showMobileResizeHandles || !this.isMobileEnvironment()) {
+            this.clear();
+            return;
+        }
+
+        const nextKeys = new Set<string>();
+        for (const block of blocks) {
+            const anchors = this.resolveMobileResizeAnchors(block);
+            if (!anchors) continue;
+            const topKey = this.resizeHandleKey(block, 'top');
+            const bottomKey = this.resizeHandleKey(block, 'bottom');
+            nextKeys.add(topKey);
+            nextKeys.add(bottomKey);
+            this.renderResizeHandle(
+                this.getOrCreateResizeHandle(topKey, 'top', block),
+                anchors.top,
+                viewportXToHostLocalX,
+                viewportYToHostLocalY
+            );
+            this.renderResizeHandle(
+                this.getOrCreateResizeHandle(bottomKey, 'bottom', block),
+                anchors.bottom,
+                viewportXToHostLocalX,
+                viewportYToHostLocalY
+            );
+        }
+        this.removeStaleResizeHandles(nextKeys);
     }
 
     clear(): void {
-        this.topResizeHandleEl.classList.remove('is-active');
-        this.bottomResizeHandleEl.classList.remove('is-active');
+        for (const handleEl of this.resizeHandleEls.values()) {
+            handleEl.classList.remove('is-active');
+            handleEl.remove();
+        }
+        this.resizeHandleEls.clear();
     }
 
     destroy(): void {
         this.clear();
-        this.topResizeHandleEl.remove();
-        this.bottomResizeHandleEl.remove();
     }
 
     private renderResizeHandle(
         handleEl: HTMLElement,
-        anchor: { y: number; x: number; host: HTMLElement } | null,
+        anchor: { y: number; x: number; host: HTMLElement },
         viewportXToHostLocalX: (host: HTMLElement, viewportX: number) => number,
-        viewportYToHostLocalY: (host: HTMLElement, viewportY: number) => number,
-        shouldRender: boolean
+        viewportYToHostLocalY: (host: HTMLElement, viewportY: number) => number
     ): void {
-        if (!anchor || !shouldRender || !this.isMobileEnvironment()) {
-            handleEl.classList.remove('is-active');
-            return;
-        }
         if (handleEl.parentElement !== anchor.host) {
             anchor.host.appendChild(handleEl);
         }
@@ -281,18 +300,15 @@ class RangeSelectionOverlayRenderer {
         });
     }
 
-    private resolveMobileResizeAnchors(blocks: SelectedBlockRange[]): {
+    private resolveMobileResizeAnchors(block: SelectedBlockRange): {
         top: { y: number; x: number; host: HTMLElement };
         bottom: { y: number; x: number; host: HTMLElement };
     } | null {
-        if (blocks.length === 0) return null;
         const doc = this.view.state.doc;
-        const firstLineNumber = Math.min(...blocks.map((block) => block.startLineNumber));
-        const lastLineNumber = Math.max(...blocks.map((block) => block.endLineNumber));
-        if (firstLineNumber < 1 || lastLineNumber > doc.lines) return null;
+        if (block.startLineNumber < 1 || block.endLineNumber > doc.lines) return null;
 
-        const firstLine = doc.line(firstLineNumber);
-        const lastLine = doc.line(lastLineNumber);
+        const firstLine = doc.line(block.startLineNumber);
+        const lastLine = doc.line(block.endLineNumber);
         const topCoords = safeCoordsAtPos(this.view, firstLine.from, 1);
         const bottomCoords = safeCoordsAtPos(this.view, lastLine.to, -1)
             ?? safeCoordsAtPos(this.view, lastLine.from, 1);
@@ -326,6 +342,32 @@ class RangeSelectionOverlayRenderer {
         return handle;
     }
 
+    private getOrCreateResizeHandle(
+        key: string,
+        position: 'top' | 'bottom',
+        block: SelectedBlockRange
+    ): HTMLElement {
+        const existing = this.resizeHandleEls.get(key);
+        if (existing) return existing;
+        const handle = this.createResizeHandle(position);
+        handle.setAttribute('data-dnd-mobile-selection-start-line', String(block.startLineNumber));
+        handle.setAttribute('data-dnd-mobile-selection-end-line', String(block.endLineNumber));
+        this.resizeHandleEls.set(key, handle);
+        return handle;
+    }
+
+    private resizeHandleKey(block: SelectedBlockRange, position: 'top' | 'bottom'): string {
+        return `${block.startLineNumber}:${block.endLineNumber}:${position}`;
+    }
+
+    private removeStaleResizeHandles(nextKeys: Set<string>): void {
+        for (const [key, handleEl] of this.resizeHandleEls) {
+            if (nextKeys.has(key)) continue;
+            handleEl.remove();
+            this.resizeHandleEls.delete(key);
+        }
+    }
+
     private isMobileEnvironment(): boolean {
         const body = document.body;
         if (body.classList.contains('is-mobile') || body.classList.contains('is-phone') || body.classList.contains('is-tablet')) {
@@ -343,15 +385,17 @@ export function renderRangeSelectionPreview(
 ): void {
     if (state.type === 'selecting') {
         const isMobileSelection = state.selection.guardDeps.includes('mobile-text-drag-mode');
-        rangeVisual.render(state.selection.rangeState?.selectionBlocks ?? selectionBlocksFromSelection(state.selection.selection), {
+        rangeVisual.renderInteractiveSelection(state.selection.rangeState?.selectionBlocks ?? selectionBlocksFromSelection(state.selection.selection), {
             showSourceOutline: isMobileSelection,
             showMobileResizeHandles: isMobileSelection,
         });
         return;
     }
     if (committed) {
-        rangeVisual.render(committed.blocks);
+        rangeVisual.renderCommittedSelection(committed.blocks);
+        return;
     }
+    rangeVisual.clear();
 }
 
 function selectionBlocksFromSelection(selection: { ranges: Array<{ startLine: number; endLine: number }> }): SelectedBlockRange[] {
@@ -370,6 +414,7 @@ export class RangeSelectionVisualManager {
     private refreshRafHandle: number | null = null;
     private scrollContainer: HTMLElement | null = null;
     private readonly onScroll: () => void;
+    private currentVisualOptions: RangeSelectionVisualOptions = {};
 
     constructor(
         private readonly view: EditorView,
@@ -384,7 +429,16 @@ export class RangeSelectionVisualManager {
         this.bindScrollListener();
     }
 
-    render(blocks: SelectedBlockRange[], options?: { showSourceOutline?: boolean; showMobileResizeHandles?: boolean }): void {
+    renderInteractiveSelection(blocks: SelectedBlockRange[], options: RangeSelectionVisualOptions): void {
+        this.currentVisualOptions = options;
+        this.render(blocks, options);
+    }
+
+    renderCommittedSelection(blocks: SelectedBlockRange[]): void {
+        this.render(blocks, this.currentVisualOptions);
+    }
+
+    private render(blocks: SelectedBlockRange[], options: RangeSelectionVisualOptions): void {
         const normalizedBlocks = mergeSelectedBlocks(this.view.state.doc.lines, blocks);
         const nextHandleElements = new Set<HTMLElement>();
         const nextSourceLineElements = new Set<HTMLElement>();
@@ -417,6 +471,7 @@ export class RangeSelectionVisualManager {
         this.clearSourceLineElements();
         this.handleElements.clear();
         this.handleAnchorSnapshot = emptyAnchorSnapshot();
+        this.currentVisualOptions = {};
         this.overlayRenderer.clear();
     }
 

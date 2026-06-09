@@ -37,7 +37,7 @@ describe('CodeMirror input PRD contracts', () => {
     });
 
     it('keeps platform input from constructing drag range-selection state directly', () => {
-        const forbidden = /\b(?:createBlockRangeSelectionState|createBlockRangeResizeSelectionState|updateBlockRangeSelectionState)\b/;
+        const forbidden = /\b(?:createBlockRangeSelectionState|updateBlockRangeSelectionState)\b/;
         const offenders = readInputProductionFiles()
             .filter((file) => forbidden.test(file.text))
             .map((file) => file.rel);

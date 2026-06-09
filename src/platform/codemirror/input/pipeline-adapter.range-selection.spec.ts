@@ -2272,6 +2272,51 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 
+    it('keeps mobile committed selection visuals during committed selection refresh', () => {
+        document.body.classList.add('is-mobile');
+        const view = createViewStub(8);
+        const handle = appendHandleForBlockStart(view, 0);
+        const sourceBlock = createBlock('- item', 0, 0);
+
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
+
+        handler.attach();
+        view.dom.dispatchEvent(new CustomEvent('dnd:enter-mobile-selection-mode', {
+            bubbles: true,
+            detail: { handled: false },
+        }));
+
+        expect(view.dom.querySelector('.dnd-drag-source-line')).not.toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
+
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 409,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 10,
+        });
+        expect(handler.pipelineState.type).toBe('holding');
+
+        handler.refreshSelectionVisual();
+        vi.runOnlyPendingTimers();
+
+        expect(view.dom.querySelector('.dnd-drag-source-line')).not.toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
+        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
+
+        document.body.classList.remove('is-mobile');
+        handler.destroy();
+    });
+
     it('drags the whole mobile selection from selected text long-press', () => {
         document.body.classList.add('is-mobile');
         const view = createViewStub(8);
@@ -2425,8 +2470,8 @@ describe('PipelineAdapter Range Selection', () => {
         for (const handle of lineHandles) {
             expect(selectedHandles).toContain(handle);
         }
-        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
-        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
+        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-top.is-active')).toHaveLength(6);
+        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-bottom.is-active')).toHaveLength(6);
 
         const topResizeHandle = view.dom.querySelector<HTMLElement>('.dnd-mobile-selection-resize-handle-top');
         expect(topResizeHandle).not.toBeNull();
@@ -2458,14 +2503,12 @@ describe('PipelineAdapter Range Selection', () => {
         });
 
         selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
-        expect(selectedHandles).toHaveLength(4);
-        expect(selectedHandles).not.toContain(lineHandles[0]);
-        expect(selectedHandles).not.toContain(lineHandles[1]);
-        for (const handle of lineHandles.slice(2, 6)) {
+        expect(selectedHandles).toHaveLength(6);
+        for (const handle of lineHandles) {
             expect(selectedHandles).toContain(handle);
         }
-        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
-        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
+        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-top.is-active')).toHaveLength(6);
+        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-bottom.is-active')).toHaveLength(6);
         document.body.classList.remove('is-mobile');
         handler.destroy();
     });
@@ -2525,6 +2568,10 @@ describe('PipelineAdapter Range Selection', () => {
         expect(selectedHandles).not.toContain(middleHandle);
         expect(selectedHandles).toHaveLength(2);
         expect(view.dom.querySelectorAll('.dnd-drag-source-line')).toHaveLength(2);
+        const topResizeHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-mobile-selection-resize-handle-top.is-active'));
+        const bottomResizeHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-mobile-selection-resize-handle-bottom.is-active'));
+        expect(topResizeHandles.map((handle) => handle.getAttribute('data-dnd-mobile-selection-start-line'))).toEqual(['1', '6']);
+        expect(bottomResizeHandles.map((handle) => handle.getAttribute('data-dnd-mobile-selection-start-line'))).toEqual(['1', '6']);
         expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
         expect(dispatchTouchMove(window).defaultPrevented).toBe(false);
 
@@ -2663,6 +2710,8 @@ describe('PipelineAdapter Range Selection', () => {
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
         expect(view.dom.querySelector('.dnd-range-selected-line')).toBeNull();
         expect(view.dom.querySelectorAll('.dnd-drag-source-line')).toHaveLength(2);
+        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-top.is-active')).toHaveLength(2);
+        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-bottom.is-active')).toHaveLength(2);
         expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
         document.body.classList.remove('is-mobile');
         handler.destroy();
@@ -2755,8 +2804,8 @@ describe('PipelineAdapter Range Selection', () => {
         expect(selectedHandles).toContain(farHandle);
         expect(selectedHandles).toHaveLength(3);
         expect(view.dom.querySelectorAll('.dnd-drag-source-line')).toHaveLength(3);
-        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
-        expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
+        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-top.is-active')).toHaveLength(3);
+        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-bottom.is-active')).toHaveLength(3);
 
         document.body.classList.remove('is-mobile');
         handler.destroy();

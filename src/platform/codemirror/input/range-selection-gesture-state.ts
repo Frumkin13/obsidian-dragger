@@ -1,5 +1,6 @@
 import type { BlockInfo } from '../../../domain/block/block-types';
 import type { DocLikeWithRange } from '../../../domain/markdown/document-types';
+import type { RangeSelectionBoundary, RangeSelectionBoundaryResolver } from '../../../domain/selection/range-selection';
 import type { BlockSelection, RangeSelectionOperation } from '../../../domain/selection/block-selection';
 import type { SelectedBlockRange } from '../../../domain/selection/block-ranges';
 import type { GuardId } from '../../../drag/pipeline/pipeline-event';
@@ -16,6 +17,9 @@ export type MouseRangeSelectState = {
     initialOperation?: RangeSelectionOperation;
     guardDeps?: GuardId[];
     sourceKind: HoldTarget['source'];
+    anchorBoundary: RangeSelectionBoundary;
+    initialBoundary: RangeSelectionBoundary;
+    resolveBoundary?: RangeSelectionBoundaryResolver;
     pipelineStarted: boolean;
     selectionGestureStarted: boolean;
     pointerId: number;
@@ -39,6 +43,9 @@ type CreateInitialRangeSelectionStateOptions = {
     initialOperation?: RangeSelectionOperation;
     guardDeps?: GuardId[];
     sourceKind?: HoldTarget['source'];
+    anchorBoundary?: RangeSelectionBoundary;
+    initialBoundary?: RangeSelectionBoundary;
+    resolveBoundary?: RangeSelectionBoundaryResolver;
     doc: DocLikeWithRange;
     pointerId: number;
     startX: number;
@@ -75,6 +82,13 @@ export function createInitialRangeSelectionState(
         return null;
     }
 
+    const anchorBoundary = options.anchorBoundary ?? {
+        startLineNumber: anchorStartLineNumber,
+        endLineNumber: anchorEndLineNumber,
+        representativeLineNumber: anchorEndLineNumber,
+    };
+    const initialBoundary = options.initialBoundary ?? anchorBoundary;
+
     return {
         anchorBlock: options.blockInfo,
         sourceSelection: options.sourceSelection,
@@ -82,6 +96,9 @@ export function createInitialRangeSelectionState(
         initialOperation: options.initialOperation,
         guardDeps: options.guardDeps,
         sourceKind: options.sourceKind ?? 'handle',
+        anchorBoundary,
+        initialBoundary,
+        resolveBoundary: options.resolveBoundary,
         pipelineStarted: false,
         selectionGestureStarted: false,
         pointerId: options.pointerId,
@@ -95,6 +112,6 @@ export function createInitialRangeSelectionState(
         isIntercepting: options.pointerType !== 'mouse',
         timeoutId: null,
         dragTimeoutId: null,
-        currentLineNumber: anchorEndLineNumber,
+        currentLineNumber: initialBoundary.representativeLineNumber,
     };
 }

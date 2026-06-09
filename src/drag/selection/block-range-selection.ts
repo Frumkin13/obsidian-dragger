@@ -1,4 +1,3 @@
-import type { BlockInfo } from '../../domain/block/block-types';
 import type { RangeSelectionOperation } from '../../domain/selection/block-selection';
 import {
     isSelectedBlockCoveredByBlocks,
@@ -8,7 +7,6 @@ import {
 } from '../../domain/selection/block-ranges';
 import type { DocLikeWithRange } from '../../domain/markdown/document-types';
 import {
-    buildSelectedBlockRangeFromBlockInfo,
     collectSelectedBlocksBetween,
     type RangeSelectionBoundary,
     type RangeSelectionBoundaryResolver,
@@ -25,12 +23,14 @@ export type BlockRangeSelectionState = {
 
 export function createBlockRangeSelectionState(options: {
     doc: DocLikeWithRange;
-    blockInfo: BlockInfo;
+    anchorBoundary: RangeSelectionBoundary;
+    initialBoundary?: RangeSelectionBoundary;
     selectedBlocks: SelectedBlockRange[];
     operation?: RangeSelectionOperation;
+    resolveBoundary?: RangeSelectionBoundaryResolver;
 }): BlockRangeSelectionState | null {
-    const anchorStartLineNumber = options.blockInfo.startLine + 1;
-    const anchorEndLineNumber = options.blockInfo.endLine + 1;
+    const anchorStartLineNumber = options.anchorBoundary.startLineNumber;
+    const anchorEndLineNumber = options.anchorBoundary.endLineNumber;
     if (
         anchorStartLineNumber < 1
         || anchorEndLineNumber > options.doc.lines
@@ -39,46 +39,40 @@ export function createBlockRangeSelectionState(options: {
         return null;
     }
 
-    const activeBlock = buildSelectedBlockRangeFromBlockInfo(options.blockInfo);
+    const initialBoundary = options.initialBoundary ?? options.anchorBoundary;
+    const activeBlocks = options.resolveBoundary
+        ? collectSelectedBlocksBetween(
+            options.doc.lines,
+            anchorStartLineNumber,
+            anchorEndLineNumber,
+            initialBoundary.startLineNumber,
+            initialBoundary.endLineNumber,
+            options.resolveBoundary
+        )
+        : [{
+            startLineNumber: anchorStartLineNumber,
+            endLineNumber: anchorEndLineNumber,
+        }];
+    const activeBlock = activeBlocks[0] ?? {
+        startLineNumber: anchorStartLineNumber,
+        endLineNumber: anchorEndLineNumber,
+    };
     const operation = options.operation ?? (isSelectedBlockCoveredByBlocks(
         options.doc.lines,
         activeBlock,
         options.selectedBlocks
     ) ? 'remove' : 'add');
+    const baseBlocks = operation === 'add'
+        ? subtractSelectedBlocks(options.doc.lines, options.selectedBlocks, activeBlocks)
+        : options.selectedBlocks;
     return applyBlockRangeSelection({
         docLines: options.doc.lines,
         operation,
-        baseBlocks: options.selectedBlocks,
-        activeBlocks: [activeBlock],
+        baseBlocks,
+        activeBlocks,
     }, {
         anchorStartLineNumber,
         anchorEndLineNumber,
-    });
-}
-
-export function createBlockRangeResizeSelectionState(options: {
-    doc: DocLikeWithRange;
-    selectedBlocks: SelectedBlockRange[];
-    fixedBoundary: RangeSelectionBoundary;
-    movingBoundary: RangeSelectionBoundary;
-    resolveBoundary: RangeSelectionBoundaryResolver;
-}): BlockRangeSelectionState {
-    const activeBlocks = collectSelectedBlocksBetween(
-        options.doc.lines,
-        options.fixedBoundary.startLineNumber,
-        options.fixedBoundary.endLineNumber,
-        options.movingBoundary.startLineNumber,
-        options.movingBoundary.endLineNumber,
-        options.resolveBoundary
-    );
-    return applyBlockRangeSelection({
-        docLines: options.doc.lines,
-        operation: 'add',
-        baseBlocks: subtractSelectedBlocks(options.doc.lines, options.selectedBlocks, activeBlocks),
-        activeBlocks,
-    }, {
-        anchorStartLineNumber: options.fixedBoundary.startLineNumber,
-        anchorEndLineNumber: options.fixedBoundary.endLineNumber,
     });
 }
 

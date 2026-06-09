@@ -6,7 +6,6 @@ import {
 } from './pipeline-output';
 import type { BlockSelection } from '../../domain/selection/block-selection';
 import {
-    createBlockRangeResizeSelectionState,
     createBlockRangeSelectionState,
     updateBlockRangeSelectionState,
     type BlockRangeSelectionState,
@@ -128,9 +127,6 @@ function createSelectionRangeState(
     seed: Extract<PipelineEvent, { type: 'selection_start' }>['seed']
 ): BlockRangeSelectionState | null | undefined {
     if (!seed.range) return undefined;
-    if (seed.range.type === 'resize') {
-        return createBlockRangeResizeSelectionState(seed.range);
-    }
     return createBlockRangeSelectionState(seed.range);
 }
 

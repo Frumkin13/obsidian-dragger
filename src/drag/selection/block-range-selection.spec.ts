@@ -15,6 +15,14 @@ function block(startLine: number, endLine = startLine): BlockInfo {
     };
 }
 
+function boundaryFromBlock(blockInfo: BlockInfo) {
+    return {
+        startLineNumber: blockInfo.startLine + 1,
+        endLineNumber: blockInfo.endLine + 1,
+        representativeLineNumber: blockInfo.startLine + 1,
+    };
+}
+
 const doc: DocLikeWithRange = {
     lines: 8,
     length: 80,
@@ -36,7 +44,7 @@ describe('block range selection state', () => {
     it('adds a disjoint range without filling the gap', () => {
         const state = createBlockRangeSelectionState({
             doc,
-            blockInfo: block(5),
+            anchorBoundary: boundaryFromBlock(block(5)),
             selectedBlocks: [{ startLineNumber: 1, endLineNumber: 1 }],
             operation: 'add',
         });
@@ -50,7 +58,7 @@ describe('block range selection state', () => {
     it('extends only the active range while preserving other selected ranges', () => {
         const state = createBlockRangeSelectionState({
             doc,
-            blockInfo: block(5),
+            anchorBoundary: boundaryFromBlock(block(5)),
             selectedBlocks: [{ startLineNumber: 1, endLineNumber: 1 }],
             operation: 'add',
         });

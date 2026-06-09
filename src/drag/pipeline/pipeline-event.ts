@@ -1,4 +1,3 @@
-import type { BlockInfo } from '../../domain/block/block-types';
 import type { DocLikeWithRange } from '../../domain/markdown/document-types';
 import type { BlockSelection } from '../../domain/selection/block-selection';
 import type { RangeSelectionOperation } from '../../domain/selection/block-selection';
@@ -23,22 +22,15 @@ export type SelectionSeed = {
     range?: SelectionRangeSeed;
 };
 
-export type SelectionRangeSeed =
-    | {
-        type: 'range';
-        doc: DocLikeWithRange;
-        blockInfo: BlockInfo;
-        selectedBlocks: SelectedBlockRange[];
-        operation?: RangeSelectionOperation;
-    }
-    | {
-        type: 'resize';
-        doc: DocLikeWithRange;
-        selectedBlocks: SelectedBlockRange[];
-        fixedBoundary: RangeSelectionBoundary;
-        movingBoundary: RangeSelectionBoundary;
-        resolveBoundary: RangeSelectionBoundaryResolver;
-    };
+export type SelectionRangeSeed = {
+    type: 'range';
+    doc: DocLikeWithRange;
+    anchorBoundary: RangeSelectionBoundary;
+    initialBoundary?: RangeSelectionBoundary;
+    selectedBlocks: SelectedBlockRange[];
+    operation?: RangeSelectionOperation;
+    resolveBoundary?: RangeSelectionBoundaryResolver;
+};
 
 export type PipelineEvent<TPreview = unknown> =
     | { type: 'hold_start'; sessionId: string; target: HoldTarget; guardDeps?: GuardId[]; pointerType?: string | null }

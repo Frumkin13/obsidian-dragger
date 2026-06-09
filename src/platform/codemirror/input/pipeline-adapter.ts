@@ -286,7 +286,11 @@ export class PipelineAdapter {
     }
 
     clearMouseRangeSelectState(options?: { preserveVisual?: boolean }): void {
-        clearMouseRangeSelectStateAction(this, options);
+        const hadState = this.rangePointerSession !== null;
+        clearMouseRangeSelectStateAction(this);
+        if (hadState && !options?.preserveVisual) {
+            this.refreshRangeSelectionVisual();
+        }
     }
 
     enterDraggingState(
@@ -450,8 +454,7 @@ export class PipelineAdapter {
 
     private applySelectionOutput(selection: BlockSelection | null): void {
         if (!selection) {
-            this.committedRangeSelection = null;
-            this.rangeVisual.clear();
+            this.clearCommittedRangeSelection();
             return;
         }
         this.committedRangeSelection = {
@@ -512,7 +515,13 @@ export class PipelineAdapter {
     }
 
     commitRangeSelection(state: MouseRangeSelectState): void {
-        this.committedRangeSelection = commitRangeSelectionAction(this.view, state, this.rangeVisual, this.pipelineState);
+        const committed = commitRangeSelectionAction(this.view, state, this.pipelineState);
+        if (!committed) {
+            this.clearCommittedRangeSelection();
+            return;
+        }
+        this.committedRangeSelection = committed;
+        this.refreshRangeSelectionVisual();
     }
 
     clearCommittedRangeSelection(): void {

@@ -9,12 +9,12 @@ import {
 import type {
     CommittedRangeSelection,
     RangeSelectionBoundary,
+    RangeSelectionBoundaryResolver,
 } from '../../../domain/selection/range-selection';
 import {
     buildCommittedRangeSelection,
     buildRangeSelectionBoundaryFromBlock,
 } from '../../../domain/selection/range-selection';
-import { RangeSelectionVisualManager } from '../preview/range-selection-visual-manager';
 import type { HoldTarget, PipelineState } from '../../../drag/pipeline/pipeline-state';
 import type { GuardId } from '../../../drag/pipeline/pipeline-event';
 import { createRangeSelectionBoundaryResolver } from '../selection/block-boundary-resolver';
@@ -46,7 +46,6 @@ import {
 
 export interface RangeSelectionActionHost {
     readonly view: EditorView;
-    readonly rangeVisual: RangeSelectionVisualManager;
     pipelineState: PipelineState;
     rangePointerSession: MouseRangeSelectState | null;
     committedRangeSelection: CommittedRangeSelection | null;
@@ -66,6 +65,10 @@ export type RangeSelectionSessionOptions = {
     initialOperation?: RangeSelectionOperation;
     guardDeps?: GuardId[];
     sourceKind?: HoldTarget['source'];
+    baseSelectedBlocks?: SelectedBlockRange[];
+    anchorBoundary?: RangeSelectionBoundary;
+    initialBoundary?: RangeSelectionBoundary;
+    resolveBoundary?: RangeSelectionBoundaryResolver;
     deferPipelineStart?: boolean;
     deferInterception?: boolean;
     allowSecondaryDrag?: boolean;
@@ -78,7 +81,8 @@ export function beginRangeSelectionSessionAction(
     options?: RangeSelectionSessionOptions
 ): void {
     const blockInfo = source.anchorBlock;
-    const committedBlocksSnapshot = host.committedRangeSelection?.blocks.map((block) => ({ ...block })) ?? [];
+    const committedBlocksSnapshot = (options?.baseSelectedBlocks ?? host.committedRangeSelection?.blocks ?? [])
+        .map((block) => ({ ...block }));
     const pointerType = e.pointerType || null;
     const skipLongPress = options?.skipLongPress === true;
     const config = resolveRangeSelectConfig(
@@ -94,6 +98,9 @@ export function beginRangeSelectionSessionAction(
         initialOperation: options?.initialOperation,
         guardDeps: options?.guardDeps,
         sourceKind: options?.sourceKind,
+        anchorBoundary: options?.anchorBoundary,
+        initialBoundary: options?.initialBoundary,
+        resolveBoundary: options?.resolveBoundary,
         doc: host.view.state.doc,
         pointerId: e.pointerId,
         startX: e.clientX,
@@ -154,19 +161,44 @@ export function beginRangeSelectionSessionAction(
 function startRangeSelectionPipeline(host: RangeSelectionActionHost, state: MouseRangeSelectState): void {
     if (state.pipelineStarted) return;
     state.pipelineStarted = true;
+    dispatchRangeSelectionStart(host, {
+        sourceSelection: state.sourceSelection,
+        anchorBoundary: state.anchorBoundary,
+        initialBoundary: state.initialBoundary,
+        selectedBlocks: state.baseSelectedBlocks,
+        operation: state.initialOperation,
+        guardDeps: state.guardDeps,
+        resolveBoundary: state.resolveBoundary,
+    });
+}
+
+function dispatchRangeSelectionStart(
+    host: Pick<RangeSelectionActionHost, 'view' | 'dispatchPipeline'>,
+    options: {
+        sourceSelection: BlockSelection;
+        anchorBoundary: RangeSelectionBoundary;
+        initialBoundary?: RangeSelectionBoundary;
+        selectedBlocks: SelectedBlockRange[];
+        operation?: RangeSelectionOperation;
+        guardDeps?: GuardId[];
+        resolveBoundary?: RangeSelectionBoundaryResolver;
+    }
+): void {
     host.dispatchPipeline({
         type: 'selection_start',
         seed: {
-            selection: state.sourceSelection,
+            selection: options.sourceSelection,
             range: {
                 type: 'range',
                 doc: host.view.state.doc,
-                blockInfo: state.anchorBlock,
-                selectedBlocks: state.baseSelectedBlocks,
-                operation: state.initialOperation,
+                anchorBoundary: options.anchorBoundary,
+                initialBoundary: options.initialBoundary,
+                selectedBlocks: options.selectedBlocks,
+                operation: options.operation,
+                resolveBoundary: options.resolveBoundary,
             },
         },
-        guardDeps: state.guardDeps,
+        guardDeps: options.guardDeps,
     });
 }
 
@@ -180,21 +212,13 @@ export function activateMouseRangeSelectInterception(
 }
 
 export function clearMouseRangeSelectState(
-    host: Pick<RangeSelectionActionHost, 'rangePointerSession' | 'rangeVisual' | 'committedRangeSelection'>,
-    options?: { preserveVisual?: boolean }
+    host: Pick<RangeSelectionActionHost, 'rangePointerSession'>
 ): void {
     const state = host.rangePointerSession;
     if (!state) return;
     if (state.timeoutId !== null) window.clearTimeout(state.timeoutId);
     if (state.dragTimeoutId !== null) window.clearTimeout(state.dragTimeoutId);
     host.rangePointerSession = null;
-    if (!options?.preserveVisual) {
-        if (host.committedRangeSelection) {
-            host.rangeVisual.render(host.committedRangeSelection.blocks);
-        } else {
-            host.rangeVisual.clear();
-        }
-    }
 }
 
 export function updateMouseRangeSelectionFromLine(
@@ -229,11 +253,9 @@ export function updateMouseRangeSelection(
 export function commitRangeSelection(
     view: EditorView,
     state: MouseRangeSelectState,
-    rangeVisual: RangeSelectionVisualManager,
     pipelineState: PipelineState
 ): CommittedRangeSelection | null {
     if (pipelineState.type !== 'selecting') {
-        rangeVisual.clear();
         return null;
     }
     const committed = buildCommittedRangeSelection(
@@ -242,10 +264,8 @@ export function commitRangeSelection(
         state.anchorBlock
     );
     if (!committed) {
-        rangeVisual.clear();
         return null;
     }
-    rangeVisual.render(committed.blocks);
     return committed;
 }
 
@@ -257,7 +277,6 @@ export interface PointerInteractionDeps {
 export interface PointerInteractionHost {
     readonly view: EditorView;
     readonly deps: PointerInteractionDeps;
-    readonly rangeVisual: RangeSelectionVisualManager;
     readonly mobile: InputGuardController;
     readonly pointer: PointerSession;
     pipelineState: PipelineState;
@@ -355,7 +374,9 @@ function tryStartSelectionResize(
     const rawHandle = handleEl.getAttribute('data-dnd-mobile-selection-handle');
     if (rawHandle !== 'top' && rawHandle !== 'bottom') return false;
 
-    if (!startMobileSelectionResize(host, e, rawHandle)) return false;
+    const selectedBlock = readMobileSelectionHandleBlock(handleEl);
+    if (!selectedBlock) return false;
+    if (!startRangeSelectionFromMobileResizeHandle(host, e, rawHandle, selectedBlock)) return false;
 
     e.preventDefault();
     e.stopPropagation();
@@ -573,96 +594,65 @@ export function enterMobileSelectionModeFromBlock(
     const selection = host.resolveBlockSelection({ kind: 'block', block: blockInfo });
     if (!selection) return;
 
-    host.dispatchPipeline({
-        type: 'selection_start',
-        seed: {
-            selection,
-            range: {
-                type: 'range',
-                doc: host.view.state.doc,
-                blockInfo,
-                selectedBlocks: [],
-                operation: 'add',
-            },
-        },
+    dispatchRangeSelectionStart(host, {
+        sourceSelection: selection,
+        anchorBoundary: buildRangeSelectionBoundaryFromBlock(host.view.state.doc, blockInfo),
+        selectedBlocks: [],
+        operation: 'add',
         guardDeps: ['mobile-text-drag-mode'],
     });
     host.dispatchPipeline({ type: 'selection_finish' });
     host.mobile.applyInputGuardMode(INPUT_GUARD_MOBILE_SELECTION_PASSIVE, e.target);
 }
 
-function startMobileSelectionResize(
+function startRangeSelectionFromMobileResizeHandle(
     host: PointerInteractionHost,
     e: PointerEvent,
-    handle: 'top' | 'bottom'
+    handle: 'top' | 'bottom',
+    targetBlock: SelectedBlockRange
 ): boolean {
     if (host.pipelineState.type !== 'selecting') return false;
     const selectedBlocks = selectedBlocksFromPipeline(host.pipelineState);
     if (selectedBlocks.length === 0) return false;
-    const firstBlock = selectedBlocks[0];
-    const lastBlock = selectedBlocks[selectedBlocks.length - 1];
-    const fixedBoundary = buildMobileSelectionResizeBoundary(handle === 'top' ? lastBlock : firstBlock);
-    const movingBoundary = buildMobileSelectionResizeBoundary(handle === 'top' ? firstBlock : lastBlock);
+    const selectedBlock = selectedBlocks.find((block) => (
+        block.startLineNumber === targetBlock.startLineNumber
+        && block.endLineNumber === targetBlock.endLineNumber
+    ));
+    if (!selectedBlock) return false;
+    const fixedBoundary = buildMobileSelectionResizeBoundary(selectedBlock, handle === 'top' ? 'end' : 'start');
+    const movingBoundary = buildMobileSelectionResizeBoundary(selectedBlock, handle === 'top' ? 'start' : 'end');
     const sourceSelection = host.pipelineState.selection.selection;
-    host.dispatchPipeline({
-        type: 'selection_start',
-        seed: {
-            selection: sourceSelection,
-            range: {
-                type: 'resize',
-                doc: host.view.state.doc,
-                selectedBlocks,
-                fixedBoundary,
-                movingBoundary,
-                resolveBoundary: createRangeSelectionBoundaryResolver(host.view.state),
-            },
-        },
+    host.beginRangeSelectionSession(sourceSelection, e, null, {
+        skipLongPress: true,
+        initialOperation: 'add',
         guardDeps: ['mobile-text-drag-mode'],
-    });
-    host.rangePointerSession = createMobileResizeRangeSession({
-        sourceSelection,
-        selectedBlocks,
-        movingBoundary,
-        e,
+        sourceKind: 'handle',
+        baseSelectedBlocks: selectedBlocks,
+        anchorBoundary: fixedBoundary,
+        initialBoundary: movingBoundary,
+        resolveBoundary: createRangeSelectionBoundaryResolver(host.view.state),
     });
     return true;
 }
 
-function createMobileResizeRangeSession(options: {
-    sourceSelection: BlockSelection;
-    selectedBlocks: SelectedBlockRange[];
-    movingBoundary: RangeSelectionBoundary;
-    e: PointerEvent;
-}): MouseRangeSelectState {
-    const pointerType = options.e.pointerType || null;
+function buildMobileSelectionResizeBoundary(
+    block: SelectedBlockRange,
+    edge: 'start' | 'end'
+): RangeSelectionBoundary {
+    const lineNumber = edge === 'start' ? block.startLineNumber : block.endLineNumber;
     return {
-        anchorBlock: options.sourceSelection.anchorBlock,
-        sourceSelection: options.sourceSelection,
-        baseSelectedBlocks: options.selectedBlocks,
-        sourceKind: 'handle',
-        pipelineStarted: true,
-        selectionGestureStarted: true,
-        pointerId: options.e.pointerId,
-        startX: options.e.clientX,
-        startY: options.e.clientY,
-        latestX: options.e.clientX,
-        latestY: options.e.clientY,
-        pointerType,
-        dragReady: false,
-        longPressReady: true,
-        isIntercepting: true,
-        timeoutId: null,
-        dragTimeoutId: null,
-        currentLineNumber: options.movingBoundary.representativeLineNumber,
+        startLineNumber: lineNumber,
+        endLineNumber: lineNumber,
+        representativeLineNumber: lineNumber,
     };
 }
 
-function buildMobileSelectionResizeBoundary(block: SelectedBlockRange): RangeSelectionBoundary {
-    return {
-        startLineNumber: block.startLineNumber,
-        endLineNumber: block.endLineNumber,
-        representativeLineNumber: block.startLineNumber,
-    };
+function readMobileSelectionHandleBlock(handleEl: HTMLElement): SelectedBlockRange | null {
+    const startLineNumber = Number(handleEl.getAttribute('data-dnd-mobile-selection-start-line'));
+    const endLineNumber = Number(handleEl.getAttribute('data-dnd-mobile-selection-end-line'));
+    if (!Number.isInteger(startLineNumber) || !Number.isInteger(endLineNumber)) return null;
+    if (startLineNumber < 1 || endLineNumber < startLineNumber) return null;
+    return { startLineNumber, endLineNumber };
 }
 
 export function exitMobileSelectionMode(host: PointerInteractionHost): void {

@@ -63,7 +63,11 @@ describe('drag pipeline reducer', () => {
                 range: {
                     type: 'range',
                     doc: { lines: 3 },
-                    blockInfo: block,
+                    anchorBoundary: {
+                        startLineNumber: block.startLine + 1,
+                        endLineNumber: block.endLine + 1,
+                        representativeLineNumber: block.startLine + 1,
+                    },
                     selectedBlocks: [],
                 },
             },
