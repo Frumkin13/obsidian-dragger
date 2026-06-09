@@ -1,5 +1,6 @@
 export * from './domain/block/block-types';
 export * from './domain/block/block-detector';
+export * from './domain/block/block-type-conversion';
 export * from './domain/command/block-command';
 export * from './domain/command/delete-command';
 export * from './domain/command/drop-target';

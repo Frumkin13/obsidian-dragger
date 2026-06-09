@@ -76,7 +76,7 @@ function addConversionItem(menu: Menu, view: EditorView, option: BlockTypeConver
         label: option.label,
         icon: option.icon,
         run: () => {
-            if (!convertCurrentBlockType(view, option.id)) {
+            if (!convertCurrentBlockType(view, option.target)) {
                 new Notice('Unable to change block type.');
                 return;
             }
