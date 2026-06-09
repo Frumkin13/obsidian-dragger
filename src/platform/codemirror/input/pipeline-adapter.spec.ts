@@ -306,7 +306,7 @@ describe('PipelineAdapter', () => {
         handler.destroy();
     });
 
-    it('exits deferred selected-text hold when mobile drag mode becomes unavailable', () => {
+    it('exits selected-text hold when mobile drag mode becomes unavailable', () => {
         document.body.classList.add('is-mobile');
         const view = createViewStub(6);
         const sourceBlock = createBlock('- item', 0, 0);
@@ -335,10 +335,9 @@ describe('PipelineAdapter', () => {
 
         handler.beginPressPendingDrag(source!, event, {
             sourceKind: 'selected_text',
-            deferInterception: true,
         });
         expect(handler.pipelineState.type).toBe('holding');
-        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
+        expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(true);
 
         handler.handleMobileDragAvailabilityChanged(false);
 
@@ -381,7 +380,7 @@ describe('PipelineAdapter', () => {
             clientX: 60,
             clientY: 10,
         });
-        expect(downEvent.defaultPrevented).toBe(false);
+        expect(downEvent.defaultPrevented).toBe(true);
         expect(blurSpy).not.toHaveBeenCalled();
 
         dispatchPointer(window, 'pointerup', {
@@ -398,7 +397,7 @@ describe('PipelineAdapter', () => {
         handler.destroy();
     });
 
-    it('preserves touch tap-to-focus before text long-press drag starts', () => {
+    it('suppresses touch tap-to-focus during text long-press tracking', () => {
         const view = createViewStub(6);
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
         expect(line).not.toBeNull();
@@ -426,10 +425,10 @@ describe('PipelineAdapter', () => {
             clientX: 60,
             clientY: 10,
         });
-        expect(downEvent.defaultPrevented).toBe(false);
+        expect(downEvent.defaultPrevented).toBe(true);
 
         input.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: true }));
-        expect(blurSpy).not.toHaveBeenCalled();
+        expect(blurSpy).toHaveBeenCalledTimes(1);
 
         dispatchPointer(window, 'pointerup', {
             pointerId: 911,
@@ -442,7 +441,7 @@ describe('PipelineAdapter', () => {
         handler.destroy();
     });
 
-    it('blocks touch scrolling after text long-press is ready', () => {
+    it('blocks touch scrolling while text long-press is tracking', () => {
         const view = createViewStub(6);
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
         expect(line).not.toBeNull();
@@ -468,7 +467,7 @@ describe('PipelineAdapter', () => {
         });
 
         const beforeReadyMove = dispatchTouchMove(window);
-        expect(beforeReadyMove.defaultPrevented).toBe(false);
+        expect(beforeReadyMove.defaultPrevented).toBe(true);
 
         vi.advanceTimersByTime(220);
 

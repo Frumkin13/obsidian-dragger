@@ -19,7 +19,6 @@ export type PointerPressSession = {
     timeoutId: number | null;
     cancelMoveThresholdPx: number;
     startMoveThresholdPx: number;
-    suppressNativeInteraction: boolean;
 };
 
 export type PointerTerminalMode = 'up' | 'cancel';

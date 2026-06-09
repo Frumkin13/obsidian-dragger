@@ -115,7 +115,6 @@ export class PipelineAdapter {
     };
     private readonly onLostPointerCapture = (e: PointerEvent) => this.handleLostPointerCapture(e);
     private readonly onWindowKeyDown = (e: KeyboardEvent) => this.handleWindowKeyDown(e);
-    private readonly onDocumentFocusIn = (e: FocusEvent) => this.handleDocumentFocusIn(e);
     private readonly onEnterMobileSelectionMode = (e: Event) => this.handleEnterMobileSelectionMode(e);
 
     constructor(
@@ -146,7 +145,6 @@ export class PipelineAdapter {
         editorDom.addEventListener('pointerdown', this.onEditorPointerDown, true);
         editorDom.addEventListener('lostpointercapture', this.onLostPointerCapture, true);
         window.addEventListener('keydown', this.onWindowKeyDown, true);
-        editorDom.addEventListener('focusin', this.onDocumentFocusIn, true);
         editorDom.addEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
     }
 
@@ -159,7 +157,6 @@ export class PipelineAdapter {
         editorDom.removeEventListener('pointerdown', this.onEditorPointerDown, true);
         editorDom.removeEventListener('lostpointercapture', this.onLostPointerCapture, true);
         window.removeEventListener('keydown', this.onWindowKeyDown, true);
-        editorDom.removeEventListener('focusin', this.onDocumentFocusIn, true);
         editorDom.removeEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
     }
 
@@ -264,7 +261,7 @@ export class PipelineAdapter {
             MOUSE_RANGE_SELECT_LONG_PRESS_MS,
             () => this.getTouchRangeSelectLongPressMs()
         );
-        const shouldDeferInterception = pointerType === 'mouse' && !skipLongPress;
+        const waitForMouseLongPress = pointerType === 'mouse' && !skipLongPress;
         const initialRangeSelectState = createInitialRangeSelectionState({
             blockInfo,
             sourceSelection: source,
@@ -296,8 +293,7 @@ export class PipelineAdapter {
                 this.activateMouseRangeSelectInterception(state);
             }, MOBILE_DRAG_LONG_PRESS_MS);
         }
-        const shouldDeferNativeInterception = options?.deferInterception === true || shouldDeferInterception;
-        if (!shouldDeferNativeInterception) {
+        if (!waitForMouseLongPress) {
             e.preventDefault();
             e.stopPropagation();
             this.pointer.tryCapturePointer(e);
@@ -316,7 +312,7 @@ export class PipelineAdapter {
                 this.updateMouseRangeSelectionFromLine(state, state.currentLineNumber);
             }, config.longPressMs);
 
-        initialRangeSelectState.isIntercepting = !shouldDeferNativeInterception;
+        initialRangeSelectState.isIntercepting = !waitForMouseLongPress;
         initialRangeSelectState.timeoutId = timeoutId;
         initialRangeSelectState.dragTimeoutId = dragTimeoutId;
         this.rangePointerSession = initialRangeSelectState;
@@ -388,7 +384,6 @@ export class PipelineAdapter {
         options?: {
             longPressMs?: number;
             skipLongPress?: boolean;
-            deferInterception?: boolean;
             sourceKind?: HoldTarget['source'];
         }
     ): void {
@@ -396,14 +391,11 @@ export class PipelineAdapter {
         const sourceKind = options?.sourceKind ?? 'handle';
         if (!this.canStartDragForPointer(pointerType, sourceKind)) return;
 
-        const suppressNativeInteraction = options?.deferInterception !== true;
-        if (suppressNativeInteraction) {
-            e.preventDefault();
-            e.stopPropagation();
-            this.pointer.tryCapturePointer(e);
-            if (pointerType !== 'mouse') {
-                this.mobile.applyInputGuardMode(INPUT_GUARD_MOBILE_DRAG_GESTURE, e.target);
-            }
+        e.preventDefault();
+        e.stopPropagation();
+        this.pointer.tryCapturePointer(e);
+        if (pointerType !== 'mouse') {
+            this.mobile.applyInputGuardMode(INPUT_GUARD_MOBILE_DRAG_GESTURE, e.target);
         }
 
         const sessionId = this.createSessionId();
@@ -413,7 +405,7 @@ export class PipelineAdapter {
             : MOBILE_DRAG_LONG_PRESS_MS);
         const timeoutId = skipLongPress
             ? null
-            : window.setTimeout(() => this.markPressReady(sessionId, e.pointerId, pointerType, e.target), longPressMs);
+            : window.setTimeout(() => this.markPressReady(sessionId, e.pointerId, pointerType), longPressMs);
         const startMoveThresholdPx = skipLongPress
             ? 2
             : (pointerType === 'mouse' ? 4 : 8);
@@ -430,7 +422,6 @@ export class PipelineAdapter {
             timeoutId,
             cancelMoveThresholdPx: MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX,
             startMoveThresholdPx,
-            suppressNativeInteraction,
         };
         this.pointer.attachPointerListeners();
         this.pipeline.enter({
@@ -445,17 +436,10 @@ export class PipelineAdapter {
         }
     }
 
-    private markPressReady(sessionId: string, pointerId: number, pointerType: string | null, target: EventTarget | null): void {
+    private markPressReady(sessionId: string, pointerId: number, pointerType: string | null): void {
         const state = this.pressSession;
         if (!state || state.sessionId !== sessionId || state.pointerId !== pointerId) return;
         state.longPressReady = true;
-        if (!state.suppressNativeInteraction) {
-            state.suppressNativeInteraction = true;
-            if (state.pointerType !== 'mouse') {
-                this.mobile.applyInputGuardMode(INPUT_GUARD_MOBILE_DRAG_GESTURE, target);
-            }
-            this.pointer.tryCapturePointerById(state.pointerId);
-        }
         this.pipeline.enter({ type: 'hold_ready', sessionId, pointerType });
     }
 
@@ -710,7 +694,7 @@ export class PipelineAdapter {
         } else {
             this.beginPressPendingDrag(passiveSource, e, selectedHandleHit
                 ? { sourceKind }
-                : { sourceKind, deferInterception: true });
+                : { sourceKind });
         }
         return true;
     }
@@ -941,7 +925,7 @@ export class PipelineAdapter {
         if (this.pipelineState.type === 'dragging') return true;
         if (this.pipelineState.type === 'selecting') return true;
         if (this.rangePointerSession?.isIntercepting) return true;
-        if (this.pressSession) return this.pressSession.suppressNativeInteraction;
+        if (this.pressSession) return true;
         return false;
     }
 
@@ -951,7 +935,7 @@ export class PipelineAdapter {
             return !!this.rangePointerSession?.isIntercepting;
         }
         if (this.rangePointerSession?.isIntercepting) return true;
-        if (this.pressSession) return this.pressSession.suppressNativeInteraction;
+        if (this.pressSession) return true;
         return false;
     }
 

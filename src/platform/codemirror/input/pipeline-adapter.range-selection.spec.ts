@@ -2704,16 +2704,17 @@ describe('PipelineAdapter Range Selection', () => {
         }));
         vi.runOnlyPendingTimers();
 
-        dispatchPointer(farLine, 'pointerdown', {
+        const shortTapDown = dispatchPointer(farLine, 'pointerdown', {
             pointerId: 301,
             pointerType: 'touch',
-            clientX: 120,
+            clientX: 340,
             clientY: 105,
         });
+        expect(shortTapDown.defaultPrevented).toBe(true);
         dispatchPointer(window, 'pointerup', {
             pointerId: 301,
             pointerType: 'touch',
-            clientX: 120,
+            clientX: 340,
             clientY: 105,
         });
 
@@ -2727,17 +2728,18 @@ describe('PipelineAdapter Range Selection', () => {
         const contentTouchMove = dispatchTouchMove(window);
         expect(contentTouchMove.defaultPrevented).toBe(false);
 
-        dispatchPointer(farLine, 'pointerdown', {
+        const longPressDown = dispatchPointer(farLine, 'pointerdown', {
             pointerId: 302,
             pointerType: 'touch',
-            clientX: 120,
+            clientX: 340,
             clientY: 105,
         });
+        expect(longPressDown.defaultPrevented).toBe(true);
         vi.advanceTimersByTime(920);
         dispatchPointer(window, 'pointerup', {
             pointerId: 302,
             pointerType: 'touch',
-            clientX: 120,
+            clientX: 340,
             clientY: 105,
         });
 

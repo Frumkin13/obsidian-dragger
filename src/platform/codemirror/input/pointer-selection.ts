@@ -40,7 +40,6 @@ export type RangeSelectionSessionOptions = {
     initialBoundary?: RangeSelectionBoundary;
     resolveBoundary?: RangeSelectionBoundaryResolver;
     deferPipelineStart?: boolean;
-    deferInterception?: boolean;
     allowSecondaryDrag?: boolean;
 };
 
@@ -79,7 +78,6 @@ export type PointerDownDecision =
         options?: {
             longPressMs?: number;
             skipLongPress?: boolean;
-            deferInterception?: boolean;
             sourceKind?: HoldTarget['source'];
         };
     }
@@ -289,13 +287,7 @@ function decidePassiveSelectionDrag(
     return {
         type: 'start_press_drag',
         source: passiveSource,
-        options: selectedHandleHit
-            ? { sourceKind, longPressMs }
-            : {
-                sourceKind,
-                deferInterception: true,
-                longPressMs,
-            },
+        options: { sourceKind, longPressMs },
     };
 }
 
@@ -373,7 +365,7 @@ function decideRangeSelectionFromHandleWhileSelecting(
 function decideRangeSelectionThroughSharedSession(
     context: PointerSelectionContext,
     source: BlockSelection,
-    options?: Pick<RangeSelectionSessionOptions, 'skipLongPress' | 'deferPipelineStart' | 'deferInterception' | 'allowSecondaryDrag' | 'sourceKind'>
+    options?: Pick<RangeSelectionSessionOptions, 'skipLongPress' | 'deferPipelineStart' | 'allowSecondaryDrag' | 'sourceKind'>
 ): PointerDownDecision {
     if (context.pipelineState.type !== 'selecting' || context.pipelineState.selection.phase !== 'passive') return { type: 'none' };
     const blockInfo = source.anchorBlock;
@@ -408,7 +400,6 @@ function decideTextRangeSelection(
     if (!source) return { type: 'none' };
     return decideRangeSelectionThroughSharedSession(context, source, {
         deferPipelineStart: true,
-        deferInterception: true,
         allowSecondaryDrag: false,
         sourceKind: 'text',
     });
@@ -444,7 +435,6 @@ function decideTextLongPressDrag(
     if (!policy.canUseTextLongPress) return { type: 'none' };
     if (!shouldStartMobilePressDrag(context, e)) return { type: 'none' };
     if (!context.canStartDragForPointer(e.pointerType || null, 'text')) return { type: 'none' };
-    const shouldSuppressInput = context.isMobileDragModeActiveForPointer(e.pointerType || null);
 
     const inTextLineOrEmbedArea = context.isMobileTextLongPressDragEnabled
         && context.isWithinMobileTextLineOrEmbedArea(target, e.clientX, e.clientY);
@@ -462,7 +452,6 @@ function decideTextLongPressDrag(
             handle: null,
             options: {
                 deferPipelineStart: true,
-                deferInterception: !shouldSuppressInput,
                 guardDeps: ['mobile-text-drag-mode'],
                 sourceKind: 'text',
             },
@@ -472,9 +461,7 @@ function decideTextLongPressDrag(
     return {
         type: 'start_press_drag',
         source,
-        options: shouldSuppressInput
-            ? { sourceKind: 'text' }
-            : { deferInterception: true, sourceKind: 'text' },
+        options: { sourceKind: 'text' },
     };
 }
 
