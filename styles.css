@@ -373,12 +373,12 @@ body[data-dnd-list-drop-highlight="off"] .dnd-drop-highlight {
 
 .dnd-block-type-menu-row {
     display: grid;
-    grid-template-columns: 22px 1fr 16px;
+    grid-template-columns: 20px 1fr 14px;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     width: 100%;
-    min-height: 28px;
-    padding: 0 6px;
+    min-height: 24px;
+    padding: 0 4px;
     font-size: var(--font-ui-smaller);
     text-align: left;
 }
@@ -420,7 +420,7 @@ body[data-dnd-list-drop-highlight="off"] .dnd-drop-highlight {
     justify-content: center;
     width: 100%;
     min-width: 0;
-    height: 28px;
+    height: 24px;
     padding: 0;
     border-radius: 0;
     font-size: var(--font-ui-smaller);
