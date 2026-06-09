@@ -12,6 +12,7 @@ import {
     RANGE_SELECTED_HANDLE_CLASS,
 } from '../../../shared/dom-selectors';
 import {
+    groupSelectedBlocksIntoSegments,
     mergeSelectedBlocks,
     type BlockSelectionSegment,
     type SelectedBlockRange,
@@ -246,8 +247,13 @@ class RangeSelectionOverlayRenderer {
             return;
         }
 
+        const resizeBlocks = groupSelectedBlocksIntoSegments(this.view.state.doc.lines, blocks)
+            .map((segment) => ({
+                startLineNumber: segment.startLineNumber,
+                endLineNumber: segment.endLineNumber,
+            }));
         const nextKeys = new Set<string>();
-        for (const block of blocks) {
+        for (const block of resizeBlocks) {
             const anchors = this.resolveMobileResizeAnchors(block);
             if (!anchors) continue;
             const topKey = this.resizeHandleKey(block, 'top');

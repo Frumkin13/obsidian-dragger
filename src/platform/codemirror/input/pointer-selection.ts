@@ -1,7 +1,10 @@
 import type { EditorView } from '@codemirror/view';
 import { BlockType, type BlockInfo } from '../../../domain/block/block-types';
 import type { BlockSelection, RangeSelectionOperation } from '../../../domain/selection/block-selection';
-import type { SelectedBlockRange } from '../../../domain/selection/block-ranges';
+import {
+    groupSelectedBlocksIntoSegments,
+    type SelectedBlockRange,
+} from '../../../domain/selection/block-ranges';
 import type {
     RangeSelectionBoundary,
     RangeSelectionBoundaryResolver,
@@ -24,6 +27,7 @@ import {
 } from './pointer-hit-test';
 import {
     MOBILE_DRAG_LONG_PRESS_MS,
+    MOBILE_SELECTED_RANGE_DRAG_LONG_PRESS_MS,
 } from './touch-delay-policy';
 
 export type RangeSelectionSessionOptions = {
@@ -211,27 +215,33 @@ function decideSelectionResize(
     const rawHandle = handleEl.getAttribute('data-dnd-mobile-selection-handle');
     if (rawHandle !== 'top' && rawHandle !== 'bottom') return { type: 'none' };
 
-    const selectedBlock = readMobileSelectionHandleBlock(handleEl);
-    if (!selectedBlock) return { type: 'none' };
-    return decideRangeSelectionFromMobileResizeHandle(context, rawHandle, selectedBlock);
+    const targetSegment = readMobileSelectionHandleBlock(handleEl);
+    if (!targetSegment) return { type: 'none' };
+    return decideRangeSelectionFromMobileResizeHandle(context, rawHandle, targetSegment);
 }
 
 function decideRangeSelectionFromMobileResizeHandle(
     context: PointerSelectionContext,
     handle: 'top' | 'bottom',
-    targetBlock: SelectedBlockRange
+    targetSegment: SelectedBlockRange
 ): PointerDownDecision {
     if (context.pipelineState.type !== 'selecting') return { type: 'none' };
     const selectedBlocks = selectedBlocksFromPipeline(context.pipelineState);
     if (selectedBlocks.length === 0) return { type: 'none' };
-    const selectedBlock = selectedBlocks.find((block) => (
-        block.startLineNumber === targetBlock.startLineNumber
-        && block.endLineNumber === targetBlock.endLineNumber
-    ));
-    if (!selectedBlock) return { type: 'none' };
+    const selectedSegment = groupSelectedBlocksIntoSegments(context.view.state.doc.lines, selectedBlocks)
+        .find((segment) => (
+            segment.startLineNumber === targetSegment.startLineNumber
+            && segment.endLineNumber === targetSegment.endLineNumber
+        ));
+    if (!selectedSegment) return { type: 'none' };
 
-    const fixedBoundary = buildMobileSelectionResizeBoundary(selectedBlock, handle === 'top' ? 'end' : 'start');
-    const movingBoundary = buildMobileSelectionResizeBoundary(selectedBlock, handle === 'top' ? 'start' : 'end');
+    const baseSelectedBlocks = selectedBlocks.filter((block) => (
+        block.endLineNumber < selectedSegment.startLineNumber
+        || block.startLineNumber > selectedSegment.endLineNumber
+    ));
+
+    const fixedBoundary = buildMobileSelectionResizeBoundary(selectedSegment, handle === 'top' ? 'end' : 'start');
+    const movingBoundary = buildMobileSelectionResizeBoundary(selectedSegment, handle === 'top' ? 'start' : 'end');
     return {
         type: 'start_range_selection',
         source: context.pipelineState.selection.selection,
@@ -244,7 +254,7 @@ function decideRangeSelectionFromMobileResizeHandle(
             initialOperation: 'add',
             guardDeps: ['mobile-text-drag-mode'],
             sourceKind: 'handle',
-            baseSelectedBlocks: selectedBlocks,
+            baseSelectedBlocks,
             anchorBoundary: fixedBoundary,
             initialBoundary: movingBoundary,
             resolveBoundary: createRangeSelectionBoundaryResolver(context.view.state),
@@ -273,12 +283,19 @@ function decidePassiveSelectionDrag(
     if (context.pipelineState.type === 'selecting' && context.hasActiveRangePointerSession) {
         return { type: 'retarget_mobile_range_selection' };
     }
+    const longPressMs = pointerType !== 'mouse' && context.isMobileEnvironment
+        ? MOBILE_SELECTED_RANGE_DRAG_LONG_PRESS_MS
+        : undefined;
     return {
         type: 'start_press_drag',
         source: passiveSource,
         options: selectedHandleHit
-            ? { sourceKind }
-            : { sourceKind, deferInterception: true },
+            ? { sourceKind, longPressMs }
+            : {
+                sourceKind,
+                deferInterception: true,
+                longPressMs,
+            },
     };
 }
 

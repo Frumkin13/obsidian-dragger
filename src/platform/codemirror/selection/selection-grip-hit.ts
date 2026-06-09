@@ -1,9 +1,6 @@
 import type { BlockInfo } from '../../../domain/block/block-types';
 import {
-    CODEMIRROR_CONTENT_SELECTOR,
-    CODEMIRROR_GUTTERS_SELECTOR,
     DRAG_SOURCE_LINE_CLASS,
-    DRAG_HANDLE_CLASS,
     RANGE_SELECTED_HANDLE_CLASS,
 } from '../../../shared/dom-selectors';
 import {
@@ -33,53 +30,6 @@ function getRangeSelectionDocLineCount(selection: RangeSelectionView): number {
         selection.templateBlock.endLine + 1,
         ...selection.blocks.map((block) => block.endLineNumber)
     );
-}
-
-function getRangeSelectionAnchorMaxX(
-    selection: RangeSelectionView,
-    resolveAnchorSpan: ResolveAnchorSpan
-): number | null {
-    let maxX: number | null = null;
-    const segments = groupSelectedBlocksIntoSegments(
-        getRangeSelectionDocLineCount(selection),
-        selection.blocks
-    );
-    for (const segment of segments) {
-        const anchorSpan = resolveAnchorSpan(segment);
-        if (!anchorSpan) continue;
-        maxX = maxX === null ? anchorSpan.x : Math.max(maxX, anchorSpan.x);
-    }
-    return maxX;
-}
-
-type ShouldClearRangeSelectionOptions = {
-    selection: RangeSelectionView | null;
-    target: HTMLElement;
-    clientX: number;
-    pointerType: string | null;
-    resolveAnchorSpan: ResolveAnchorSpan;
-    isWithinContentTolerance: (clientX: number) => boolean;
-    contentDOM: HTMLElement;
-};
-
-export function shouldClearRangeSelectionOnPointerDown(options: ShouldClearRangeSelectionOptions): boolean {
-    const selection = options.selection;
-    if (!selection) return false;
-    if (options.target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`)) return false;
-    if (options.target.closest(`.${DRAG_HANDLE_CLASS}`)) return false;
-
-    if (options.pointerType && options.pointerType !== 'mouse') {
-        if (!options.isWithinContentTolerance(options.clientX)) {
-            return true;
-        }
-        const inContent = options.contentDOM.contains(options.target) || !!options.target.closest(CODEMIRROR_CONTENT_SELECTOR);
-        const inGutter = !!options.target.closest(CODEMIRROR_GUTTERS_SELECTOR);
-        return !inContent && !inGutter;
-    }
-
-    const anchorMaxX = getRangeSelectionAnchorMaxX(selection, options.resolveAnchorSpan);
-    if (anchorMaxX === null) return false;
-    return options.clientX > anchorMaxX + RANGE_SELECTION_GRIP_HIT_X_PADDING_PX;
 }
 
 type IsRangeSelectionGripHitOptions = {

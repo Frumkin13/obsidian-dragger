@@ -1004,7 +1004,7 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 
-    it('clears committed selection when clicking content area on the right side', () => {
+    it('keeps committed selection when pointerdown is not a selection command', () => {
         const view = createViewStub(8);
         const handle = appendHandleForBlockStart(view, 1);
         appendHandleForBlockStart(view, 5);
@@ -1054,7 +1054,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientY: 40,
         });
 
-        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).toHaveLength(0);
+        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).not.toHaveLength(0);
         expect(view.dom.querySelector('.dnd-range-selected-line')).toBeNull();
         handler.destroy();
     });
@@ -1172,7 +1172,7 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 
-    it('keeps committed selection on touch content tap and clears it when editor input gains focus', () => {
+    it('keeps committed selection on touch content tap and editor input focus', () => {
         const view = createViewStub(8);
         const handle = appendHandleForBlockStart(view, 1);
         appendHandleForBlockStart(view, 5);
@@ -1227,7 +1227,7 @@ describe('PipelineAdapter Range Selection', () => {
         view.dom.appendChild(input);
         input.dispatchEvent(new FocusEvent('focusin', { bubbles: true, cancelable: true }));
 
-        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).toHaveLength(0);
+        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).not.toHaveLength(0);
         handler.destroy();
     });
 
@@ -2133,7 +2133,7 @@ describe('PipelineAdapter Range Selection', () => {
         expect(beginPointerDragSession).not.toHaveBeenCalled();
         expect(onDropPreview).not.toHaveBeenCalled();
 
-        vi.advanceTimersByTime(220);
+        vi.advanceTimersByTime(130);
         dispatchPointer(window, 'pointermove', {
             pointerId: 401,
             pointerType: 'touch',
@@ -2196,7 +2196,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 10,
         });
-        vi.advanceTimersByTime(220);
+        vi.advanceTimersByTime(130);
         dispatchPointer(window, 'pointermove', {
             pointerId: 405,
             pointerType: 'touch',
@@ -2374,7 +2374,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 120,
             clientY: 10,
         });
-        vi.advanceTimersByTime(220);
+        vi.advanceTimersByTime(130);
         dispatchPointer(window, 'pointermove', {
             pointerId: 502,
             pointerType: 'touch',
@@ -2399,7 +2399,7 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 
-    it('resizes mobile selection symmetrically from top and bottom handles', () => {
+    it('extends and shrinks mobile selection from segment top and bottom handles', () => {
         document.body.classList.add('is-mobile');
         const view = createViewStub(8);
         const lineHandles = [
@@ -2470,8 +2470,8 @@ describe('PipelineAdapter Range Selection', () => {
         for (const handle of lineHandles) {
             expect(selectedHandles).toContain(handle);
         }
-        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-top.is-active')).toHaveLength(6);
-        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-bottom.is-active')).toHaveLength(6);
+        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-top.is-active')).toHaveLength(1);
+        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-bottom.is-active')).toHaveLength(1);
 
         const topResizeHandle = view.dom.querySelector<HTMLElement>('.dnd-mobile-selection-resize-handle-top');
         expect(topResizeHandle).not.toBeNull();
@@ -2503,12 +2503,44 @@ describe('PipelineAdapter Range Selection', () => {
         });
 
         selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
-        expect(selectedHandles).toHaveLength(6);
-        for (const handle of lineHandles) {
+        expect(selectedHandles).toHaveLength(4);
+        for (const handle of lineHandles.slice(2, 6)) {
             expect(selectedHandles).toContain(handle);
         }
-        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-top.is-active')).toHaveLength(6);
-        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-bottom.is-active')).toHaveLength(6);
+        expect(selectedHandles).not.toContain(lineHandles[0]);
+        expect(selectedHandles).not.toContain(lineHandles[1]);
+        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-top.is-active')).toHaveLength(1);
+        expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-bottom.is-active')).toHaveLength(1);
+        expect(view.dom.querySelector<HTMLElement>('.dnd-mobile-selection-resize-handle-top')?.getAttribute('data-dnd-mobile-selection-start-line')).toBe('3');
+        expect(view.dom.querySelector<HTMLElement>('.dnd-mobile-selection-resize-handle-bottom')?.getAttribute('data-dnd-mobile-selection-end-line')).toBe('6');
+
+        const shrinkBottomHandle = view.dom.querySelector<HTMLElement>('.dnd-mobile-selection-resize-handle-bottom');
+        expect(shrinkBottomHandle).not.toBeNull();
+        dispatchPointer(shrinkBottomHandle!, 'pointerdown', {
+            pointerId: 209,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 105,
+        });
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 209,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 70,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 209,
+            pointerType: 'touch',
+            clientX: 12,
+            clientY: 70,
+        });
+
+        selectedHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-range-selected-handle'));
+        expect(selectedHandles).toHaveLength(2);
+        expect(selectedHandles).toContain(lineHandles[2]);
+        expect(selectedHandles).toContain(lineHandles[3]);
+        expect(view.dom.querySelector<HTMLElement>('.dnd-mobile-selection-resize-handle-top')?.getAttribute('data-dnd-mobile-selection-start-line')).toBe('3');
+        expect(view.dom.querySelector<HTMLElement>('.dnd-mobile-selection-resize-handle-bottom')?.getAttribute('data-dnd-mobile-selection-end-line')).toBe('4');
         document.body.classList.remove('is-mobile');
         handler.destroy();
     });

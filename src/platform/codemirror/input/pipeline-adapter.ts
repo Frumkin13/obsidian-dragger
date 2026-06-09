@@ -17,7 +17,6 @@ import {
     resolveRangeSelectConfig,
 } from './range-selection-gesture-state';
 import {
-    shouldClearRangeSelectionOnPointerDown as shouldClearRangeSelectionOnPointerDownByGrip,
     isRangeSelectionGripHit as isRangeSelectionGripHitByGrip,
     type RangeSelectionView,
 } from '../selection/selection-grip-hit';
@@ -109,13 +108,10 @@ export class PipelineAdapter {
             this.clearRangeSelection();
         }
 
-        const handled = this.executePointerDownDecision(
+        this.executePointerDownDecision(
             decidePointerDown(this.buildPointerSelectionContext(), e, target),
             e
         );
-        if (!handled) {
-            this.clearPassiveSelectionForPointerDown(e, target);
-        }
     };
     private readonly onLostPointerCapture = (e: PointerEvent) => this.handleLostPointerCapture(e);
     private readonly onWindowKeyDown = (e: KeyboardEvent) => this.handleWindowKeyDown(e);
@@ -808,32 +804,6 @@ export class PipelineAdapter {
         };
     }
 
-    private shouldClearPassiveSelectionOnPointerDown(
-        target: HTMLElement,
-        clientX: number,
-        pointerType: string | null
-    ): boolean {
-        return shouldClearRangeSelectionOnPointerDownByGrip({
-            selection: this.buildPassiveSelectionView(),
-            target,
-            clientX,
-            pointerType,
-            resolveAnchorSpan: (range) => this.rangeVisual.resolveRangeAnchorSpan(range),
-            isWithinContentTolerance: (x) => this.mobile.isWithinContentTolerance(x),
-            contentDOM: this.view.contentDOM,
-        });
-    }
-
-    private clearPassiveSelectionForPointerDown(e: PointerEvent, target: HTMLElement): void {
-        if (!this.isMultiLineSelectionEnabled()) return;
-        if (e.button !== 0 || !this.hasPassivePipelineSelection()) return;
-
-        const pointerType = e.pointerType || null;
-        if (this.isSelectionDragGripHit(target, e.clientX, e.clientY, pointerType)) return;
-        if (!this.shouldClearPassiveSelectionOnPointerDown(target, e.clientX, pointerType)) return;
-        this.clearRangeSelection();
-    }
-
     private isSelectionDragGripHit(
         target: HTMLElement,
         clientX: number,
@@ -947,15 +917,7 @@ export class PipelineAdapter {
     }
 
     private handleDocumentFocusIn(e: FocusEvent): void {
-        const input = readFocusInput('focusin', e);
-        if (
-            this.hasPassivePipelineSelection()
-            && this.isMobileEnvironment()
-            && input.target instanceof HTMLElement
-            && this.mobile.shouldSuppressFocusTarget(input.target)
-        ) {
-            this.clearRangeSelection();
-        }
+        readFocusInput('focusin', e);
         if (!this.shouldSuppressTextInputForActiveInteraction()) return;
         this.mobile.suppressMobileKeyboard(e.target);
     }

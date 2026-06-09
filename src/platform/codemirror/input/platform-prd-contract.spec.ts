@@ -88,4 +88,24 @@ describe('CodeMirror input PRD contracts', () => {
 
         expect(offenders).toEqual([]);
     });
+
+    it('does not clear passive range selection from unhandled pointerdown fallback', () => {
+        const forbidden = /\b(?:clearPassiveSelectionForPointerDown|shouldClearPassiveSelectionOnPointerDown|shouldClearRangeSelectionOnPointerDown)\b/;
+        const offenders = readInputProductionFiles()
+            .filter((file) => forbidden.test(file.text))
+            .map((file) => file.rel);
+
+        expect(offenders).toEqual([]);
+    });
+
+    it('does not treat focusin as an implicit range-selection exit', () => {
+        const offenders = readInputProductionFiles()
+            .filter((file) => {
+                const match = /private handleDocumentFocusIn[\s\S]*?\n    }\n/.exec(file.text);
+                return !!match && /clearRangeSelection\s*\(/.test(match[0]);
+            })
+            .map((file) => file.rel);
+
+        expect(offenders).toEqual([]);
+    });
 });
