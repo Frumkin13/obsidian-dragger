@@ -286,6 +286,17 @@ function finishRangeSelectingPointer(
     const rangeState = host.rangePointerSession;
     if (!rangeState) return;
     if (rangeState.pointerId !== -1 && e.pointerId !== rangeState.pointerId) return;
+    if (
+        mode === 'up'
+        && !rangeState.longPressReady
+        && host.pipelineState.type === 'idle'
+        && shouldOpenBlockTypeMenuFromShortTextTap(host, e.pointerType || null, rangeState.sourceKind)
+    ) {
+        e.preventDefault();
+        e.stopPropagation();
+        host.openBlockTypeMenuForTap(rangeState.sourceSelection, e);
+        return;
+    }
     if (mode === 'up' && !rangeState.longPressReady && rangeState.pointerType === 'mouse') {
         e.preventDefault();
         e.stopPropagation();
@@ -333,5 +344,25 @@ function finishPressPendingPointer(
     const pressState = host.pressSession;
     if (!pressState) return;
     if (e.pointerId !== pressState.pointerId) return;
+    if (
+        mode === 'up'
+        && !pressState.longPressReady
+        && (host.pipelineState.type === 'holding' || host.pipelineState.type === 'ready_to_drag')
+        && shouldOpenBlockTypeMenuFromShortTextTap(host, e.pointerType || null, host.pipelineState.hold.target.source)
+    ) {
+        e.preventDefault();
+        e.stopPropagation();
+        host.openBlockTypeMenuForTap(host.pipelineState.hold.target.selection, e);
+        return;
+    }
     host.abortForGestureCancel(mode === 'up' ? 'press_cancelled' : 'pointer_cancelled', e.pointerType || null);
+}
+
+function shouldOpenBlockTypeMenuFromShortTextTap(
+    host: PipelineAdapter,
+    pointerType: string | null,
+    sourceKind: string | null | undefined
+): boolean {
+    return sourceKind === 'text'
+        && host.isMobileDragModeActiveForPointer(pointerType);
 }

@@ -197,6 +197,98 @@ describe('PipelineAdapter', () => {
         handler.destroy();
     });
 
+    it('opens block type menu from a short text tap while mobile drag mode is enabled', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        const openBlockTypeMenu = vi.fn();
+
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => null, point: () => sourceBlock }),
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileDragModeRequired: () => true,
+            isMobileDragModeEnabled: () => true,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+            openBlockTypeMenu,
+        }));
+
+        handler.attach();
+        const downEvent = dispatchPointer(line!, 'pointerdown', {
+            pointerId: 92,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 92,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+
+        expect(downEvent.defaultPrevented).toBe(true);
+        expect(openBlockTypeMenu).not.toHaveBeenCalled();
+        vi.runOnlyPendingTimers();
+        expect(openBlockTypeMenu).toHaveBeenCalledTimes(1);
+        expect(openBlockTypeMenu).toHaveBeenCalledWith(sourceBlock, null);
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(handler.pipelineState.type).toBe('idle');
+        handler.destroy();
+    });
+
+    it('opens block type menu from single-block text tap while mobile drag mode is enabled', () => {
+        const view = createViewStub(6);
+        const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+        expect(line).not.toBeNull();
+        const sourceBlock = createBlock('- item', 0, 0);
+        const beginPointerDragSession = vi.fn();
+        const openBlockTypeMenu = vi.fn();
+
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => null, point: () => sourceBlock }),
+            isBlockInsideRenderedTableCell: () => false,
+            isMultiLineSelectionEnabled: () => false,
+            isMobileDragModeRequired: () => true,
+            isMobileDragModeEnabled: () => true,
+            isMobileTextLongPressDragEnabled: () => true,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            onDropPreview: vi.fn(),
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+            openBlockTypeMenu,
+        }));
+
+        handler.attach();
+        dispatchPointer(line!, 'pointerdown', {
+            pointerId: 93,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 93,
+            pointerType: 'touch',
+            clientX: 60,
+            clientY: 10,
+        });
+
+        expect(openBlockTypeMenu).not.toHaveBeenCalled();
+        vi.runOnlyPendingTimers();
+        expect(openBlockTypeMenu).toHaveBeenCalledTimes(1);
+        expect(openBlockTypeMenu).toHaveBeenCalledWith(sourceBlock, null);
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(handler.pipelineState.type).toBe('idle');
+        handler.destroy();
+    });
+
     it('enters mobile selection from text long-long-press while mobile drag mode is enabled', () => {
         const view = createViewStub(6);
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');

@@ -809,6 +809,23 @@ export class PipelineAdapter {
         this.resetInteractionSession(options);
     }
 
+    openBlockTypeMenuForTap(selection: BlockSelection, e: MouseEvent | PointerEvent | null): void {
+        const pointerType = e && 'pointerType' in e ? (e.pointerType || null) : null;
+        this.resetInteractionSession({
+            shouldFinishDragSession: false,
+            shouldHideDropPreview: false,
+            cancelReason: null,
+            pointerType,
+        });
+        if (pointerType === 'mouse') {
+            this.deps.openBlockTypeMenu?.(selection.anchorBlock, e);
+            return;
+        }
+        window.setTimeout(() => {
+            this.deps.openBlockTypeMenu?.(selection.anchorBlock, null);
+        }, 0);
+    }
+
     private handlePointerUp(e: PointerEvent): void {
         handlePointerUp(this, e);
     }
