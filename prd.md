@@ -82,7 +82,6 @@ Platform Adapter -> Interaction Event -> Drag State/Pipeline -> Platform Adapter
 - 不重新设计 Obsidian 命令栏样式。
 - 不把 CodeMirror DOM 逻辑放进 `drag` 层。
 - 不把 pointer capture、contenteditable、focus guard、scroll lock 放进 `drag` 层。
-- 不一次性重写全部 drag pipeline。
 
 ---
 
@@ -732,63 +731,275 @@ platform 必须在退出路径清理：
 
 ## 13. Target Drag File Architecture
 
-本次 PRD 不重新设计 `domain`。`domain` 当前已经承接块、选择、命令、事务等纯算法，drag 只依赖它即可。后续如发现 domain 缺少某个纯函数，再按最小范围补充，不在本 PRD 里重画 domain 结构。
+本次 PRD 不重新设计 `domain`。`domain` 承接块、选择、命令、事务等纯算法，drag 只依赖它。range 底层算法，例如 block range normalize / merge / subtract / collect，必须留在 `domain/selection`。drag 可以保存 range interaction state，但不能重新实现底层 range 数学。
 
-本次需要精确设计的是 `src/drag` 和 `src/platform/codemirror`。
+本次需要精确设计的是 `src/drag` 的完整 `DragPipeline` 对象，以及 `src/platform/codemirror` 如何只做输入翻译和输出执行。
 
-### 13.1 当前 drag 结构
+### 13.1 当前 `reducePipeline` 是什么
 
-当前文件：
+当前 `reducePipeline(state, event)` 是一个纯 reducer：
 
-```text
-src/drag/
-  architecture-boundary.spec.ts
-  drop/
-    drag-drop-snapshot.ts
-  effects/
-    drag-effect.ts
-    drag-effect-executor.ts
-  intent/
-    drag-intent.ts
-    drag-intent.spec.ts
-  lifecycle/
-    drag-lifecycle.ts
-    drag-lifecycle-emitter.ts
-    drag-lifecycle-protocol.ts
-  mode/
-    drag-interaction-mode.ts
-    drag-interaction-mode.spec.ts
-  pipeline/
-    drag-controller.ts
-    drag-controller.spec.ts
-    drag-flow-controller.ts
-    drag-input.ts
-  selection/
-    block-range-selection.ts
-    block-range-selection.spec.ts
-  state/
-    drag-session.ts
-    drag-state.ts
+```ts
+reducePipeline(state, event) -> { state: PipelineState; outputs: PipelineOutput[] }
 ```
 
-当前问题：
+它只根据传入的 state 和 event 计算下一份 state。它不是 pipeline 对象，也不拥有运行时生命周期。它不保存：
 
-- `pipeline` 只覆盖已经进入 active drag 后的 begin / preview / commit / cancel。
-- `intent` 只是简单 facts -> intent，不是主 pipeline。
-- `mode` 里出现 mobile-specific interaction mode，和目标边界冲突。
-- `effects` 包含 `show_drop_preview` 这类 platform-ish 输出，容易把 DOM 视觉职责带进 drag。
-- `state` 只描述 `ActiveDrag`，不包含 holding / ready_to_drag / selecting。
-- `lifecycle` 事件还停留在 `drag_started / drag_target_changed / drag_drop_commit` 这条 active drag 线，不能完整表达 selection 和 holding 生命周期。
+- 当前 passive / committed selection 的唯一事实源。
+- 当前 drag source visual 的生命周期。
+- pointer session、timer、capture、drop preview 等 platform 技术状态。
+- pipeline output 的执行状态。
+- terminal path 上需要输出哪些统一清理事实。
 
-### 13.2 目标 drag 结构
+因此当前 platform adapter 必须在 reducer 外部补状态，例如 `committedRangeSelection`、`rangePointerSession`、`activeDragSession`、`pressSession`。这就是 platform 层变复杂的根源。
 
-目标结构只保留两个核心目录：`pipeline` 和 `selection`。`state`、`intent`、`effects` 仍然是需要的概念，但不作为目录存在：
+目标不是删除 reducer，而是把 reducer 变成 `DragPipeline` 内部的纯状态转换函数。外部平台不直接管理业务状态，也不直接拼接多个 reducer 调用形成业务生命周期。
 
-- state -> `pipeline/pipeline-state.ts`
-- intent -> `pipeline/pipeline-event.ts`
-- effects -> `pipeline/pipeline-output.ts`
+### 13.2 目标：drag 层暴露一个完整 Pipeline 对象
 
-目标文件精确到具体文件：
+目标 public API：
+
+```ts
+export function createDragPipeline<TDropPreview = unknown>(
+  options?: DragPipelineOptions<TDropPreview>
+): DragPipeline<TDropPreview>;
+
+export interface DragPipeline<TDropPreview = unknown> {
+  readonly state: PipelineState<TDropPreview>;
+  enter(event: PipelineEvent<TDropPreview>): PipelineResult<TDropPreview>;
+  clear(): PipelineResult<TDropPreview>;
+}
+```
+
+`DragPipeline` 是业务 interaction lifecycle 的唯一 owner。platform 只调用 `enter(event)`，pipeline 更新状态并可通过 `onOutputs` 让 platform 消费 outputs。
+
+```ts
+export type PipelineResult<TDropPreview = unknown> = {
+  previous: PipelineState<TDropPreview>;
+  current: PipelineState<TDropPreview>;
+  outputs: PipelineOutput<TDropPreview>[];
+};
+```
+
+必须满足：
+
+- `DragPipeline` 保存完整业务状态。
+- `DragPipeline` 复用现有 `PipelineState` / `PipelineEvent` / `PipelineOutput` / `pipeline-drop` / `drag/selection` 基础设施。
+- 本重构不是新建第二套 pipeline 类型，而是把现有纯 reducer 和现有状态结构串成一个拥有生命周期的对象。
+- `DragPipeline` 负责所有业务 lifecycle 转换。
+- `DragPipeline` 决定 selection 创建、更新、保留、清理。
+- `DragPipeline` 统一维护 drag source visual lifecycle。
+- `DragPipeline` 不执行 DOM side effects。
+- `DragPipeline` 不知道 mobile、desktop、CodeMirror、Obsidian、PointerEvent、TouchEvent。
+
+### 13.3 PipelineState
+
+目标 state 不再把 passive selection 存在 platform adapter 外部。selection 是 pipeline state 的一部分。
+
+```ts
+export type PipelineState<TDropPreview = unknown> =
+  | { type: 'idle' }
+  | { type: 'holding'; hold: HoldContext }
+  | { type: 'ready_to_drag'; hold: HoldContext }
+  | { type: 'selecting'; selection: SelectionContext }
+  | { type: 'dragging'; drag: DragContext<TDropPreview> };
+```
+
+```ts
+export type SelectionContext = {
+  selection: BlockSelection;
+  phase: 'adjusting' | 'passive';
+  guardDeps: GuardId[];
+  rangeState?: BlockRangeSelectionState;
+};
+```
+
+```ts
+export type ReadyToDragState = {
+  type: 'ready_to_drag';
+  hold: HoldContext;
+};
+```
+
+```ts
+export type SelectingState = {
+  type: 'selecting';
+  selection: SelectionContext;
+};
+```
+
+```ts
+export type DraggingState<TDropPreview = unknown> = {
+  type: 'dragging';
+  drag: DragContext<TDropPreview>;
+};
+```
+
+```ts
+export type HoldContext = {
+  sessionId: string;
+  target: HoldTarget;
+  guardDeps: GuardId[];
+  retainedSelection?: SelectionContext;
+};
+```
+
+```ts
+export type HoldTarget = {
+  selection: BlockSelection;
+  source: 'handle' | 'text' | 'selected_text' | 'command';
+};
+```
+
+```ts
+规则：
+
+- `selecting(passive)` 是 committed selection，不允许 platform 额外保存 `committedRangeSelection`。
+- `selecting(passive) -> hold_start` 时，pipeline 可以在 `HoldContext.retainedSelection` 保留 passive selection；按住但未拖动取消时回到 passive selection，真正 `drag_start` 才清 selection visual。
+- `dragging(selection)` 是唯一拖拽状态。
+- 单块拖拽、多块拖拽、多区域拖拽完全同路；区别只在 `BlockSelection.ranges` 内容。
+- 从 `selecting(passive)` 启动 drag 时，pipeline 进入同一个 `dragging(selection)`。
+- 不引入 `single-block` / `range-selection` 两种 drag origin。
+- drag terminal path 统一输出 source visual clear；selection 是否存在由 pipeline state 本身决定，不由 platform 额外保存。
+
+### 13.4 PipelineEvent
+
+platform 提交平台无关事件：
+
+```ts
+export type PipelineEvent<TDropPreview = unknown> =
+  | { type: 'hold_start'; sessionId: string; target: HoldTarget; guardDeps?: GuardId[]; pointerType?: string | null }
+  | { type: 'hold_ready'; sessionId: string }
+  | { type: 'selection_start'; seed: SelectionSeed; guardDeps?: GuardId[] }
+  | { type: 'selection_change'; boundary: RangeSelectionBoundary; docLines: number; resolveBoundary: RangeSelectionBoundaryResolver }
+  | { type: 'selection_finish' }
+  | { type: 'selection_clear' }
+  | { type: 'drag_start'; sessionId: string; drop: DragDropSnapshot<TDropPreview> }
+  | { type: 'drag_over'; sessionId: string; drop: DragDropSnapshot<TDropPreview> }
+  | { type: 'drop'; sessionId: string; resolution: DropResolution<TDropPreview> }
+  | { type: 'cancel'; sessionId?: string; reason: DragCancelReason; pointerType?: string | null }
+  | { type: 'guard_unavailable'; guardId: GuardId }
+  | { type: 'destroy' };
+```
+
+重要语义：
+
+- `hold_start` 的 `target` 必须已经是平台无关的 `HoldTarget`。
+- `selection_start/change` 只接收 domain boundary，不接收 DOM 坐标。
+- `drag_start` 只表示真正进入 drag，不表示 pointerdown。
+- `drop` 只接收 platform 已解析好的 `DropResolution`。
+- mobile text long press、desktop handle press、mobile virtual resize handle 都只是不同的输入翻译，不是不同 pipeline。
+
+### 13.5 PipelineOutput
+
+drag core 输出业务事实，platform 根据这些事实执行 DOM/UI side effects。
+
+```ts
+export type PipelineOutput<TDropPreview = unknown> =
+  | { type: 'state_changed'; state: PipelineState<TDropPreview> }
+  | { type: 'selection_changed'; selection: BlockSelection | null }
+  | { type: 'drag_source_changed'; selection: BlockSelection | null }
+  | { type: 'drag_started'; selection: BlockSelection }
+  | { type: 'drag_over'; selection: BlockSelection; drop: DragDropSnapshot<TDropPreview> }
+  | { type: 'dropped'; selection: BlockSelection; drop: DragDropSnapshot<TDropPreview> }
+  | { type: 'cancelled'; selection: BlockSelection | null; reason: DragCancelReason }
+  | { type: 'command_ready'; command: BlockCommand }
+  | { type: 'terminal'; reason: 'drop' | 'cancel' | 'destroy' | 'guard_unavailable' };
+```
+
+不允许输出：
+
+- `show_drop_preview`
+- `hide_drop_preview`
+- `lock_scroll`
+- `set_pointer_capture`
+- `suppress_focus`
+- CSS class / selector / DOM node
+
+platform 可以把 `drag_over` 翻译成 preview DOM 更新，可以把 `selection_changed` 翻译成 passive selection visual 更新，可以把 `drag_source_changed` 翻译成当前 drag source visual 更新，可以把 `terminal` 翻译成 pointer capture / scroll lock / input guard 清理。
+
+### 13.6 Lifecycle Rules
+
+完整生命周期必须由 `DragPipeline` 维护。
+
+```text
+idle
+  -> hold_start
+holding
+  -> hold_ready
+ready_to_drag
+  -> drag_start
+dragging
+  -> drag_over*
+  -> drop | cancel | destroy
+idle
+```
+
+selection 生命周期：
+
+```text
+idle
+  -> selection_start
+selecting(adjusting)
+  -> selection_change*
+  -> selection_finish
+selecting(passive)
+  -> selection_change / selection_start for resize or append
+  -> hold_start from selected range
+  -> selection_clear | guard_unavailable | destroy
+```
+
+selection drag 生命周期：
+
+```text
+selecting(passive)
+  -> hold_start(source = current selection)
+holding(retainedSelection = current selection)
+  -> hold_ready
+ready_to_drag
+  -> drag_start
+dragging(selection)
+  -> drop | cancel | destroy
+idle
+```
+
+规则：
+
+- 已选 range 启动 drag 时，不走独立 pipeline，也不使用独立 drag origin。
+- `holding/ready_to_drag` 如果来自 passive selection，必须由 pipeline state 保留 `retainedSelection`；press cancel 回到 `selecting(passive)`，不能让 platform 重新拼一份 selection。
+- `dragging(selection)` 的 `selection` 可以是单块、多块或多区域。
+- `drag_start` 必须输出 `drag_source_changed(selection)`。
+- 所有 drag terminal path 必须输出 `drag_source_changed(null)`。
+- 如果 terminal 前当前业务状态仍是 `selecting(passive)`，pipeline state 转移本身负责结束该状态；platform 不能额外保存一份 committed selection 来决定是否清。
+- `guard_unavailable(guardId)` 如果命中当前 selecting/holding/dragging 的 guardDeps，必须进入 terminal path 并输出对应清理事实。
+- `selection_finish` 不回到 idle；它进入 `selecting(passive)`。
+
+### 13.7 Internal reducer
+
+对外不暴露 reducer 概念。drag 内部保留一个纯 transition 函数：
+
+```ts
+function transitionPipelineState(state, event): PipelineTransitionResult
+```
+
+外部 platform 不能 import 或直接调用 transition/reducer。外部只能调用：
+
+```ts
+pipeline.enter(event)
+```
+
+`DragPipeline.enter` 负责：
+
+- 保存 previous state。
+- 调用内部 transition。
+- 更新内部 state。
+- 补齐 terminal outputs。
+- 调用可选 `onOutputs(outputs, result)`。
+- 返回 `{ previous, current, outputs }`。
+
+这样 transition 仍然可单测，pipeline 对象负责生命周期完整性。代码里不需要继续使用 `reducer` 作为 public API 命名。
+
+### 13.8 Target drag file architecture
 
 ```text
 src/drag/
@@ -796,6 +1007,7 @@ src/drag/
   architecture-boundary.spec.ts
 
   pipeline/
+    drag-pipeline.ts
     pipeline-event.ts
     pipeline-state.ts
     pipeline-output.ts
@@ -803,7 +1015,7 @@ src/drag/
     pipeline-exit.ts
     pipeline-guard.ts
     pipeline-drop.ts
-    pipeline-reducer.spec.ts
+    drag-pipeline.spec.ts
     pipeline-exit.spec.ts
     pipeline-drop.spec.ts
 
@@ -812,189 +1024,29 @@ src/drag/
     block-range-selection.spec.ts
 ```
 
-### 13.3 目标 drag 文件职责和行数估算
+职责：
 
-```text
-src/drag/index.ts                               10-25 lines
-```
+- `drag-pipeline.ts`: public runtime object, owns state and handle.
+- `pipeline-reducer.ts`: internal pure transition.
+- `pipeline-state.ts`: canonical business state.
+- `pipeline-event.ts`: platform-independent input events.
+- `pipeline-output.ts`: business facts emitted to platform.
+- `pipeline-exit.ts`: terminal and guard-unavailable rules.
+- `pipeline-drop.ts`: drop resolution and command output rules.
+- `selection/block-range-selection.ts`: range interaction state built on domain algorithms.
 
-- 统一导出 drag public API。
-- 不导出兼容旧路径。
-
-```text
-src/drag/pipeline/pipeline-event.ts             60-90 lines
-```
-
-- 定义 `PipelineEvent`。
-- 定义 `HoldTarget`、`GuardId`、`DragCancelReason`。
-- 覆盖 `hold_start`、`hold_ready`、`selection_start`、`selection_change`、`selection_finish`、`selection_clear`、`drag_start`、`drag_over`、`drop`、`cancel`、`guard_unavailable`、`destroy`。
-- 不包含 `PointerEvent`、`TouchEvent`、CodeMirror 类型、mobile/desktop 类型。
-
-```text
-src/drag/pipeline/pipeline-state.ts             70-110 lines
-```
-
-- 定义 `PipelineState`：
-  - `idle`
-  - `holding`
-  - `ready_to_drag`
-  - `selecting`
-  - `dragging`
-- 定义 `HoldContext`、`SelectionContext`、`DragContext`。
-- 定义 `HoldTarget` 使用的 `BlockSelection` 结构引用。
-- 不出现 mobile / desktop。
-
-```text
-src/drag/pipeline/pipeline-output.ts            50-80 lines
-```
-
-- 定义 reducer 输出。
-- 输出只描述 core 事实，例如：
-  - `state_changed`
-  - `selection_changed`
-  - `drag_over`
-  - `dropped`
-  - `cancelled`
-  - `command_ready`
-- 不包含 `show_drop_preview`、`hide_drop_preview`、`lock_scroll`、`suppress_focus`、`set_pointer_capture` 这类 platform 指令。
-
-```text
-src/drag/pipeline/pipeline-reducer.ts           140-220 lines
-```
-
-- 核心状态机：
-  - `reducePipeline(state, event) -> { state, outputs }`
-- 负责：
-  - `idle -> holding`
-  - `holding -> ready_to_drag`
-  - `holding -> selecting`
-  - `selecting(passive) -> holding`
-  - `ready_to_drag -> dragging`
-  - `dragging -> idle`
-- 不执行 command。
-- 不执行 DOM side effects。
-- 如果超过 220 行，优先在同目录内拆为 `pipeline-hold.ts` 和 `pipeline-select.ts`，`pipeline-reducer.ts` 只做分发，不新增目录。
-
-```text
-src/drag/pipeline/pipeline-exit.ts              80-130 lines
-```
-
-- 集中处理退出规则：
-  - `cancel`
-  - `guard_unavailable`
-  - `selection_clear`
-  - `destroy`
-  - invalid selection
-- 保证 terminal path 回到 `idle` 或明确回到 `selecting(passive)`。
-- 这是 lifecycle 清理语义，不执行 platform 清理动作。
-
-```text
-src/drag/pipeline/pipeline-guard.ts             30-60 lines
-```
-
-- 定义 guard dependency 工具函数：
-  - `dependsOnGuard(state, guardId)`
-  - `withGuardDeps(...)`
-- guard 只是抽象字符串依赖，不知道 mobile drag mode。
-
-```text
-src/drag/pipeline/pipeline-drop.ts              90-140 lines
-```
-
-- 处理 `dragging` 后的 drop 阶段纯逻辑。
-- 定义或导入 `DropSnapshot`、`DropResolution`。
-- 处理 `drag_start`、`drag_over`、`drop`、`cancel` 的纯状态输出。
-- 不输出 platform preview 指令。
-
-```text
-src/drag/selection/block-range-selection.ts     100-160 lines
-```
-
-- 保留为 drag interaction selection policy/helper。
-- 负责在 `selection_start` / `selection_change` / `selection_finish` 语义下计算下一份 `BlockSelection`。
-- 组合 `domain/selection` 的 merge / subtract / collect / normalize 底层算法。
-- 支持多区域选择的拖拽交互规则。
-- 不沉淀底层通用 selection 算法。
-- 不能知道移动端或桌面端。
-
-测试行数估算：
-
-```text
-pipeline-reducer.spec.ts                        180-300 lines
-pipeline-exit.spec.ts                           120-220 lines
-pipeline-drop.spec.ts                           120-220 lines
-block-range-selection.spec.ts                   180-300 lines
-```
-
-### 13.4 当前 drag 文件到目标文件映射
-
-```text
-当前: drag/drop/drag-drop-snapshot.ts
-目标: drag/pipeline/pipeline-drop.ts
-说明: DropSnapshot 是抽象数据，可以留在 drag；不得包含 preview DOM 数据。
-
-当前: drag/effects/drag-effect.ts
-目标: drag/pipeline/pipeline-output.ts
-说明: 删除 show/hide preview effect；preview 属于 platform。
-
-当前: drag/effects/drag-effect-executor.ts
-目标: 删除
-说明: drag core 不执行 effects；platform 消费 pipeline output。
-
-当前: drag/intent/drag-intent.ts
-目标: drag/pipeline/pipeline-event.ts
-说明: intent 不再是独立 facts mapper；统一成 PipelineEvent。
-
-当前: drag/lifecycle/drag-lifecycle.ts
-目标: drag/pipeline/pipeline-output.ts 或删除
-说明: lifecycle 不单独成目录；对外事实由 output 表达。
-
-当前: drag/lifecycle/drag-lifecycle-emitter.ts
-目标: platform 或 plugin 层
-说明: emitter 是运行时集成，不是 drag core state machine。
-
-当前: drag/lifecycle/drag-lifecycle-protocol.ts
-目标: 删除
-说明: 不保留协议兼容层。
-
-当前: drag/mode/drag-interaction-mode.ts
-目标: drag/pipeline/pipeline-state.ts + pipeline-exit.ts
-说明: 不保留 mobile-specific mode，也不保留兼容 re-export。
-
-当前: drag/pipeline/drag-controller.ts
-目标: drag/pipeline/pipeline-drop.ts
-说明: active drag 后的 drop 逻辑并入统一 pipeline/drop 阶段。
-
-当前: drag/pipeline/drag-flow-controller.ts
-目标: drag/pipeline/pipeline-reducer.ts
-说明: activeDrag 内部状态并入统一 PipelineState。
-
-当前: drag/pipeline/drag-input.ts
-目标: drag/pipeline/pipeline-event.ts + pipeline-drop.ts
-说明: 输入事件和 drop resolution 分开。
-
-当前: drag/selection/block-range-selection.ts
-目标: 保留
-说明: 作为 drag interaction selection update policy；底层通用 selection 算法留在 domain/selection。
-
-当前: drag/state/drag-state.ts
-目标: drag/pipeline/pipeline-state.ts
-说明: ActiveDrag 变成 DragContext。
-
-当前: drag/state/drag-session.ts
-目标: 并入 drag/pipeline/pipeline-state.ts 或删除
-说明: sessionId 是 PipelineState 的字段，不单独形成旧 session 层。
-```
-
-### 13.5 drag layer rules
+### 13.9 Drag layer rules
 
 - `drag/pipeline` owns the unified interaction state machine.
 - `drag/pipeline` owns active drop flow as one stage of the same pipeline.
-- `drag/selection` owns drag-interaction selection update policy built from `domain/selection` primitives.
+- `drag/pipeline` owns passive / committed selection lifecycle.
+- `drag/pipeline` owns whether terminal drag clears selection.
+- `drag/selection` owns drag-interaction selection state and uses `domain/selection` primitives.
 - `drag` may depend on `domain`.
 - `drag` must not import `platform`, CodeMirror, Obsidian, DOM, or CSS selector constants.
 - `drag` must not contain mobile/desktop branches.
-- `drag` must not output DOM side-effect commands such as focus suppression, scroll lock, pointer capture, or preview rendering.
+- `drag` must not output DOM side-effect commands.
+- platform must not save business interaction state such as committed range selection.
 
 ---
 
@@ -1204,7 +1256,7 @@ input/pipeline-adapter.ts                       120-200 lines
 
 - CodeMirror input 和 drag pipeline 的唯一主适配器。
 - 接收 `PointerEvent` / `TouchEvent` 转译后的平台事实。
-- 调用 `reducePipeline`。
+- 调用 `DragPipeline.enter(event)`。
 - 把 `PipelineOutput` 分发给 preview、transaction、cleanup。
 - 不自己复制 holding/selecting/dragging 规则。
 
@@ -1427,18 +1479,68 @@ preview/range-selection-visual-manager.spec.ts  120-220 lines
 
 ---
 
-## 15. 推荐实施顺序
+## 15. 一次性重构验收范围
 
-1. 固化平台无关的 `PipelineEvent`、`PipelineState`、`PipelineOutput`。
-2. 删除 drag 层 mobile/desktop 概念，只保留 input source、guard dependency、phase。
-3. 把 mobile drag mode gating 改成 platform text-drag guard：只限制 text source，不限制 handle source。
-4. 把 `pointer-drag-controller.ts` 拆成 CodeMirror platform adapter、pointer session、hold、drag、selection。
-5. 删除移动端隐藏手柄的额外手柄命中区；手柄拖拽只从真实手柄命中进入。
-6. 让 selected text long press 生成平台无关的 `hold_start(selection)` event。
-7. 把 selection 生命周期判断收束到 drag pipeline 规则。
-8. 删除 platform 中重复的业务判断和旧 UI 死代码。
-9. 增加架构边界测试，防止 CodeMirror/mobile 逻辑回流进 drag。
-10. 跑完整 typecheck、lint、focused tests、full tests、build。
+本重构不按“先实现一部分，再逐步迁移”验收。完成态必须一次性满足以下条件。
+
+### 15.1 Drag Core
+
+- `src/drag/pipeline/drag-pipeline.ts` 存在，并导出 `createDragPipeline()`。
+- platform 不直接调用 reducer/transition；内部 transition 只允许 drag pipeline 使用。
+- `DragPipeline` 内部保存唯一 `PipelineState`。
+- `DragPipeline` 复用当前 drag 层已有的 `PipelineState`、`PipelineEvent`、`PipelineOutput`、`pipeline-drop`、`pipeline-exit`、`pipeline-guard` 和 `drag/selection`，不引入平行的新状态模型。
+- `selecting(passive)` 是 committed selection 的唯一事实源。
+- `PipelineState` 里的 drag state 只有一种：`dragging(selection)`。
+- 单块、多块、多区域拖拽不分 origin；只由 `BlockSelection.ranges` 表达。
+- `drag_start` 输出 `drag_source_changed(selection)`。
+- 所有 drag terminal path 输出 `drag_source_changed(null)`。
+- `guard_unavailable` 命中当前 state 的 guardDeps 时，由 drag pipeline 统一退出并输出 terminal facts。
+
+### 15.2 Platform Adapter
+
+- `platform/codemirror/input` 不保存 `committedRangeSelection`。
+- `platform/codemirror/input` 不决定 selection lifecycle 是否保留或清理。
+- platform 只保存技术状态：pointer id、timer id、capture、last pointer coordinate、DOM target。
+- desktop handle、desktop range、mobile text long press、mobile virtual resize handle 都翻译成同一组 `PipelineEvent`。
+- platform 根据 `PipelineOutput` 执行 side effects：preview、selection visual、pointer capture、scroll lock、focus/input guard。
+- platform 可以做 CodeMirror geometry 解析，但解析结果必须是 domain/drag 类型，例如 `RangeSelectionBoundary`、`DragDropSnapshot`、`DropResolution`。
+
+### 15.3 Preview
+
+- preview 不保存业务 selection lifecycle。
+- preview 只消费当前 pipeline state / output 产生的 selection facts。
+- mobile resize handles 和 source outline 的显示由 pipeline selection state 驱动，不由 platform input 额外保存模式。
+- drag terminal 后，preview 必须根据 `drag_source_changed(null)` 清掉当前 drag source visual。
+
+### 15.4 Domain / Drag Boundary
+
+- range 底层算法保留在 `domain/selection`。
+- drag selection state 可以组合 domain 算法，但不得复制底层 range merge / subtract / collect 逻辑。
+- domain 不 import drag / platform。
+- drag 不 import platform / CodeMirror / Obsidian / DOM / CSS selector。
+
+### 15.5 Tests
+
+- 新增 `drag-pipeline.spec.ts` 覆盖完整 lifecycle：
+  - 单块 `BlockSelection` 和多块 `BlockSelection` 进入同一个 `dragging(selection)` 状态。
+  - `drag_start` 输出 `drag_source_changed(selection)`。
+  - `drop/cancel/destroy` 输出 `drag_source_changed(null)`。
+  - `selecting(passive) -> hold_start(current selection) -> dragging(selection)` 不产生独立 drag origin。
+  - `selection_finish` 进入 `selecting(passive)`。
+  - `guard_unavailable` 清理依赖 guard 的 selection/hold/drag。
+- 更新 platform contract tests：
+  - 禁止 platform input 保存 `committedRangeSelection`。
+  - 禁止 platform input 直接调用 `reducePipeline()`。
+  - 禁止 platform input import drag range state constructors。
+  - 禁止 mobile-specific state 出现在 drag core。
+- 完整验证必须通过：
+  - typecheck
+  - focused pipeline tests
+  - focused CodeMirror adapter tests
+  - full tests
+  - lint
+  - build
+  - npm smoke
 
 ---
 

@@ -15,34 +15,34 @@ import { clearSelection, cancelPipeline, destroyPipeline, exitForUnavailableGuar
 import { withGuardDeps } from './pipeline-guard';
 import { IDLE_PIPELINE_STATE, type PipelineState } from './pipeline-state';
 
-export type PipelineReduceResult<TPreview = unknown> = {
+export type PipelineTransitionResult<TPreview = unknown> = {
     state: PipelineState;
     outputs: PipelineOutput<TPreview>[];
 };
 
-export function reducePipeline<TPreview>(
+export function transitionPipelineState<TPreview>(
     state: PipelineState,
     event: PipelineEvent<TPreview>
-): PipelineReduceResult<TPreview> {
+): PipelineTransitionResult<TPreview> {
     switch (event.type) {
         case 'hold_start':
-            return enterHolding(state, event);
+            return onHoldStart(state, event);
         case 'hold_ready':
-            return markHoldReady(state, event);
+            return onHoldReady(state, event);
         case 'selection_start':
-            return enterSelecting(state, event);
+            return onSelectionStart(state, event);
         case 'selection_change':
-            return updateSelecting(state, event);
+            return onSelectionChange(state, event);
         case 'selection_finish':
-            return finishSelecting(state);
+            return onSelectionFinish(state);
         case 'selection_clear':
             return clearSelection(state);
         case 'drag_start':
-            return startDragging(state, event);
+            return onDragStart(state, event);
         case 'drag_over':
-            return updateDragging(state, event);
+            return onDragOver(state, event);
         case 'drop':
-            return dropDragging(state, event);
+            return onDrop(state, event);
         case 'cancel':
             return cancelPipeline(state, event.reason, event.pointerType ?? null);
         case 'guard_unavailable':
@@ -52,16 +52,19 @@ export function reducePipeline<TPreview>(
     }
 }
 
-function enterHolding<TPreview>(
-    _state: PipelineState,
+function onHoldStart<TPreview>(
+    state: PipelineState,
     event: Extract<PipelineEvent<TPreview>, { type: 'hold_start' }>
-): PipelineReduceResult<TPreview> {
+): PipelineTransitionResult<TPreview> {
     const next: PipelineState = {
         type: 'holding',
         hold: {
             sessionId: event.sessionId,
             target: event.target,
             guardDeps: withGuardDeps(event.guardDeps),
+            ...(state.type === 'selecting' && state.selection.phase === 'passive'
+                ? { retainedSelection: state.selection }
+                : {}),
         },
     };
     return {
@@ -73,10 +76,10 @@ function enterHolding<TPreview>(
     };
 }
 
-function markHoldReady<TPreview>(
+function onHoldReady<TPreview>(
     state: PipelineState,
     event: Extract<PipelineEvent<TPreview>, { type: 'hold_ready' }>
-): PipelineReduceResult<TPreview> {
+): PipelineTransitionResult<TPreview> {
     if (state.type !== 'holding' || state.hold.sessionId !== event.sessionId) {
         return { state, outputs: [] };
     }
@@ -93,10 +96,10 @@ function markHoldReady<TPreview>(
     };
 }
 
-function enterSelecting<TPreview>(
+function onSelectionStart<TPreview>(
     state: PipelineState,
     event: Extract<PipelineEvent<TPreview>, { type: 'selection_start' }>
-): PipelineReduceResult<TPreview> {
+): PipelineTransitionResult<TPreview> {
     const rangeState = createSelectionRangeState(event.seed);
     if (event.seed.range && !rangeState) {
         return { state, outputs: [] };
@@ -130,10 +133,10 @@ function createSelectionRangeState(
     return createBlockRangeSelectionState(seed.range);
 }
 
-function updateSelecting<TPreview>(
+function onSelectionChange<TPreview>(
     state: PipelineState,
     event: Extract<PipelineEvent<TPreview>, { type: 'selection_change' }>
-): PipelineReduceResult<TPreview> {
+): PipelineTransitionResult<TPreview> {
     if (state.type !== 'selecting') {
         return { state, outputs: [] };
     }
@@ -178,7 +181,7 @@ function buildSelectionFromRangeState(
     };
 }
 
-function finishSelecting<TPreview>(state: PipelineState): PipelineReduceResult<TPreview> {
+function onSelectionFinish<TPreview>(state: PipelineState): PipelineTransitionResult<TPreview> {
     if (state.type !== 'selecting') {
         return { state, outputs: [] };
     }
@@ -198,10 +201,10 @@ function finishSelecting<TPreview>(state: PipelineState): PipelineReduceResult<T
     };
 }
 
-function startDragging<TPreview>(
+function onDragStart<TPreview>(
     state: PipelineState,
     event: Extract<PipelineEvent<TPreview>, { type: 'drag_start' }>
-): PipelineReduceResult<TPreview> {
+): PipelineTransitionResult<TPreview> {
     if (state.type !== 'ready_to_drag' || state.hold.sessionId !== event.sessionId) {
         return { state, outputs: [] };
     }
@@ -227,10 +230,10 @@ function startDragging<TPreview>(
     };
 }
 
-function updateDragging<TPreview>(
+function onDragOver<TPreview>(
     state: PipelineState,
     event: Extract<PipelineEvent<TPreview>, { type: 'drag_over' }>
-): PipelineReduceResult<TPreview> {
+): PipelineTransitionResult<TPreview> {
     if (state.type !== 'dragging' || state.drag.sessionId !== event.sessionId) {
         return { state, outputs: [] };
     }
@@ -254,10 +257,10 @@ function updateDragging<TPreview>(
     };
 }
 
-function dropDragging<TPreview>(
+function onDrop<TPreview>(
     state: PipelineState,
     event: Extract<PipelineEvent<TPreview>, { type: 'drop' }>
-): PipelineReduceResult<TPreview> {
+): PipelineTransitionResult<TPreview> {
     if (state.type !== 'dragging' || state.drag.sessionId !== event.sessionId) {
         return { state, outputs: [] };
     }

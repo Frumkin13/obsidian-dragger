@@ -1,25 +1,18 @@
 import type { EditorView } from '@codemirror/view';
 import { BlockType, type BlockInfo } from '../../../domain/block/block-types';
-import type { BlockSelection } from '../../../domain/selection/block-selection';
-import type { RangeSelectionOperation } from '../../../domain/selection/block-selection';
-import type { BlockSelectionRequest } from '../selection/block-selection-resolver';
-import {
-    type SelectedBlockRange,
-} from '../../../domain/selection/block-ranges';
+import type { BlockSelection, RangeSelectionOperation } from '../../../domain/selection/block-selection';
+import type { SelectedBlockRange } from '../../../domain/selection/block-ranges';
 import type {
-    CommittedRangeSelection,
     RangeSelectionBoundary,
     RangeSelectionBoundaryResolver,
 } from '../../../domain/selection/range-selection';
 import {
-    buildCommittedRangeSelection,
     buildRangeSelectionBoundaryFromBlock,
 } from '../../../domain/selection/range-selection';
-import type { HoldTarget, PipelineState } from '../../../drag/pipeline/pipeline-state';
 import type { GuardId } from '../../../drag/pipeline/pipeline-event';
+import type { HoldTarget, PipelineState } from '../../../drag/pipeline/pipeline-state';
 import { createRangeSelectionBoundaryResolver } from '../selection/block-boundary-resolver';
-import { InputGuardController } from './input-guards';
-import { PointerSession } from './pointer-session';
+import type { BlockSelectionRequest } from '../selection/block-selection-resolver';
 import {
     DRAG_HANDLE_CLASS,
     EMBED_HANDLE_CLASS,
@@ -30,35 +23,8 @@ import {
     shouldStartMobilePressDrag as shouldStartMobilePressDragByInput,
 } from './pointer-hit-test';
 import {
-    INPUT_GUARD_MOBILE_SELECTION_GESTURE,
-    INPUT_GUARD_MOBILE_SELECTION_PASSIVE,
-} from './input-guards';
-import type { PipelineEvent } from '../../../drag/pipeline/pipeline-event';
-import {
     MOBILE_DRAG_LONG_PRESS_MS,
-    MOUSE_RANGE_SELECT_LONG_PRESS_MS,
 } from './touch-delay-policy';
-import {
-    createInitialRangeSelectionState,
-    type MouseRangeSelectState,
-    resolveRangeSelectConfig,
-} from './range-selection-gesture-state';
-
-export interface RangeSelectionActionHost {
-    readonly view: EditorView;
-    pipelineState: PipelineState;
-    rangePointerSession: MouseRangeSelectState | null;
-    committedRangeSelection: CommittedRangeSelection | null;
-    pointer: {
-        tryCapturePointer(e: PointerEvent): void;
-        tryCapturePointerById(pointerId: number): void;
-        attachPointerListeners(): void;
-    };
-
-    getTouchRangeSelectLongPressMs(): number;
-    resolveBlockSelection(request: BlockSelectionRequest): BlockSelection | null;
-    dispatchPipeline(event: PipelineEvent): unknown;
-}
 
 export type RangeSelectionSessionOptions = {
     skipLongPress?: boolean;
@@ -74,263 +40,60 @@ export type RangeSelectionSessionOptions = {
     allowSecondaryDrag?: boolean;
 };
 
-export function beginRangeSelectionSessionAction(
-    host: RangeSelectionActionHost,
-    source: BlockSelection,
-    e: PointerEvent,
-    options?: RangeSelectionSessionOptions
-): void {
-    const blockInfo = source.anchorBlock;
-    const committedBlocksSnapshot = (options?.baseSelectedBlocks ?? host.committedRangeSelection?.blocks ?? [])
-        .map((block) => ({ ...block }));
-    const pointerType = e.pointerType || null;
-    const skipLongPress = options?.skipLongPress === true;
-    const config = resolveRangeSelectConfig(
-        pointerType,
-        MOUSE_RANGE_SELECT_LONG_PRESS_MS,
-        () => host.getTouchRangeSelectLongPressMs()
-    );
-    const shouldDeferInterception = pointerType === 'mouse' && !skipLongPress;
-    const initialRangeSelectState = createInitialRangeSelectionState({
-        blockInfo,
-        sourceSelection: source,
-        baseSelectedBlocks: committedBlocksSnapshot,
-        initialOperation: options?.initialOperation,
-        guardDeps: options?.guardDeps,
-        sourceKind: options?.sourceKind,
-        anchorBoundary: options?.anchorBoundary,
-        initialBoundary: options?.initialBoundary,
-        resolveBoundary: options?.resolveBoundary,
-        doc: host.view.state.doc,
-        pointerId: e.pointerId,
-        startX: e.clientX,
-        startY: e.clientY,
-        pointerType,
-    });
-    if (!initialRangeSelectState) return;
-    initialRangeSelectState.longPressReady = skipLongPress;
-
-    const allowSecondaryDrag = options?.allowSecondaryDrag !== false;
-    let dragTimeoutId: number | null = null;
-    if (pointerType !== 'mouse' && allowSecondaryDrag) {
-        dragTimeoutId = window.setTimeout(() => {
-            const state = host.rangePointerSession;
-            if (!state) return;
-            if (state.pipelineStarted && host.pipelineState.type !== 'selecting') return;
-            if (state.pointerId !== e.pointerId) return;
-            state.dragReady = true;
-            activateMouseRangeSelectInterception(host, state);
-        }, MOBILE_DRAG_LONG_PRESS_MS);
-    }
-    const shouldDeferNativeInterception = options?.deferInterception === true || shouldDeferInterception;
-    if (!shouldDeferNativeInterception) {
-        e.preventDefault();
-        e.stopPropagation();
-        host.pointer.tryCapturePointer(e);
-    }
-
-    const timeoutId = skipLongPress
-        ? null
-        : window.setTimeout(() => {
-            const state = host.rangePointerSession;
-            if (!state) return;
-            if (state.pipelineStarted && host.pipelineState.type !== 'selecting') return;
-            if (state.pointerId !== e.pointerId) return;
-            state.longPressReady = true;
-            startRangeSelectionPipeline(host, state);
-            activateMouseRangeSelectInterception(host, state);
-            updateMouseRangeSelectionFromLine(host, state, state.currentLineNumber);
-        }, config.longPressMs);
-
-    initialRangeSelectState.isIntercepting = !shouldDeferNativeInterception;
-    initialRangeSelectState.timeoutId = timeoutId;
-    initialRangeSelectState.dragTimeoutId = dragTimeoutId;
-    host.rangePointerSession = initialRangeSelectState;
-    host.pointer.attachPointerListeners();
-
-    if (!options?.deferPipelineStart) {
-        startRangeSelectionPipeline(host, initialRangeSelectState);
-    }
-    if (skipLongPress) {
-        initialRangeSelectState.longPressReady = true;
-        startRangeSelectionPipeline(host, initialRangeSelectState);
-        updateMouseRangeSelectionFromLine(host, initialRangeSelectState, initialRangeSelectState.currentLineNumber);
-    }
-}
-
-function startRangeSelectionPipeline(host: RangeSelectionActionHost, state: MouseRangeSelectState): void {
-    if (state.pipelineStarted) return;
-    state.pipelineStarted = true;
-    dispatchRangeSelectionStart(host, {
-        sourceSelection: state.sourceSelection,
-        anchorBoundary: state.anchorBoundary,
-        initialBoundary: state.initialBoundary,
-        selectedBlocks: state.baseSelectedBlocks,
-        operation: state.initialOperation,
-        guardDeps: state.guardDeps,
-        resolveBoundary: state.resolveBoundary,
-    });
-}
-
-function dispatchRangeSelectionStart(
-    host: Pick<RangeSelectionActionHost, 'view' | 'dispatchPipeline'>,
-    options: {
-        sourceSelection: BlockSelection;
-        anchorBoundary: RangeSelectionBoundary;
-        initialBoundary?: RangeSelectionBoundary;
-        selectedBlocks: SelectedBlockRange[];
-        operation?: RangeSelectionOperation;
-        guardDeps?: GuardId[];
-        resolveBoundary?: RangeSelectionBoundaryResolver;
-    }
-): void {
-    host.dispatchPipeline({
-        type: 'selection_start',
-        seed: {
-            selection: options.sourceSelection,
-            range: {
-                type: 'range',
-                doc: host.view.state.doc,
-                anchorBoundary: options.anchorBoundary,
-                initialBoundary: options.initialBoundary,
-                selectedBlocks: options.selectedBlocks,
-                operation: options.operation,
-                resolveBoundary: options.resolveBoundary,
-            },
-        },
-        guardDeps: options.guardDeps,
-    });
-}
-
-export function activateMouseRangeSelectInterception(
-    host: RangeSelectionActionHost,
-    state: MouseRangeSelectState
-): void {
-    host.pointer.tryCapturePointerById(state.pointerId);
-    if (state.isIntercepting) return;
-    state.isIntercepting = true;
-}
-
-export function clearMouseRangeSelectState(
-    host: Pick<RangeSelectionActionHost, 'rangePointerSession'>
-): void {
-    const state = host.rangePointerSession;
-    if (!state) return;
-    if (state.timeoutId !== null) window.clearTimeout(state.timeoutId);
-    if (state.dragTimeoutId !== null) window.clearTimeout(state.dragTimeoutId);
-    host.rangePointerSession = null;
-}
-
-export function updateMouseRangeSelectionFromLine(
-    host: Pick<RangeSelectionActionHost, 'view' | 'dispatchPipeline' | 'pipelineState'>,
-    state: MouseRangeSelectState,
-    lineNumber: number
-): void {
-    const doc = host.view.state.doc;
-    const clampedLine = Math.max(1, Math.min(doc.lines, lineNumber));
-    const boundary = createRangeSelectionBoundaryResolver(host.view.state)(clampedLine);
-    updateMouseRangeSelection(host, state, {
-        ...boundary,
-        representativeLineNumber: clampedLine,
-    });
-}
-
-export function updateMouseRangeSelection(
-    host: Pick<RangeSelectionActionHost, 'view' | 'dispatchPipeline' | 'pipelineState'>,
-    state: MouseRangeSelectState,
-    target: RangeSelectionBoundary
-): void {
-    host.dispatchPipeline({
-        type: 'selection_change',
-        boundary: target,
-        docLines: host.view.state.doc.lines,
-        resolveBoundary: createRangeSelectionBoundaryResolver(host.view.state),
-    });
-    state.currentLineNumber = target.representativeLineNumber;
-    state.selectionGestureStarted = true;
-}
-
-export function commitRangeSelection(
-    view: EditorView,
-    state: MouseRangeSelectState,
-    pipelineState: PipelineState
-): CommittedRangeSelection | null {
-    if (pipelineState.type !== 'selecting') {
-        return null;
-    }
-    const committed = buildCommittedRangeSelection(
-        view.state.doc,
-        selectedBlocksFromSelection(pipelineState.selection.selection),
-        state.anchorBlock
-    );
-    if (!committed) {
-        return null;
-    }
-    return committed;
-}
-
-export interface PointerInteractionDeps {
-    isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
-    isMobileTextLongPressDragEnabled?: () => boolean;
-}
-
-export interface PointerInteractionHost {
+export type PointerSelectionContext = {
     readonly view: EditorView;
-    readonly deps: PointerInteractionDeps;
-    readonly mobile: InputGuardController;
-    readonly pointer: PointerSession;
-    pipelineState: PipelineState;
-    rangePointerSession: MouseRangeSelectState | null;
-    committedRangeSelection: CommittedRangeSelection | null;
+    readonly pipelineState: PipelineState;
+    readonly hasActiveRangePointerSession: boolean;
+    readonly passiveSelectionSource: BlockSelection | null;
+    readonly isMobileEnvironment: boolean;
+    readonly isMultiLineSelectionEnabled: boolean;
+    readonly isMobileTextLongPressDragEnabled: boolean;
+    readonly isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
+    readonly resolveBlockSelection: (request: BlockSelectionRequest) => BlockSelection | null;
+    readonly canStartDragForPointer: (pointerType: string | null, source: HoldTarget['source']) => boolean;
+    readonly isMobileDragModeActiveForPointer: (pointerType: string | null) => boolean;
+    readonly isWithinMobileTextLineOrEmbedArea: (target: HTMLElement | null, clientX: number, clientY: number) => boolean;
+    readonly isSelectionDragGripHit: (target: HTMLElement, clientX: number, clientY: number, pointerType: string | null) => boolean;
+};
 
-    dispatchPipeline(event: PipelineEvent): unknown;
-    resolveBlockSelection(request: BlockSelectionRequest): BlockSelection | null;
-
-    beginRangeSelectionSession(
-        source: BlockSelection,
-        e: PointerEvent,
-        handle: HTMLElement | null,
-        options?: RangeSelectionSessionOptions
-    ): void;
-    beginPressPendingDrag(
-        source: BlockSelection,
-        e: PointerEvent,
-        options?: { longPressMs?: number; skipLongPress?: boolean; deferInterception?: boolean; sourceKind?: 'handle' | 'text' | 'selected_text' | 'command' }
-    ): void;
-    enterDraggingState(
-        source: BlockSelection,
-        pointerId: number,
-        clientX: number,
-        clientY: number,
-        pointerType: string | null,
-        sourceKind?: 'handle' | 'text' | 'selected_text' | 'command'
-    ): void;
-    tryStartCommittedSelectionDrag(e: PointerEvent, target: HTMLElement): boolean;
-    clearCommittedRangeSelection(): void;
-    isMultiLineSelectionEnabled(): boolean;
-    canStartDragForPointer(pointerType: string | null, source?: 'handle' | 'text' | 'selected_text' | 'command'): boolean;
-    isMobileDragModeActiveForPointer(pointerType: string | null): boolean;
-}
-
-export function handlePointerDown(
-    host: PointerInteractionHost,
-    e: PointerEvent,
-    target: HTMLElement
-): boolean {
-    const policy = resolvePointerInputPolicy(host, e);
-    if (tryStartSelectionResize(host, e, target, policy)) return true;
-    if (host.tryStartCommittedSelectionDrag(e, target)) return true;
-
-    const handle = target.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`);
-    if (handle && !handle.classList.contains(EMBED_HANDLE_CLASS)) {
-        return startHandlePointerDown(host, e, handle, policy);
+export type PointerDownDecision =
+    | { type: 'none' }
+    | { type: 'handled' }
+    | { type: 'retarget_mobile_range_selection' }
+    | {
+        type: 'start_range_selection';
+        source: BlockSelection;
+        handle: HTMLElement | null;
+        options?: RangeSelectionSessionOptions;
+        preventDefault?: boolean;
+        capturePointer?: boolean;
+        applySelectionGestureGuard?: boolean;
     }
+    | {
+        type: 'start_press_drag';
+        source: BlockSelection;
+        options?: {
+            longPressMs?: number;
+            skipLongPress?: boolean;
+            deferInterception?: boolean;
+            sourceKind?: HoldTarget['source'];
+        };
+    }
+    | {
+        type: 'change_selection';
+        boundary: RangeSelectionBoundary;
+        preventDefault?: boolean;
+        capturePointer?: boolean;
+    };
 
-    if (tryStartTextRangeSelection(host, e, target, policy)) return true;
-    if (isPassiveSelectionActive(host)) return false;
-    if (tryStartTextLongPressDrag(host, e, target, policy)) return true;
-    return false;
-}
+export type MobileSelectionModeDecision =
+    | { type: 'none' }
+    | {
+        type: 'start_mobile_selection_mode';
+        selection: BlockSelection;
+        blockInfo: BlockInfo;
+        markEventHandled: boolean;
+    };
 
 type PointerPlatform = 'desktop' | 'mobile';
 
@@ -342,9 +105,83 @@ type PointerInputPolicy = {
     handleLongPressMs: number;
 };
 
-function resolvePointerInputPolicy(host: PointerInteractionHost, e: PointerEvent): PointerInputPolicy {
+export function decidePointerDown(
+    context: PointerSelectionContext,
+    e: PointerEvent,
+    target: HTMLElement
+): PointerDownDecision {
+    const policy = resolvePointerInputPolicy(context, e);
+    const resize = decideSelectionResize(context, e, target, policy);
+    if (resize.type !== 'none') return resize;
+
+    const passiveDrag = decidePassiveSelectionDrag(context, e, target);
+    if (passiveDrag.type !== 'none') return passiveDrag;
+
+    const handle = target.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`);
+    if (handle && !handle.classList.contains(EMBED_HANDLE_CLASS)) {
+        return decideHandlePointerDown(context, e, handle, policy);
+    }
+
+    const textRange = decideTextRangeSelection(context, e, target, policy);
+    if (textRange.type !== 'none') return textRange;
+    if (isPassiveSelectionActive(context)) return { type: 'none' };
+    return decideTextLongPressDrag(context, e, target, policy);
+}
+
+export function decideEnterMobileSelectionMode(
+    context: PointerSelectionContext,
+    e: Event
+): MobileSelectionModeDecision {
+    if (!context.isMobileEnvironment) return { type: 'none' };
+    if (!context.isMultiLineSelectionEnabled) return { type: 'none' };
+    if (context.pipelineState.type !== 'idle') return { type: 'none' };
+
+    const line = context.view.state.doc.lineAt(context.view.state.selection.main.head);
+    const boundaryAtCursor = createRangeSelectionBoundaryResolver(context.view.state)(line.number);
+    const startLine = context.view.state.doc.line(boundaryAtCursor.startLineNumber);
+    const endLine = context.view.state.doc.line(boundaryAtCursor.endLineNumber);
+    return decideEnterMobileSelectionModeFromBlock(context, {
+        type: BlockType.Paragraph,
+        startLine: boundaryAtCursor.startLineNumber - 1,
+        endLine: boundaryAtCursor.endLineNumber - 1,
+        from: startLine.from,
+        to: endLine.to,
+        indentLevel: 0,
+        content: context.view.state.doc.sliceString(startLine.from, endLine.to),
+    }, e);
+}
+
+function decideEnterMobileSelectionModeFromBlock(
+    context: PointerSelectionContext,
+    blockInfo: BlockInfo,
+    e: Event
+): MobileSelectionModeDecision {
+    if (!context.isMobileEnvironment) return { type: 'none' };
+    if (!context.isMultiLineSelectionEnabled) return { type: 'none' };
+    if (!context.canStartDragForPointer('touch', 'text')) return { type: 'none' };
+    if (
+        context.pipelineState.type !== 'idle'
+        && context.pipelineState.type !== 'holding'
+        && context.pipelineState.type !== 'ready_to_drag'
+    ) {
+        return { type: 'none' };
+    }
+    if (context.isBlockInsideRenderedTableCell(blockInfo)) return { type: 'none' };
+
+    const selection = context.resolveBlockSelection({ kind: 'block', block: blockInfo });
+    if (!selection) return { type: 'none' };
+
+    return {
+        type: 'start_mobile_selection_mode',
+        selection,
+        blockInfo,
+        markEventHandled: e instanceof CustomEvent && !!e.detail && typeof e.detail === 'object',
+    };
+}
+
+function resolvePointerInputPolicy(context: PointerSelectionContext, e: PointerEvent): PointerInputPolicy {
     const pointerType = e.pointerType || null;
-    const platform = pointerType !== 'mouse' && host.mobile.isMobileEnvironment() ? 'mobile' : 'desktop';
+    const platform = pointerType !== 'mouse' && context.isMobileEnvironment ? 'mobile' : 'desktop';
     return {
         platform,
         pointerType,
@@ -354,136 +191,205 @@ function resolvePointerInputPolicy(host: PointerInteractionHost, e: PointerEvent
     };
 }
 
-function isPassiveSelectionActive(host: PointerInteractionHost): boolean {
-    return host.pipelineState.type === 'selecting'
-        && host.pipelineState.selection.phase === 'passive';
+function isPassiveSelectionActive(context: PointerSelectionContext): boolean {
+    return context.pipelineState.type === 'selecting'
+        && context.pipelineState.selection.phase === 'passive';
 }
 
-function tryStartSelectionResize(
-    host: PointerInteractionHost,
+function decideSelectionResize(
+    context: PointerSelectionContext,
     e: PointerEvent,
     target: HTMLElement,
     policy: PointerInputPolicy
-): boolean {
-    if (!policy.canResizeSelection) return false;
-    if (host.pipelineState.type !== 'selecting' || host.pipelineState.selection.phase !== 'passive') return false;
+): PointerDownDecision {
+    if (!policy.canResizeSelection) return { type: 'none' };
+    if (context.pipelineState.type !== 'selecting' || context.pipelineState.selection.phase !== 'passive') return { type: 'none' };
 
     const handleEl = target.closest<HTMLElement>(`.${MOBILE_SELECTION_RESIZE_HANDLE_CLASS}`);
-    if (!handleEl) return false;
+    if (!handleEl) return { type: 'none' };
 
     const rawHandle = handleEl.getAttribute('data-dnd-mobile-selection-handle');
-    if (rawHandle !== 'top' && rawHandle !== 'bottom') return false;
+    if (rawHandle !== 'top' && rawHandle !== 'bottom') return { type: 'none' };
 
     const selectedBlock = readMobileSelectionHandleBlock(handleEl);
-    if (!selectedBlock) return false;
-    if (!startRangeSelectionFromMobileResizeHandle(host, e, rawHandle, selectedBlock)) return false;
-
-    e.preventDefault();
-    e.stopPropagation();
-    host.pointer.tryCapturePointer(e);
-    host.pointer.attachPointerListeners();
-    host.mobile.applyInputGuardMode(INPUT_GUARD_MOBILE_SELECTION_GESTURE, e.target);
-    return true;
+    if (!selectedBlock) return { type: 'none' };
+    return decideRangeSelectionFromMobileResizeHandle(context, rawHandle, selectedBlock);
 }
 
-function startHandlePointerDown(
-    host: PointerInteractionHost,
+function decideRangeSelectionFromMobileResizeHandle(
+    context: PointerSelectionContext,
+    handle: 'top' | 'bottom',
+    targetBlock: SelectedBlockRange
+): PointerDownDecision {
+    if (context.pipelineState.type !== 'selecting') return { type: 'none' };
+    const selectedBlocks = selectedBlocksFromPipeline(context.pipelineState);
+    if (selectedBlocks.length === 0) return { type: 'none' };
+    const selectedBlock = selectedBlocks.find((block) => (
+        block.startLineNumber === targetBlock.startLineNumber
+        && block.endLineNumber === targetBlock.endLineNumber
+    ));
+    if (!selectedBlock) return { type: 'none' };
+
+    const fixedBoundary = buildMobileSelectionResizeBoundary(selectedBlock, handle === 'top' ? 'end' : 'start');
+    const movingBoundary = buildMobileSelectionResizeBoundary(selectedBlock, handle === 'top' ? 'start' : 'end');
+    return {
+        type: 'start_range_selection',
+        source: context.pipelineState.selection.selection,
+        handle: null,
+        preventDefault: true,
+        capturePointer: true,
+        applySelectionGestureGuard: true,
+        options: {
+            skipLongPress: true,
+            initialOperation: 'add',
+            guardDeps: ['mobile-text-drag-mode'],
+            sourceKind: 'handle',
+            baseSelectedBlocks: selectedBlocks,
+            anchorBoundary: fixedBoundary,
+            initialBoundary: movingBoundary,
+            resolveBoundary: createRangeSelectionBoundaryResolver(context.view.state),
+        },
+    };
+}
+
+function decidePassiveSelectionDrag(
+    context: PointerSelectionContext,
+    e: PointerEvent,
+    target: HTMLElement
+): PointerDownDecision {
+    if (!context.isMultiLineSelectionEnabled) return { type: 'none' };
+    if (e.button !== 0) return { type: 'none' };
+    const passiveSource = context.passiveSelectionSource;
+    if (!passiveSource) return { type: 'none' };
+
+    const pointerType = e.pointerType || null;
+    if (!context.isSelectionDragGripHit(target, e.clientX, e.clientY, pointerType)) {
+        return { type: 'none' };
+    }
+    const selectedHandleHit = !!target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`);
+    const sourceKind: HoldTarget['source'] = selectedHandleHit ? 'handle' : 'selected_text';
+    if (!context.canStartDragForPointer(pointerType, sourceKind)) return { type: 'none' };
+
+    if (context.pipelineState.type === 'selecting' && context.hasActiveRangePointerSession) {
+        return { type: 'retarget_mobile_range_selection' };
+    }
+    return {
+        type: 'start_press_drag',
+        source: passiveSource,
+        options: selectedHandleHit
+            ? { sourceKind }
+            : { sourceKind, deferInterception: true },
+    };
+}
+
+function decideHandlePointerDown(
+    context: PointerSelectionContext,
     e: PointerEvent,
     handle: HTMLElement,
     policy: PointerInputPolicy
-): boolean {
-    if (e.button !== 0) return false;
+): PointerDownDecision {
+    if (e.button !== 0) return { type: 'none' };
     if (policy.platform === 'mobile') {
-        if (tryStartRangeSelectionFromHandleWhileSelecting(host, handle, e)) return true;
-        if (tryRetargetRangeSelectionFromHandleWhileSelecting(host, handle, e)) return true;
+        const append = decideRangeSelectionFromHandleWhileSelecting(context, handle, e);
+        if (append.type !== 'none') return append;
+        const retarget = decideRetargetRangeSelectionFromHandleWhileSelecting(context, handle, e);
+        if (retarget.type !== 'none') return retarget;
     }
 
-    const source = host.resolveBlockSelection({ kind: 'handle', handle });
-    if (!source) return true;
+    const source = context.resolveBlockSelection({ kind: 'handle', handle });
+    if (!source) return { type: 'handled' };
     const blockInfo = source.anchorBlock;
-    if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return true;
+    if (context.isBlockInsideRenderedTableCell(blockInfo)) return { type: 'handled' };
 
-    const rangePolicy = resolveHandleRangeSelectionPolicy(host, e, policy);
+    const rangePolicy = resolveHandleRangeSelectionPolicy(context, e, policy);
     if (rangePolicy) {
-        if (policy.handleLongPressMs === 0) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-        host.beginRangeSelectionSession(source, e, handle, rangePolicy);
-        return true;
+        return {
+            type: 'start_range_selection',
+            source,
+            handle,
+            options: rangePolicy,
+            preventDefault: policy.handleLongPressMs === 0,
+        };
     }
 
-    host.beginPressPendingDrag(source, e, {
-        sourceKind: 'handle',
-        longPressMs: policy.handleLongPressMs,
-    });
-    return true;
+    return {
+        type: 'start_press_drag',
+        source,
+        options: {
+            sourceKind: 'handle',
+            longPressMs: policy.handleLongPressMs,
+        },
+    };
 }
 
 function resolveHandleRangeSelectionPolicy(
-    host: PointerInteractionHost,
+    context: PointerSelectionContext,
     e: PointerEvent,
     policy: PointerInputPolicy
 ): RangeSelectionSessionOptions | null {
-    if (!host.isMultiLineSelectionEnabled()) return null;
+    if (!context.isMultiLineSelectionEnabled) return null;
     if (policy.platform === 'mobile') {
-        if (host.committedRangeSelection) return { skipLongPress: true };
+        if (isPassiveSelectionActive(context)) return { skipLongPress: true };
         return { deferPipelineStart: true, guardDeps: ['mobile-text-drag-mode'], sourceKind: 'handle' };
     }
-    return host.committedRangeSelection || e.shiftKey
+    return isPassiveSelectionActive(context) || e.shiftKey
         ? { skipLongPress: true }
         : { deferPipelineStart: true };
 }
 
-function tryStartRangeSelectionFromHandleWhileSelecting(
-    host: PointerInteractionHost,
+function decideRangeSelectionFromHandleWhileSelecting(
+    context: PointerSelectionContext,
     handle: HTMLElement,
     e: PointerEvent
-): boolean {
-    if (host.pipelineState.type !== 'selecting' || host.pipelineState.selection.phase !== 'passive') return false;
-    if (e.pointerType === 'mouse') return false;
-    if (targetIsInsideMobileSelection(handle)) return false;
+): PointerDownDecision {
+    if (context.pipelineState.type !== 'selecting' || context.pipelineState.selection.phase !== 'passive') return { type: 'none' };
+    if (e.pointerType === 'mouse') return { type: 'none' };
+    if (targetIsInsideMobileSelection(handle)) return { type: 'none' };
 
-    const source = host.resolveBlockSelection({ kind: 'handle', handle });
-    if (!source) return false;
-    return startRangeSelectionThroughSharedSession(host, source, e, { skipLongPress: true });
-}
-
-function startRangeSelectionThroughSharedSession(
-    host: PointerInteractionHost,
-    source: BlockSelection,
-    e: PointerEvent,
-    options?: Pick<RangeSelectionSessionOptions, 'skipLongPress' | 'deferPipelineStart' | 'deferInterception' | 'allowSecondaryDrag' | 'sourceKind'>
-): boolean {
-    if (host.pipelineState.type !== 'selecting' || host.pipelineState.selection.phase !== 'passive') return false;
-    if (e.pointerType === 'mouse') return false;
-    const blockInfo = source.anchorBlock;
-    if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return false;
-
-    host.beginRangeSelectionSession(source, e, null, {
-        ...options,
-        initialOperation: 'add',
-        guardDeps: ['mobile-text-drag-mode'],
+    const source = context.resolveBlockSelection({ kind: 'handle', handle });
+    if (!source) return { type: 'none' };
+    return decideRangeSelectionThroughSharedSession(context, source, {
+        skipLongPress: true,
     });
-    return true;
 }
 
-function tryStartTextRangeSelection(
-    host: PointerInteractionHost,
+function decideRangeSelectionThroughSharedSession(
+    context: PointerSelectionContext,
+    source: BlockSelection,
+    options?: Pick<RangeSelectionSessionOptions, 'skipLongPress' | 'deferPipelineStart' | 'deferInterception' | 'allowSecondaryDrag' | 'sourceKind'>
+): PointerDownDecision {
+    if (context.pipelineState.type !== 'selecting' || context.pipelineState.selection.phase !== 'passive') return { type: 'none' };
+    const blockInfo = source.anchorBlock;
+    if (context.isBlockInsideRenderedTableCell(blockInfo)) return { type: 'none' };
+
+    return {
+        type: 'start_range_selection',
+        source,
+        handle: null,
+        options: {
+            ...options,
+            initialOperation: 'add',
+            guardDeps: ['mobile-text-drag-mode'],
+        },
+    };
+}
+
+function decideTextRangeSelection(
+    context: PointerSelectionContext,
     e: PointerEvent,
     target: HTMLElement,
     policy: PointerInputPolicy
-): boolean {
-    if (!isPassiveSelectionActive(host)) return false;
-    if (!policy.canUseTextLongPress) return false;
-    if (!shouldStartMobilePressDragByInput(e)) return false;
-    if (!host.canStartDragForPointer(e.pointerType || null, 'text')) return false;
-    if (!isMobileTextLongPressDragEnabled(host)) return false;
-    if (!host.mobile.isWithinMobileTextLineOrEmbedArea(target, e.clientX, e.clientY)) return false;
+): PointerDownDecision {
+    if (!isPassiveSelectionActive(context)) return { type: 'none' };
+    if (!policy.canUseTextLongPress) return { type: 'none' };
+    if (!shouldStartMobilePressDragByInput(e)) return { type: 'none' };
+    if (!context.canStartDragForPointer(e.pointerType || null, 'text')) return { type: 'none' };
+    if (!context.isMobileTextLongPressDragEnabled) return { type: 'none' };
+    if (!context.isWithinMobileTextLineOrEmbedArea(target, e.clientX, e.clientY)) return { type: 'none' };
 
-    const source = host.resolveBlockSelection({ kind: 'point', clientX: e.clientX, clientY: e.clientY });
-    if (!source) return false;
-    return startRangeSelectionThroughSharedSession(host, source, e, {
+    const source = context.resolveBlockSelection({ kind: 'point', clientX: e.clientX, clientY: e.clientY });
+    if (!source) return { type: 'none' };
+    return decideRangeSelectionThroughSharedSession(context, source, {
         deferPipelineStart: true,
         deferInterception: true,
         allowSecondaryDrag: false,
@@ -491,148 +397,78 @@ function tryStartTextRangeSelection(
     });
 }
 
-function tryRetargetRangeSelectionFromHandleWhileSelecting(
-    host: PointerInteractionHost,
+function decideRetargetRangeSelectionFromHandleWhileSelecting(
+    context: PointerSelectionContext,
     handle: HTMLElement,
     e: PointerEvent
-): boolean {
-    if (host.pipelineState.type !== 'selecting') return false;
-    if (e.pointerType === 'mouse') return false;
+): PointerDownDecision {
+    if (context.pipelineState.type !== 'selecting') return { type: 'none' };
+    if (e.pointerType === 'mouse') return { type: 'none' };
 
-    const source = host.resolveBlockSelection({ kind: 'handle', handle });
-    if (!source) return false;
+    const source = context.resolveBlockSelection({ kind: 'handle', handle });
+    if (!source) return { type: 'none' };
     const blockInfo = source.anchorBlock;
-    if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return false;
+    if (context.isBlockInsideRenderedTableCell(blockInfo)) return { type: 'none' };
 
-    const targetBoundary = buildRangeSelectionBoundaryFromBlock(host.view.state.doc, blockInfo);
-    host.dispatchPipeline({
-        type: 'selection_change',
-        boundary: targetBoundary,
-        docLines: host.view.state.doc.lines,
-        resolveBoundary: createRangeSelectionBoundaryResolver(host.view.state),
-    });
-    e.preventDefault();
-    e.stopPropagation();
-    host.pointer.tryCapturePointer(e);
-    return true;
+    return {
+        type: 'change_selection',
+        boundary: buildRangeSelectionBoundaryFromBlock(context.view.state.doc, blockInfo),
+        preventDefault: true,
+        capturePointer: true,
+    };
 }
 
-function tryStartTextLongPressDrag(
-    host: PointerInteractionHost,
+function decideTextLongPressDrag(
+    context: PointerSelectionContext,
     e: PointerEvent,
     target: HTMLElement,
     policy: PointerInputPolicy
-): boolean {
-    if (!policy.canUseTextLongPress) return false;
-    if (!shouldStartMobilePressDrag(host, e)) return false;
-    if (!host.canStartDragForPointer(e.pointerType || null, 'text')) return false;
-    const shouldSuppressInput = host.isMobileDragModeActiveForPointer(e.pointerType || null);
+): PointerDownDecision {
+    if (!policy.canUseTextLongPress) return { type: 'none' };
+    if (!shouldStartMobilePressDrag(context, e)) return { type: 'none' };
+    if (!context.canStartDragForPointer(e.pointerType || null, 'text')) return { type: 'none' };
+    const shouldSuppressInput = context.isMobileDragModeActiveForPointer(e.pointerType || null);
 
-    const inTextLineOrEmbedArea = isMobileTextLongPressDragEnabled(host)
-        && host.mobile.isWithinMobileTextLineOrEmbedArea(target, e.clientX, e.clientY);
-    if (!inTextLineOrEmbedArea) return false;
+    const inTextLineOrEmbedArea = context.isMobileTextLongPressDragEnabled
+        && context.isWithinMobileTextLineOrEmbedArea(target, e.clientX, e.clientY);
+    if (!inTextLineOrEmbedArea) return { type: 'none' };
 
-    const source = host.resolveBlockSelection({ kind: 'point', clientX: e.clientX, clientY: e.clientY });
-    if (!source) return false;
+    const source = context.resolveBlockSelection({ kind: 'point', clientX: e.clientX, clientY: e.clientY });
+    if (!source) return { type: 'none' };
     const blockInfo = source.anchorBlock;
-    if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return false;
+    if (context.isBlockInsideRenderedTableCell(blockInfo)) return { type: 'none' };
 
-    if (host.isMultiLineSelectionEnabled()) {
-        host.beginRangeSelectionSession(source, e, null, {
-            deferPipelineStart: true,
-            deferInterception: !shouldSuppressInput,
-            guardDeps: ['mobile-text-drag-mode'],
-            sourceKind: 'text',
-        });
-        return true;
+    if (context.isMultiLineSelectionEnabled) {
+        return {
+            type: 'start_range_selection',
+            source,
+            handle: null,
+            options: {
+                deferPipelineStart: true,
+                deferInterception: !shouldSuppressInput,
+                guardDeps: ['mobile-text-drag-mode'],
+                sourceKind: 'text',
+            },
+        };
     }
 
-    host.beginPressPendingDrag(source, e, shouldSuppressInput
-        ? { sourceKind: 'text' }
-        : { deferInterception: true, sourceKind: 'text' });
-    return true;
+    return {
+        type: 'start_press_drag',
+        source,
+        options: shouldSuppressInput
+            ? { sourceKind: 'text' }
+            : { deferInterception: true, sourceKind: 'text' },
+    };
 }
 
 function targetIsInsideMobileSelection(target: HTMLElement): boolean {
     return !!target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`);
 }
 
-export function enterMobileSelectionMode(host: PointerInteractionHost, e: Event): void {
-    if (!host.mobile.isMobileEnvironment()) return;
-    if (!host.isMultiLineSelectionEnabled()) return;
-    if (host.pipelineState.type !== 'idle') return;
-
-    const line = host.view.state.doc.lineAt(host.view.state.selection.main.head);
-    const boundaryAtCursor = createRangeSelectionBoundaryResolver(host.view.state)(line.number);
-    const startLine = host.view.state.doc.line(boundaryAtCursor.startLineNumber);
-    const endLine = host.view.state.doc.line(boundaryAtCursor.endLineNumber);
-    enterMobileSelectionModeFromBlock(host, {
-        type: BlockType.Paragraph,
-        startLine: boundaryAtCursor.startLineNumber - 1,
-        endLine: boundaryAtCursor.endLineNumber - 1,
-        from: startLine.from,
-        to: endLine.to,
-        indentLevel: 0,
-        content: host.view.state.doc.sliceString(startLine.from, endLine.to),
-    }, e);
-}
-
-export function enterMobileSelectionModeFromBlock(
-    host: PointerInteractionHost,
-    blockInfo: BlockInfo,
-    e: Event
-): void {
-    if (!host.mobile.isMobileEnvironment()) return;
-    if (!host.isMultiLineSelectionEnabled()) return;
-    if (!host.canStartDragForPointer('touch', 'text')) return;
-    if (host.pipelineState.type !== 'idle' && host.pipelineState.type !== 'holding' && host.pipelineState.type !== 'ready_to_drag') return;
-    if (host.deps.isBlockInsideRenderedTableCell(blockInfo)) return;
-
-    if (e instanceof CustomEvent && e.detail && typeof e.detail === 'object') {
-        (e.detail as { handled?: boolean }).handled = true;
-    }
-    const selection = host.resolveBlockSelection({ kind: 'block', block: blockInfo });
-    if (!selection) return;
-
-    dispatchRangeSelectionStart(host, {
-        sourceSelection: selection,
-        anchorBoundary: buildRangeSelectionBoundaryFromBlock(host.view.state.doc, blockInfo),
-        selectedBlocks: [],
-        operation: 'add',
-        guardDeps: ['mobile-text-drag-mode'],
-    });
-    host.dispatchPipeline({ type: 'selection_finish' });
-    host.mobile.applyInputGuardMode(INPUT_GUARD_MOBILE_SELECTION_PASSIVE, e.target);
-}
-
-function startRangeSelectionFromMobileResizeHandle(
-    host: PointerInteractionHost,
-    e: PointerEvent,
-    handle: 'top' | 'bottom',
-    targetBlock: SelectedBlockRange
-): boolean {
-    if (host.pipelineState.type !== 'selecting') return false;
-    const selectedBlocks = selectedBlocksFromPipeline(host.pipelineState);
-    if (selectedBlocks.length === 0) return false;
-    const selectedBlock = selectedBlocks.find((block) => (
-        block.startLineNumber === targetBlock.startLineNumber
-        && block.endLineNumber === targetBlock.endLineNumber
-    ));
-    if (!selectedBlock) return false;
-    const fixedBoundary = buildMobileSelectionResizeBoundary(selectedBlock, handle === 'top' ? 'end' : 'start');
-    const movingBoundary = buildMobileSelectionResizeBoundary(selectedBlock, handle === 'top' ? 'start' : 'end');
-    const sourceSelection = host.pipelineState.selection.selection;
-    host.beginRangeSelectionSession(sourceSelection, e, null, {
-        skipLongPress: true,
-        initialOperation: 'add',
-        guardDeps: ['mobile-text-drag-mode'],
-        sourceKind: 'handle',
-        baseSelectedBlocks: selectedBlocks,
-        anchorBoundary: fixedBoundary,
-        initialBoundary: movingBoundary,
-        resolveBoundary: createRangeSelectionBoundaryResolver(host.view.state),
-    });
-    return true;
+function shouldStartMobilePressDrag(context: PointerSelectionContext, e: PointerEvent): boolean {
+    if (context.pipelineState.type !== 'idle') return false;
+    if (!context.isMobileEnvironment) return false;
+    return shouldStartMobilePressDragByInput(e);
 }
 
 function buildMobileSelectionResizeBoundary(
@@ -653,29 +489,6 @@ function readMobileSelectionHandleBlock(handleEl: HTMLElement): SelectedBlockRan
     if (!Number.isInteger(startLineNumber) || !Number.isInteger(endLineNumber)) return null;
     if (startLineNumber < 1 || endLineNumber < startLineNumber) return null;
     return { startLineNumber, endLineNumber };
-}
-
-export function exitMobileSelectionMode(host: PointerInteractionHost): void {
-    if (!host.committedRangeSelection && host.pipelineState.type !== 'selecting') return;
-    host.rangePointerSession = null;
-    host.pointer.detachPointerListeners();
-    host.pointer.releasePointerCapture();
-    host.mobile.clearInputGuardMode();
-    host.clearCommittedRangeSelection();
-    if (host.pipelineState.type === 'selecting') {
-        host.dispatchPipeline({ type: 'selection_clear' });
-    }
-}
-
-function shouldStartMobilePressDrag(host: PointerInteractionHost, e: PointerEvent): boolean {
-    if (host.pipelineState.type !== 'idle') return false;
-    if (!host.mobile.isMobileEnvironment()) return false;
-    return shouldStartMobilePressDragByInput(e);
-}
-
-function isMobileTextLongPressDragEnabled(host: PointerInteractionHost): boolean {
-    if (!host.deps.isMobileTextLongPressDragEnabled) return true;
-    return host.deps.isMobileTextLongPressDragEnabled();
 }
 
 function selectedBlocksFromPipeline(state: PipelineState): SelectedBlockRange[] {

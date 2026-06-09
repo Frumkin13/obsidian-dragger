@@ -127,9 +127,6 @@ function handlePressPendingPointerMove(host: PointerMoveHost, e: PointerEvent): 
     const source = host.pipelineState.hold.target.selection;
     const sourceKind = host.pipelineState.hold.target.source;
     const pointerId = pressState.pointerId;
-    if (sourceKind !== 'selected_text' && !host.getCommittedSelection()) {
-        host.clearCommittedRangeSelection();
-    }
     host.enterDraggingState(source, pointerId, e.clientX, e.clientY, e.pointerType || null, sourceKind);
 }
 
@@ -146,7 +143,6 @@ function handleRangeSelectionPointerMove(
     const dy = e.clientY - state.startY;
 
     if (state.pointerId === -1 && pointerType !== 'mouse' && host.mobile.isMostlyVerticalScrollGesture(dx, dy)) {
-        host.commitRangeSelection(state);
         host.finishRangeSelectionSession();
         return;
     }
@@ -157,7 +153,6 @@ function handleRangeSelectionPointerMove(
                 e.preventDefault();
                 e.stopPropagation();
                 const pointerId = state.pointerId;
-                host.clearCommittedRangeSelection();
                 host.clearMouseRangeSelectState();
                 host.enterDraggingState(state.sourceSelection, pointerId, e.clientX, e.clientY, pointerType, state.sourceKind);
             }
@@ -176,7 +171,6 @@ function handleRangeSelectionPointerMove(
                 e.preventDefault();
                 e.stopPropagation();
                 const pointerId = state.pointerId;
-                host.clearCommittedRangeSelection();
                 host.clearMouseRangeSelectState();
                 host.enterDraggingState(state.sourceSelection, pointerId, e.clientX, e.clientY, pointerType, state.sourceKind);
             }
@@ -328,7 +322,6 @@ function finishRangeSelectingPointer(
     }
     e.preventDefault();
     e.stopPropagation();
-    host.commitRangeSelection(rangeState);
     host.finishRangeSelectionSession();
 }
 

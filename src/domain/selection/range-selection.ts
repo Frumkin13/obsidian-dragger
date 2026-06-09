@@ -20,11 +20,6 @@ export type RangeSelectionBoundaryResolver = (
     lineNumber: number
 ) => { startLineNumber: number; endLineNumber: number };
 
-export type CommittedRangeSelection = {
-    blocks: SelectedBlockRange[];
-    templateBlock: BlockInfo;
-};
-
 export function buildSelectedBlockRangeFromBlockInfo(block: BlockInfo): SelectedBlockRange {
     return {
         startLineNumber: block.startLine + 1,
@@ -78,19 +73,4 @@ export function collectSelectedBlocksBetween(
     }
 
     return mergeSelectedBlocks(docLines, blocks);
-}
-
-export function buildCommittedRangeSelection(
-    doc: DocLikeWithRange,
-    selectionBlocks: SelectedBlockRange[],
-    templateBlock: BlockInfo
-): CommittedRangeSelection | null {
-    const committedBlocks = mergeSelectedBlocks(doc.lines, selectionBlocks);
-    if (committedBlocks.length === 0) {
-        return null;
-    }
-    return {
-        blocks: committedBlocks,
-        templateBlock,
-    };
 }

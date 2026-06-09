@@ -46,7 +46,7 @@ npm install dragger
 Stable entry points:
 
 ```ts
-import { IDLE_PIPELINE_STATE, reducePipeline } from 'dragger/drag';
+import { createDragPipeline } from 'dragger/drag';
 import { createMoveCommand, planBlockCommandTransaction } from 'dragger/domain';
 import { getLineMap, parseLineWithQuote } from 'dragger/markdown';
 ```

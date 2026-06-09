@@ -1,11 +1,8 @@
 import {
-    IDLE_PIPELINE_STATE,
-    reducePipeline,
+    createDragPipeline,
     type DragDropSnapshot,
     type DropResolution,
-    type PipelineEvent,
     type PipelineOutput,
-    type PipelineState,
 } from 'dragger/drag';
 import {
     BlockType,
@@ -29,27 +26,23 @@ const block = {
 };
 
 const selection = createSingleBlockSelection(block);
-let pipelineState: PipelineState = IDLE_PIPELINE_STATE;
-
-function dispatch(event: PipelineEvent<PlatformPreviewData>): void {
-    const result = reducePipeline<PlatformPreviewData>(pipelineState, event);
-    pipelineState = result.state;
-    applyPipelineOutputs(result.outputs);
-}
+const pipeline = createDragPipeline<PlatformPreviewData>({
+    onOutputs: applyPipelineOutputs,
+});
 
 const firstDrop = resolveDropSnapshot(selection, 24);
-dispatch({
+pipeline.enter({
     type: 'hold_start',
     sessionId: 's1',
     target: { selection, source: 'handle' },
     pointerType: 'mouse',
 });
-dispatch({
+pipeline.enter({
     type: 'hold_ready',
     sessionId: 's1',
     pointerType: 'mouse',
 });
-dispatch({
+pipeline.enter({
     type: 'drag_start',
     sessionId: 's1',
     pointerType: 'mouse',
@@ -57,14 +50,14 @@ dispatch({
 });
 
 const nextDrop = resolveDropSnapshot(selection, 48);
-dispatch({
+pipeline.enter({
     type: 'drag_over',
     sessionId: 's1',
     pointerType: 'mouse',
     drop: nextDrop,
 });
 
-dispatch({
+pipeline.enter({
     type: 'drop',
     sessionId: 's1',
     pointerType: 'mouse',

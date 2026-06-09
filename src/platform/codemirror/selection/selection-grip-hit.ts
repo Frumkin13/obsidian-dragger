@@ -1,4 +1,4 @@
-import type { CommittedRangeSelection } from '../../../domain/selection/range-selection';
+import type { BlockInfo } from '../../../domain/block/block-types';
 import {
     CODEMIRROR_CONTENT_SELECTOR,
     CODEMIRROR_GUTTERS_SELECTOR,
@@ -9,6 +9,7 @@ import {
 import {
     groupSelectedBlocksIntoSegments,
     type BlockSelectionSegment,
+    type SelectedBlockRange,
 } from '../../../domain/selection/block-ranges';
 
 export const RANGE_SELECTION_GRIP_HIT_PADDING_PX = 20;
@@ -22,21 +23,26 @@ type AnchorSpan = {
 
 type ResolveAnchorSpan = (segment: BlockSelectionSegment) => AnchorSpan | null;
 
-function getCommittedSelectionDocLineCount(committedSelection: CommittedRangeSelection): number {
+export type RangeSelectionView = {
+    blocks: SelectedBlockRange[];
+    templateBlock: BlockInfo;
+};
+
+function getRangeSelectionDocLineCount(selection: RangeSelectionView): number {
     return Math.max(
-        committedSelection.templateBlock.endLine + 1,
-        ...committedSelection.blocks.map((block) => block.endLineNumber)
+        selection.templateBlock.endLine + 1,
+        ...selection.blocks.map((block) => block.endLineNumber)
     );
 }
 
-function getCommittedSelectionAnchorMaxX(
-    committedSelection: CommittedRangeSelection,
+function getRangeSelectionAnchorMaxX(
+    selection: RangeSelectionView,
     resolveAnchorSpan: ResolveAnchorSpan
 ): number | null {
     let maxX: number | null = null;
     const segments = groupSelectedBlocksIntoSegments(
-        getCommittedSelectionDocLineCount(committedSelection),
-        committedSelection.blocks
+        getRangeSelectionDocLineCount(selection),
+        selection.blocks
     );
     for (const segment of segments) {
         const anchorSpan = resolveAnchorSpan(segment);
@@ -46,8 +52,8 @@ function getCommittedSelectionAnchorMaxX(
     return maxX;
 }
 
-type ShouldClearCommittedSelectionOptions = {
-    committedSelection: CommittedRangeSelection | null;
+type ShouldClearRangeSelectionOptions = {
+    selection: RangeSelectionView | null;
     target: HTMLElement;
     clientX: number;
     pointerType: string | null;
@@ -56,9 +62,9 @@ type ShouldClearCommittedSelectionOptions = {
     contentDOM: HTMLElement;
 };
 
-export function shouldClearCommittedSelectionOnPointerDown(options: ShouldClearCommittedSelectionOptions): boolean {
-    const committedSelection = options.committedSelection;
-    if (!committedSelection) return false;
+export function shouldClearRangeSelectionOnPointerDown(options: ShouldClearRangeSelectionOptions): boolean {
+    const selection = options.selection;
+    if (!selection) return false;
     if (options.target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`)) return false;
     if (options.target.closest(`.${DRAG_HANDLE_CLASS}`)) return false;
 
@@ -71,13 +77,13 @@ export function shouldClearCommittedSelectionOnPointerDown(options: ShouldClearC
         return !inContent && !inGutter;
     }
 
-    const anchorMaxX = getCommittedSelectionAnchorMaxX(committedSelection, options.resolveAnchorSpan);
+    const anchorMaxX = getRangeSelectionAnchorMaxX(selection, options.resolveAnchorSpan);
     if (anchorMaxX === null) return false;
     return options.clientX > anchorMaxX + RANGE_SELECTION_GRIP_HIT_X_PADDING_PX;
 }
 
-type IsCommittedSelectionGripHitOptions = {
-    committedSelection: CommittedRangeSelection | null;
+type IsRangeSelectionGripHitOptions = {
+    selection: RangeSelectionView | null;
     target: HTMLElement;
     clientX: number;
     clientY: number;
@@ -86,9 +92,9 @@ type IsCommittedSelectionGripHitOptions = {
     isWithinMobileDragHotzoneBand: (clientX: number) => boolean;
 };
 
-export function isCommittedSelectionGripHit(options: IsCommittedSelectionGripHitOptions): boolean {
-    const committedSelection = options.committedSelection;
-    if (!committedSelection) return false;
+export function isRangeSelectionGripHit(options: IsRangeSelectionGripHitOptions): boolean {
+    const selection = options.selection;
+    if (!selection) return false;
 
     const hitHandle = options.target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`);
     if (hitHandle) return true;
@@ -101,8 +107,8 @@ export function isCommittedSelectionGripHit(options: IsCommittedSelectionGripHit
     }
 
     const segments = groupSelectedBlocksIntoSegments(
-        getCommittedSelectionDocLineCount(committedSelection),
-        committedSelection.blocks
+        getRangeSelectionDocLineCount(selection),
+        selection.blocks
     );
     for (const segment of segments) {
         const anchorSpan = options.resolveAnchorSpan(segment);

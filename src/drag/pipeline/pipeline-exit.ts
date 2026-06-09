@@ -18,6 +18,25 @@ export function cancelPipeline<TPreview>(
         return { state, outputs: [] };
     }
 
+    if (
+        reason !== 'guard_unavailable'
+        && (state.type === 'holding' || state.type === 'ready_to_drag')
+        && state.hold.retainedSelection
+    ) {
+        const next: PipelineState = {
+            type: 'selecting',
+            selection: state.hold.retainedSelection,
+        };
+        return {
+            state: next,
+            outputs: [
+                { type: 'state_changed', state: next },
+                { type: 'selection_changed', selection: next.selection.selection },
+                { type: 'lifecycle', event: buildIdleLifecycleEvent() },
+            ],
+        };
+    }
+
     const source = state.type === 'holding' || state.type === 'ready_to_drag'
         ? state.hold.target.selection
         : state.type === 'selecting'

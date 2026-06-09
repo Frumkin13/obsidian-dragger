@@ -86,10 +86,12 @@ export type DragLifecycleListener = (event: DragLifecycleEvent) => void;
 export type PipelineOutput<TPreview = unknown> =
     | { type: 'state_changed'; state: PipelineState }
     | { type: 'selection_changed'; selection: BlockSelection | null }
+    | { type: 'drag_source_changed'; selection: BlockSelection | null }
     | { type: 'drag_over'; selection: BlockSelection; drop: DragDropSnapshot<TPreview>; pointerType: string | null }
     | { type: 'dropped'; selection: BlockSelection; drop: DragDropSnapshot<TPreview>; pointerType: string | null }
     | { type: 'cancelled'; selection: BlockSelection | null; reason: DragCancelReason; pointerType: string | null }
     | { type: 'command_ready'; command: BlockCommand }
+    | { type: 'terminal'; reason: 'drop' | 'cancel' | 'destroy' | 'guard_unavailable' }
     | { type: 'lifecycle'; event: DragLifecycleEvent };
 
 export function buildPressPendingLifecycleEvent(

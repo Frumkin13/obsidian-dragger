@@ -14,6 +14,7 @@ export type HoldContext = {
     sessionId: string;
     target: HoldTarget;
     guardDeps: GuardId[];
+    retainedSelection?: SelectionContext;
 };
 
 export type HoldTarget = {

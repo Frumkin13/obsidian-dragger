@@ -53,33 +53,35 @@ try {
     }, null, 2));
 
     fs.writeFileSync(path.join(tempDir, "esm.mjs"), `
-import { IDLE_PIPELINE_STATE, reducePipeline } from "dragger/drag";
+import { createDragPipeline } from "dragger/drag";
 import { BlockType } from "dragger/domain";
 import { parseLineWithQuote } from "dragger/markdown";
 const block = { type: BlockType.Paragraph, startLine: 0, endLine: 0, from: 0, to: 5, indentLevel: 0, content: "alpha" };
 const selection = { anchorBlock: block, focusBlock: block, ranges: [{ startLine: 0, endLine: 0 }] };
-const next = reducePipeline(IDLE_PIPELINE_STATE, { type: "hold_start", sessionId: "s1", target: { selection, source: "handle" } });
-if (next.state.type !== "holding") throw new Error("missing drag reducer");
+const pipeline = createDragPipeline();
+const next = pipeline.enter({ type: "hold_start", sessionId: "s1", target: { selection, source: "handle" } });
+if (next.current.type !== "holding") throw new Error("missing drag pipeline");
 if (BlockType.Paragraph !== "paragraph") throw new Error("missing domain export");
 if (parseLineWithQuote("alpha", 4).content !== "alpha") throw new Error("missing markdown export");
 console.log("esm ok");
 `);
 
     fs.writeFileSync(path.join(tempDir, "cjs.cjs"), `
-const { IDLE_PIPELINE_STATE, reducePipeline } = require("dragger/drag");
+const { createDragPipeline } = require("dragger/drag");
 const { BlockType } = require("dragger/domain");
 const { parseLineWithQuote } = require("dragger/markdown");
 const block = { type: BlockType.Paragraph, startLine: 0, endLine: 0, from: 0, to: 5, indentLevel: 0, content: "alpha" };
 const selection = { anchorBlock: block, focusBlock: block, ranges: [{ startLine: 0, endLine: 0 }] };
-const next = reducePipeline(IDLE_PIPELINE_STATE, { type: "hold_start", sessionId: "s1", target: { selection, source: "handle" } });
-if (next.state.type !== "holding") throw new Error("missing drag reducer");
+const pipeline = createDragPipeline();
+const next = pipeline.enter({ type: "hold_start", sessionId: "s1", target: { selection, source: "handle" } });
+if (next.current.type !== "holding") throw new Error("missing drag pipeline");
 if (BlockType.Paragraph !== "paragraph") throw new Error("missing domain export");
 if (parseLineWithQuote("alpha", 4).content !== "alpha") throw new Error("missing markdown export");
 console.log("cjs ok");
 `);
 
     fs.writeFileSync(path.join(tempDir, "typecheck.ts"), `
-import { IDLE_PIPELINE_STATE, reducePipeline, type DragDropSnapshot, type DropResolution, type PipelineOutput } from "dragger/drag";
+import { createDragPipeline, type DragDropSnapshot, type DropResolution, type PipelineOutput } from "dragger/drag";
 import { BlockType, createMoveCommand, createSingleBlockSelection } from "dragger/domain";
 
 type PreviewData = { marker: string };
@@ -91,20 +93,21 @@ const drop: DragDropSnapshot<PreviewData> = {
     previewData: { marker: "typed" },
 };
 if (!drop.target) throw new Error("missing target");
-const hold = reducePipeline<PreviewData>(IDLE_PIPELINE_STATE, {
+const pipeline = createDragPipeline<PreviewData>();
+const hold = pipeline.enter({
     type: "hold_start",
     sessionId: "s1",
     target: { selection, source: "handle" },
     pointerType: "mouse",
 });
-const ready = reducePipeline<PreviewData>(hold.state, { type: "hold_ready", sessionId: "s1", pointerType: "mouse" });
-const dragging = reducePipeline<PreviewData>(ready.state, { type: "drag_start", sessionId: "s1", drop, pointerType: "mouse" });
+const ready = pipeline.enter({ type: "hold_ready", sessionId: "s1", pointerType: "mouse" });
+const dragging = pipeline.enter({ type: "drag_start", sessionId: "s1", drop, pointerType: "mouse" });
 const resolution: DropResolution<PreviewData> = {
     type: "command",
     command: createMoveCommand(selection, drop.target),
     drop,
 };
-const committed = reducePipeline<PreviewData>(dragging.state, { type: "drop", sessionId: "s1", resolution, pointerType: "mouse" });
+const committed = pipeline.enter({ type: "drop", sessionId: "s1", resolution, pointerType: "mouse" });
 const outputs: PipelineOutput<PreviewData>[] = committed.outputs;
 if (!outputs.some((output) => output.type === "command_ready")) throw new Error("missing command output");
 `);

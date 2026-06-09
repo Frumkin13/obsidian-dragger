@@ -16,8 +16,8 @@ import {
     type BlockSelectionSegment,
     type SelectedBlockRange,
 } from '../../../domain/selection/block-ranges';
+import type { BlockSelection } from '../../../domain/selection/block-selection';
 import type { PipelineState } from '../../../drag/pipeline/pipeline-state';
-import type { CommittedRangeSelection } from '../../../domain/selection/range-selection';
 import { getMainContentLineElementForLine } from '../../dom/line-dom';
 import { addSourceLineClasses, removeSourceLineClasses } from './source-line-visual';
 
@@ -380,22 +380,28 @@ class RangeSelectionOverlayRenderer {
 
 export function renderRangeSelectionPreview(
     state: PipelineState,
-    committed: CommittedRangeSelection | null,
     rangeVisual: RangeSelectionVisualManager
 ): void {
     if (state.type === 'selecting') {
-        const isMobileSelection = state.selection.guardDeps.includes('mobile-text-drag-mode');
-        rangeVisual.renderInteractiveSelection(state.selection.rangeState?.selectionBlocks ?? selectionBlocksFromSelection(state.selection.selection), {
-            showSourceOutline: isMobileSelection,
-            showMobileResizeHandles: isMobileSelection,
-        });
+        renderSelectionContext(state.selection, rangeVisual);
         return;
     }
-    if (committed) {
-        rangeVisual.renderCommittedSelection(committed.blocks);
+    if ((state.type === 'holding' || state.type === 'ready_to_drag') && state.hold.retainedSelection) {
+        renderSelectionContext(state.hold.retainedSelection, rangeVisual);
         return;
     }
     rangeVisual.clear();
+}
+
+function renderSelectionContext(
+    selection: Extract<PipelineState, { type: 'selecting' }>['selection'],
+    rangeVisual: RangeSelectionVisualManager
+): void {
+    const isMobileSelection = selection.guardDeps.includes('mobile-text-drag-mode');
+    rangeVisual.renderInteractiveSelection(selection.rangeState?.selectionBlocks ?? selectionBlocksFromSelection(selection.selection), {
+        showSourceOutline: isMobileSelection,
+        showMobileResizeHandles: isMobileSelection,
+    });
 }
 
 function selectionBlocksFromSelection(selection: { ranges: Array<{ startLine: number; endLine: number }> }): SelectedBlockRange[] {
@@ -434,8 +440,11 @@ export class RangeSelectionVisualManager {
         this.render(blocks, options);
     }
 
-    renderCommittedSelection(blocks: SelectedBlockRange[]): void {
-        this.render(blocks, this.currentVisualOptions);
+    renderDragSourceSelection(selection: BlockSelection): void {
+        this.render(selectionBlocksFromSelection(selection), {
+            showSourceOutline: true,
+            showMobileResizeHandles: false,
+        });
     }
 
     private render(blocks: SelectedBlockRange[], options: RangeSelectionVisualOptions): void {

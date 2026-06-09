@@ -61,4 +61,31 @@ describe('CodeMirror input PRD contracts', () => {
 
         expect(offenders).toEqual([]);
     });
+
+    it('keeps passive range selection inside the drag pipeline state', () => {
+        const forbidden = /\bcommittedRangeSelection\b|\bCommittedRangeSelection\b/;
+        const offenders = readInputProductionFiles()
+            .filter((file) => forbidden.test(file.text))
+            .map((file) => file.rel);
+
+        expect(offenders).toEqual([]);
+    });
+
+    it('keeps platform input behind the DragPipeline object API', () => {
+        const forbidden = /\breducePipeline\b|from ['"].*pipeline-reducer['"]/;
+        const offenders = readInputProductionFiles()
+            .filter((file) => forbidden.test(file.text))
+            .map((file) => file.rel);
+
+        expect(offenders).toEqual([]);
+    });
+
+    it('keeps pointer selection translation from mirroring the adapter as host interfaces', () => {
+        const forbidden = /\b(?:RangeSelectionActionHost|PointerInteractionHost|dispatchPipeline)\b/;
+        const offenders = readInputProductionFiles()
+            .filter((file) => forbidden.test(file.text))
+            .map((file) => file.rel);
+
+        expect(offenders).toEqual([]);
+    });
 });
