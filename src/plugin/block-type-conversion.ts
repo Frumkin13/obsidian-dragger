@@ -157,40 +157,43 @@ function buildBlockTypeConversionChanges(
 function buildCodeBlockChanges(state: EditorState, startLineNumber: number, endLineNumber: number): LineChange[] {
     const startLine = state.doc.line(startLineNumber);
     const endLine = state.doc.line(endLineNumber);
-    const content = state.doc.sliceString(startLine.from, endLine.to);
+    const content = Array.from({ length: endLineNumber - startLineNumber + 1 }, (_, index) => {
+        const line = state.doc.line(startLineNumber + index);
+        return stripKnownBlockPrefix(line.text).body;
+    }).join('\n');
     if (content.startsWith('```') && content.endsWith('```')) return [];
     return [{ from: startLine.from, to: endLine.to, insert: `\`\`\`\n${content}\n\`\`\`` }];
 }
 
 function convertLine(text: string, conversion: Exclude<BlockTypeConversion, 'code-block'>, ordinal: number): string {
-    const { quotePrefix, indentRaw, body } = stripKnownBlockPrefix(text);
+    const { indentRaw, body } = stripKnownBlockPrefix(text);
     switch (conversion) {
         case 'paragraph':
-            return `${quotePrefix}${indentRaw}${body}`;
+            return `${indentRaw}${body}`;
         case 'heading-1':
-            return `${quotePrefix}${indentRaw}# ${body}`;
+            return `${indentRaw}# ${body}`;
         case 'heading-2':
-            return `${quotePrefix}${indentRaw}## ${body}`;
+            return `${indentRaw}## ${body}`;
         case 'heading-3':
-            return `${quotePrefix}${indentRaw}### ${body}`;
+            return `${indentRaw}### ${body}`;
         case 'heading-4':
-            return `${quotePrefix}${indentRaw}#### ${body}`;
+            return `${indentRaw}#### ${body}`;
         case 'heading-5':
-            return `${quotePrefix}${indentRaw}##### ${body}`;
+            return `${indentRaw}##### ${body}`;
         case 'heading-6':
-            return `${quotePrefix}${indentRaw}###### ${body}`;
+            return `${indentRaw}###### ${body}`;
         case 'bullet-list':
-            return `${quotePrefix}${indentRaw}- ${body}`;
+            return `${indentRaw}- ${body}`;
         case 'ordered-list':
-            return `${quotePrefix}${indentRaw}${ordinal}. ${body}`;
+            return `${indentRaw}${ordinal}. ${body}`;
         case 'task-list':
-            return `${quotePrefix}${indentRaw}- [ ] ${body}`;
+            return `${indentRaw}- [ ] ${body}`;
         case 'blockquote':
             return `> ${indentRaw}${body}`;
     }
 }
 
-function stripKnownBlockPrefix(text: string): { quotePrefix: string; indentRaw: string; body: string } {
+function stripKnownBlockPrefix(text: string): { indentRaw: string; body: string } {
     const quoteMatch = text.match(/^(\s*>\s?)*/);
     const quotePrefix = quoteMatch?.[0] ?? '';
     const withoutQuote = text.slice(quotePrefix.length);
@@ -203,5 +206,5 @@ function stripKnownBlockPrefix(text: string): { quotePrefix: string; indentRaw: 
     if (listMatch) {
         rest = rest.slice(listMatch[0].length);
     }
-    return { quotePrefix, indentRaw, body: rest };
+    return { indentRaw, body: rest };
 }

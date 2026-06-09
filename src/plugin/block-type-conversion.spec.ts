@@ -36,8 +36,44 @@ describe('block type conversion', () => {
         expect(view.state.doc.toString()).toBe('1. alpha\n- beta');
     });
 
+    it('clears the quote marker when converting a quote to a paragraph', () => {
+        const view = createMutableView('> alpha\nbeta', 0);
+
+        const changed = convertCurrentBlockType(view, 'paragraph');
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('alpha\nbeta');
+    });
+
+    it('clears the quote marker before converting a quote to a heading', () => {
+        const view = createMutableView('> alpha\nbeta', 0);
+
+        const changed = convertCurrentBlockType(view, 'heading-3');
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('### alpha\nbeta');
+    });
+
+    it('clears the quote marker before converting a quote to a list item', () => {
+        const view = createMutableView('> alpha\nbeta', 0);
+
+        const changed = convertCurrentBlockType(view, 'bullet-list');
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('- alpha\nbeta');
+    });
+
     it('wraps the current block in a fenced code block', () => {
         const view = createMutableView('alpha\nbeta', 0);
+
+        const changed = convertCurrentBlockType(view, 'code-block');
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('```\nalpha\n```\nbeta');
+    });
+
+    it('clears the quote marker before converting a quote to a code block', () => {
+        const view = createMutableView('> alpha\nbeta', 0);
 
         const changed = convertCurrentBlockType(view, 'code-block');
 
