@@ -29,6 +29,10 @@ describe('block type conversion planner', () => {
         expect(applyPlannedConversion('> alpha\nbeta', 1, 1, { type: BlockType.CodeBlock })).toBe('```\nalpha\n```\nbeta');
     });
 
+    it('clears quote markers before wrapping a math block', () => {
+        expect(applyPlannedConversion('> x = y\nbeta', 1, 1, { type: BlockType.MathBlock })).toBe('$$\nx = y\n$$\nbeta');
+    });
+
     it('clears code fences before converting a code block to a paragraph', () => {
         expect(applyPlannedConversion('```\nalpha\n```', 1, 3, { type: BlockType.Paragraph })).toBe('alpha');
     });
@@ -51,6 +55,25 @@ describe('block type conversion planner', () => {
         expect(applyPlannedConversion('```\n# alpha\n- beta\n```', 1, 4, {
             type: BlockType.Paragraph,
         })).toBe('# alpha\n- beta');
+    });
+
+    it('clears math fences before converting a math block to a paragraph', () => {
+        expect(applyPlannedConversion('$$\nx = y\n$$', 1, 3, { type: BlockType.Paragraph })).toBe('x = y');
+    });
+
+    it('clears single-line math fences before converting to a heading', () => {
+        expect(applyPlannedConversion('$$x = y$$', 1, 1, {
+            type: BlockType.Heading,
+            level: 2,
+        })).toBe('## x = y');
+    });
+
+    it('rewraps code fences when converting a code block to a math block', () => {
+        expect(applyPlannedConversion('```\nx = y\n```', 1, 3, { type: BlockType.MathBlock })).toBe('$$\nx = y\n$$');
+    });
+
+    it('rewraps math fences when converting a math block to a code block', () => {
+        expect(applyPlannedConversion('$$\nx = y\n$$', 1, 3, { type: BlockType.CodeBlock })).toBe('```\nx = y\n```');
     });
 });
 

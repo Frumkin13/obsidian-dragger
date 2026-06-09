@@ -82,6 +82,15 @@ describe('block type conversion', () => {
         expect(view.state.doc.toString()).toBe('```\nalpha\n```\nbeta');
     });
 
+    it('wraps the current block in a fenced math block', () => {
+        const view = createMutableView('x = y\nbeta', 0);
+
+        const changed = convertCurrentBlockType(view, { type: BlockType.MathBlock });
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('$$\nx = y\n$$\nbeta');
+    });
+
     it('clears code fences before converting a code block to a paragraph', () => {
         const view = createMutableView('```\nalpha\n```', 0);
 
@@ -89,6 +98,15 @@ describe('block type conversion', () => {
 
         expect(changed).toBe(true);
         expect(view.state.doc.toString()).toBe('alpha');
+    });
+
+    it('clears math fences before converting a math block to a paragraph', () => {
+        const view = createMutableView('$$\nx = y\n$$', 0);
+
+        const changed = convertCurrentBlockType(view, { type: BlockType.Paragraph });
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('x = y');
     });
 
     it('deletes the current block and its trailing newline', () => {

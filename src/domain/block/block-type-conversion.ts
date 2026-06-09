@@ -1,5 +1,5 @@
 import type { DocLikeWithRange, MarkerType } from '../markdown/document-types';
-import { isCodeFenceLine } from './block-guards';
+import { isCodeFenceLine, isMathFenceLine } from './block-guards';
 import { BlockType } from './block-types';
 
 export type BlockTypeConversion =
@@ -7,7 +7,8 @@ export type BlockTypeConversion =
     | { type: BlockType.Heading; level: 1 | 2 | 3 | 4 | 5 | 6 }
     | { type: BlockType.ListItem; markerType: MarkerType }
     | { type: BlockType.Blockquote }
-    | { type: BlockType.CodeBlock };
+    | { type: BlockType.CodeBlock }
+    | { type: BlockType.MathBlock };
 
 export type BlockTypeConversionChange = {
     from: number;
@@ -21,13 +22,15 @@ export function planBlockTypeConversionChanges(
     endLineNumber: number,
     conversion: BlockTypeConversion
 ): BlockTypeConversionChange[] {
-    if (conversion.type === BlockType.CodeBlock) {
-        return planCodeBlockChanges(doc, startLineNumber, endLineNumber);
+    const fencedBlock = readFencedBlockContentLines(doc, startLineNumber, endLineNumber);
+
+    if (isFencedBlockConversion(conversion)) {
+        if (fencedBlock?.type === conversion.type) return [];
+        return planFencedBlockChanges(doc, startLineNumber, endLineNumber, conversion, fencedBlock?.contentLines ?? null);
     }
 
-    const codeContentLines = readCodeBlockContentLines(doc, startLineNumber, endLineNumber);
-    if (codeContentLines) {
-        return planCodeBlockUnwrapChanges(doc, startLineNumber, endLineNumber, codeContentLines, conversion);
+    if (fencedBlock) {
+        return planFencedBlockUnwrapChanges(doc, startLineNumber, endLineNumber, fencedBlock.contentLines, conversion);
     }
 
     const changes: BlockTypeConversionChange[] = [];
@@ -40,51 +43,99 @@ export function planBlockTypeConversionChanges(
     return changes;
 }
 
-function readCodeBlockContentLines(doc: DocLikeWithRange, startLineNumber: number, endLineNumber: number): string[] | null {
-    if (startLineNumber >= endLineNumber) return null;
-    if (!isCodeFenceLine(doc.line(startLineNumber).text)) return null;
-    if (!isCodeFenceLine(doc.line(endLineNumber).text)) return null;
+type FencedBlockConversion = Extract<BlockTypeConversion, { type: BlockType.CodeBlock | BlockType.MathBlock }>;
+
+type FencedBlockContent = {
+    type: BlockType.CodeBlock | BlockType.MathBlock;
+    contentLines: string[];
+};
+
+function isFencedBlockConversion(conversion: BlockTypeConversion): conversion is FencedBlockConversion {
+    return conversion.type === BlockType.CodeBlock || conversion.type === BlockType.MathBlock;
+}
+
+function readFencedBlockContentLines(
+    doc: DocLikeWithRange,
+    startLineNumber: number,
+    endLineNumber: number
+): FencedBlockContent | null {
+    const startText = doc.line(startLineNumber).text;
+    const endText = doc.line(endLineNumber).text;
+    if (isCodeFenceLine(startText) && startLineNumber < endLineNumber && isCodeFenceLine(endText)) {
+        return {
+            type: BlockType.CodeBlock,
+            contentLines: readInnerLines(doc, startLineNumber, endLineNumber),
+        };
+    }
+    if (isMathFenceLine(startText)) {
+        if (startLineNumber === endLineNumber) {
+            const content = readSingleLineMathContent(startText);
+            if (content !== null) {
+                return { type: BlockType.MathBlock, contentLines: [content] };
+            }
+        }
+        if (startLineNumber < endLineNumber && isMathFenceLine(endText)) {
+            return {
+                type: BlockType.MathBlock,
+                contentLines: readInnerLines(doc, startLineNumber, endLineNumber),
+            };
+        }
+    }
+    return null;
+}
+
+function readInnerLines(doc: DocLikeWithRange, startLineNumber: number, endLineNumber: number): string[] {
     return Array.from({ length: endLineNumber - startLineNumber - 1 }, (_, index) => (
         doc.line(startLineNumber + index + 1).text
     ));
 }
 
-function planCodeBlockUnwrapChanges(
+function readSingleLineMathContent(text: string): string | null {
+    const trimmed = text.trim();
+    if (!trimmed.startsWith('$$') || !trimmed.endsWith('$$') || trimmed.length < 4) return null;
+    return trimmed.slice(2, -2).trim();
+}
+
+function planFencedBlockUnwrapChanges(
     doc: DocLikeWithRange,
     startLineNumber: number,
     endLineNumber: number,
     contentLines: string[],
-    conversion: Exclude<BlockTypeConversion, { type: BlockType.CodeBlock }>
+    conversion: Exclude<BlockTypeConversion, FencedBlockConversion>
 ): BlockTypeConversionChange[] {
     const startLine = doc.line(startLineNumber);
     const endLine = doc.line(endLineNumber);
     const insert = contentLines
-        .map((line, index) => convertCodeContentLine(line, conversion, index + 1))
+        .map((line, index) => convertFencedContentLine(line, conversion, index + 1))
         .join('\n');
     return [{ from: startLine.from, to: endLine.to, insert }];
 }
 
-function planCodeBlockChanges(
+function planFencedBlockChanges(
     doc: DocLikeWithRange,
     startLineNumber: number,
-    endLineNumber: number
+    endLineNumber: number,
+    conversion: FencedBlockConversion,
+    existingContentLines: string[] | null
 ): BlockTypeConversionChange[] {
     const startLine = doc.line(startLineNumber);
     const endLine = doc.line(endLineNumber);
-    const content = Array.from({ length: endLineNumber - startLineNumber + 1 }, (_, index) => {
-        const line = doc.line(startLineNumber + index);
-        return stripKnownBlockPrefix(line.text).body;
-    }).join('\n');
-    if (content.startsWith('```') && content.endsWith('```')) return [];
-    return [{ from: startLine.from, to: endLine.to, insert: `\`\`\`\n${content}\n\`\`\`` }];
+    const content = existingContentLines
+        ? existingContentLines.join('\n')
+        : Array.from({ length: endLineNumber - startLineNumber + 1 }, (_, index) => {
+            const line = doc.line(startLineNumber + index);
+            return stripKnownBlockPrefix(line.text).body;
+        }).join('\n');
+    const fence = conversion.type === BlockType.CodeBlock ? '```' : '$$';
+    return [{ from: startLine.from, to: endLine.to, insert: `${fence}\n${content}\n${fence}` }];
 }
 
-function convertLine(text: string, conversion: Exclude<BlockTypeConversion, { type: BlockType.CodeBlock }>, ordinal: number): string {
+function convertLine(text: string, conversion: Exclude<BlockTypeConversion, FencedBlockConversion>, ordinal: number): string {
     const { indentRaw, body } = stripKnownBlockPrefix(text);
     return formatConvertedLine(indentRaw, body, conversion, ordinal);
 }
 
-function convertCodeContentLine(text: string, conversion: Exclude<BlockTypeConversion, { type: BlockType.CodeBlock }>, ordinal: number): string {
+function convertFencedContentLine(text: string, conversion: Exclude<BlockTypeConversion, FencedBlockConversion>, ordinal: number): string {
     const { indentRaw, body } = splitIndent(text);
     return formatConvertedLine(indentRaw, body, conversion, ordinal);
 }
@@ -92,7 +143,7 @@ function convertCodeContentLine(text: string, conversion: Exclude<BlockTypeConve
 function formatConvertedLine(
     indentRaw: string,
     body: string,
-    conversion: Exclude<BlockTypeConversion, { type: BlockType.CodeBlock }>,
+    conversion: Exclude<BlockTypeConversion, FencedBlockConversion>,
     ordinal: number
 ): string {
     switch (conversion.type) {

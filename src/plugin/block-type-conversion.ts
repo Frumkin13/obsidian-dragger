@@ -35,6 +35,7 @@ export const LIST_BLOCK_TYPE_OPTIONS: BlockTypeConversionOption[] = [
 export const SIMPLE_BLOCK_TYPE_OPTIONS: BlockTypeConversionOption[] = [
     { target: { type: BlockType.Blockquote }, label: 'Quote', icon: 'quote' },
     { target: { type: BlockType.CodeBlock }, label: 'Code block', icon: 'code' },
+    { target: { type: BlockType.MathBlock }, label: 'Math block', icon: 'sigma' },
 ];
 
 export function convertCurrentBlockType(view: EditorView, conversion: BlockTypeConversion): boolean {
