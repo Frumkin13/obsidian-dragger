@@ -13,20 +13,35 @@ export type BlockTypeConversion =
     | 'heading-1'
     | 'heading-2'
     | 'heading-3'
+    | 'heading-4'
+    | 'heading-5'
+    | 'heading-6'
     | 'bullet-list'
     | 'ordered-list'
     | 'task-list'
     | 'blockquote'
     | 'code-block';
 
-export const BLOCK_TYPE_CONVERSION_OPTIONS: Array<{ id: BlockTypeConversion; label: string; icon: string }> = [
-    { id: 'paragraph', label: 'Paragraph', icon: 'pilcrow' },
+export type BlockTypeConversionOption = { id: BlockTypeConversion; label: string; icon: string };
+
+export const PARAGRAPH_BLOCK_TYPE_OPTION: BlockTypeConversionOption = { id: 'paragraph', label: 'Paragraph', icon: 'pilcrow' };
+
+export const HEADING_BLOCK_TYPE_OPTIONS: BlockTypeConversionOption[] = [
     { id: 'heading-1', label: 'Heading 1', icon: 'heading-1' },
     { id: 'heading-2', label: 'Heading 2', icon: 'heading-2' },
     { id: 'heading-3', label: 'Heading 3', icon: 'heading-3' },
+    { id: 'heading-4', label: 'Heading 4', icon: 'heading-4' },
+    { id: 'heading-5', label: 'Heading 5', icon: 'heading-5' },
+    { id: 'heading-6', label: 'Heading 6', icon: 'heading-6' },
+];
+
+export const LIST_BLOCK_TYPE_OPTIONS: BlockTypeConversionOption[] = [
     { id: 'bullet-list', label: 'Bullet list', icon: 'list' },
-    { id: 'ordered-list', label: 'Ordered list', icon: 'list-ordered' },
+    { id: 'ordered-list', label: 'Numbered list', icon: 'list-ordered' },
     { id: 'task-list', label: 'Task list', icon: 'list-checks' },
+];
+
+export const SIMPLE_BLOCK_TYPE_OPTIONS: BlockTypeConversionOption[] = [
     { id: 'blockquote', label: 'Quote', icon: 'quote' },
     { id: 'code-block', label: 'Code block', icon: 'code' },
 ];
@@ -65,6 +80,34 @@ export function deleteCurrentBlock(view: EditorView): boolean {
     if (isCommandReject(transaction)) return false;
     applyBlockTransaction(view, transaction, { anchor: block.from });
     return true;
+}
+
+export async function copyCurrentBlock(view: EditorView): Promise<boolean> {
+    const text = getCurrentBlockText(view);
+    if (text === null) return false;
+    return writeClipboardText(text);
+}
+
+export async function cutCurrentBlock(view: EditorView): Promise<boolean> {
+    const copied = await copyCurrentBlock(view);
+    if (!copied) return false;
+    return deleteCurrentBlock(view);
+}
+
+function getCurrentBlockText(view: EditorView): string | null {
+    const block = getCurrentBlock(view);
+    if (!block) return null;
+    return view.state.doc.sliceString(block.from, block.to);
+}
+
+async function writeClipboardText(text: string): Promise<boolean> {
+    if (typeof navigator === 'undefined' || !navigator.clipboard) return false;
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 function getCurrentBlock(view: EditorView): BlockInfo | null {
@@ -130,6 +173,12 @@ function convertLine(text: string, conversion: Exclude<BlockTypeConversion, 'cod
             return `${quotePrefix}${indentRaw}## ${body}`;
         case 'heading-3':
             return `${quotePrefix}${indentRaw}### ${body}`;
+        case 'heading-4':
+            return `${quotePrefix}${indentRaw}#### ${body}`;
+        case 'heading-5':
+            return `${quotePrefix}${indentRaw}##### ${body}`;
+        case 'heading-6':
+            return `${quotePrefix}${indentRaw}###### ${body}`;
         case 'bullet-list':
             return `${quotePrefix}${indentRaw}- ${body}`;
         case 'ordered-list':

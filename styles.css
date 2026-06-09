@@ -351,3 +351,82 @@ body.dnd-mobile-gesture-lock {
 body[data-dnd-list-drop-highlight="off"] .dnd-drop-highlight {
     display: none !important;
 }
+
+.menu-item:has(.dnd-block-type-menu-row),
+.menu-item:has(.dnd-block-type-action-row) {
+    padding: 0;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.menu-item:has(.dnd-block-type-menu-row) .menu-item-icon,
+.menu-item:has(.dnd-block-type-action-row) .menu-item-icon {
+    display: none;
+}
+
+.menu-item:has(.dnd-block-type-menu-row) .menu-item-title,
+.menu-item:has(.dnd-block-type-action-row) .menu-item-title {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+.dnd-block-type-menu-row {
+    display: grid;
+    grid-template-columns: 24px 1fr 18px;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-height: 28px;
+    padding: 0 6px;
+    font-size: var(--font-ui-smaller);
+    text-align: left;
+}
+
+.dnd-block-type-menu-row-icon,
+.dnd-block-type-menu-row-chevron {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+}
+
+.dnd-block-type-menu-row-icon svg,
+.dnd-block-type-menu-row-chevron svg,
+.dnd-block-type-action-button svg {
+    width: 14px;
+    height: 14px;
+}
+
+.dnd-block-type-menu-row-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dnd-block-type-action-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+}
+
+.dnd-block-type-action-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    height: 28px;
+    padding: 0;
+    border-radius: 0;
+    font-size: var(--font-ui-smaller);
+    line-height: 1;
+}
+
+.dnd-block-type-action-button + .dnd-block-type-action-button {
+    border-left: 1px solid var(--background-modifier-border);
+}

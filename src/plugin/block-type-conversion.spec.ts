@@ -1,7 +1,12 @@
 import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
-import { describe, expect, it } from 'vitest';
-import { convertCurrentBlockType, deleteCurrentBlock } from './block-type-conversion';
+import { describe, expect, it, vi } from 'vitest';
+import {
+    convertCurrentBlockType,
+    copyCurrentBlock,
+    cutCurrentBlock,
+    deleteCurrentBlock,
+} from './block-type-conversion';
 
 describe('block type conversion', () => {
     it('converts the current block to a heading', () => {
@@ -11,6 +16,15 @@ describe('block type conversion', () => {
 
         expect(changed).toBe(true);
         expect(view.state.doc.toString()).toBe('## alpha\nbeta');
+    });
+
+    it('converts the current block to a level 6 heading', () => {
+        const view = createMutableView('alpha\nbeta', 0);
+
+        const changed = convertCurrentBlockType(view, 'heading-6');
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('###### alpha\nbeta');
     });
 
     it('converts the current list block to an ordered list marker', () => {
@@ -48,7 +62,38 @@ describe('block type conversion', () => {
         expect(changed).toBe(true);
         expect(view.state.doc.toString()).toBe('alpha');
     });
+
+    it('copies the current block text to the clipboard', async () => {
+        const view = createMutableView('alpha\nbeta', 0);
+        const writeText = mockClipboard();
+
+        const changed = await copyCurrentBlock(view);
+
+        expect(changed).toBe(true);
+        expect(writeText).toHaveBeenCalledWith('alpha');
+        expect(view.state.doc.toString()).toBe('alpha\nbeta');
+    });
+
+    it('cuts the current block text to the clipboard and deletes it', async () => {
+        const view = createMutableView('alpha\nbeta', 0);
+        const writeText = mockClipboard();
+
+        const changed = await cutCurrentBlock(view);
+
+        expect(changed).toBe(true);
+        expect(writeText).toHaveBeenCalledWith('alpha');
+        expect(view.state.doc.toString()).toBe('beta');
+    });
 });
+
+function mockClipboard(): ReturnType<typeof vi.fn> {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText },
+    });
+    return writeText;
+}
 
 function createMutableView(doc: string, selectionAnchor: number): EditorView {
     let state = EditorState.create({
