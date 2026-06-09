@@ -46,7 +46,7 @@ npm install dragger
 Stable entry points:
 
 ```ts
-import { DragFlowController, executeDragEffects } from 'dragger/drag';
+import { IDLE_PIPELINE_STATE, reducePipeline } from 'dragger/drag';
 import { createMoveCommand, planBlockCommandTransaction } from 'dragger/domain';
 import { getLineMap, parseLineWithQuote } from 'dragger/markdown';
 ```
@@ -55,10 +55,11 @@ For another editor platform, adapt host events into core values:
 
 - `BlockSelection`
 - `DragDropSnapshot`
-- `DropCommitResolution`
-- `DragEffectExecutor`
+- `DropResolution`
+- `PipelineEvent`
+- `PipelineOutput`
 
-`previewData` on `DragDropSnapshot<TPreview>` is platform-private rendering data. For example, CodeMirror stores the resolved drop-indicator geometry there. The core keeps the type and passes it back to `showDropPreview`; it never reads or mutates that data.
+`previewData` on `DragDropSnapshot<TPreview>` is platform-private rendering data. For example, CodeMirror stores the resolved drop-indicator geometry there. The core keeps the type and passes it back on `PipelineOutput`; it never reads or mutates that data.
 
 See [`examples/headless-platform`](examples/headless-platform) for the minimal adapter shape.
 

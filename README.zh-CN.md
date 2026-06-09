@@ -46,7 +46,7 @@ npm install dragger
 稳定入口：
 
 ```ts
-import { DragFlowController, executeDragEffects } from 'dragger/drag';
+import { IDLE_PIPELINE_STATE, reducePipeline } from 'dragger/drag';
 import { createMoveCommand, planBlockCommandTransaction } from 'dragger/domain';
 import { getLineMap, parseLineWithQuote } from 'dragger/markdown';
 ```
@@ -55,10 +55,11 @@ import { getLineMap, parseLineWithQuote } from 'dragger/markdown';
 
 - `BlockSelection`
 - `DragDropSnapshot`
-- `DropCommitResolution`
-- `DragEffectExecutor`
+- `DropResolution`
+- `PipelineEvent`
+- `PipelineOutput`
 
-`DragDropSnapshot<TPreview>` 里的 `previewData` 是平台私有的渲染数据。例如 CodeMirror 会把落点指示器的几何信息放在这里。core 只保持类型并在 `showDropPreview` 时原样传回平台，不读取也不修改它。
+`DragDropSnapshot<TPreview>` 里的 `previewData` 是平台私有的渲染数据。例如 CodeMirror 会把落点指示器的几何信息放在这里。core 只保持类型并在 `PipelineOutput` 中原样传回平台，不读取也不修改它。
 
 最小接入形态见 [`examples/headless-platform`](examples/headless-platform)。
 

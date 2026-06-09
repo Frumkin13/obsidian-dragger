@@ -1,9 +1,11 @@
 import {
-    DragFlowController,
-    executeDragEffects,
-    type DragEffectExecutor,
+    IDLE_PIPELINE_STATE,
+    reducePipeline,
     type DragDropSnapshot,
-    type DropCommitResolution,
+    type DropResolution,
+    type PipelineEvent,
+    type PipelineOutput,
+    type PipelineState,
 } from 'dragger/drag';
 import {
     BlockType,
@@ -27,41 +29,67 @@ const block = {
 };
 
 const selection = createSingleBlockSelection(block);
-const drag = new DragFlowController<PlatformPreviewData>();
+let pipelineState: PipelineState = IDLE_PIPELINE_STATE;
 
-const effects: DragEffectExecutor<PlatformPreviewData> = {
-    showDropPreview: (_selection, drop) => {
-        renderDropIndicator(drop.previewData?.indicatorY ?? null);
-    },
-    hideDropPreview: () => renderDropIndicator(null),
-    applyCommand: (command) => {
-        console.log('apply command in your editor', command);
-    },
-    emitLifecycle: (event) => {
-        console.log('drag lifecycle', event.type);
-    },
-};
+function dispatch(event: PipelineEvent<PlatformPreviewData>): void {
+    const result = reducePipeline<PlatformPreviewData>(pipelineState, event);
+    pipelineState = result.state;
+    applyPipelineOutputs(result.outputs);
+}
 
 const firstDrop = resolveDropSnapshot(selection, 24);
-executeDragEffects(effects, drag.begin({
-    selection,
-    pointerId: 1,
+dispatch({
+    type: 'hold_start',
+    sessionId: 's1',
+    target: { selection, source: 'handle' },
+    pointerType: 'mouse',
+});
+dispatch({
+    type: 'hold_ready',
+    sessionId: 's1',
+    pointerType: 'mouse',
+});
+dispatch({
+    type: 'drag_start',
+    sessionId: 's1',
     pointerType: 'mouse',
     drop: firstDrop,
-}).effects);
+});
 
 const nextDrop = resolveDropSnapshot(selection, 48);
-executeDragEffects(effects, drag.preview({
-    pointerId: 1,
+dispatch({
+    type: 'drag_over',
+    sessionId: 's1',
     pointerType: 'mouse',
     drop: nextDrop,
-}));
+});
 
-executeDragEffects(effects, drag.commit({
-    pointerId: 1,
+dispatch({
+    type: 'drop',
+    sessionId: 's1',
     pointerType: 'mouse',
     resolution: resolveDropCommit(selection, nextDrop),
-}));
+});
+
+function applyPipelineOutputs(outputs: PipelineOutput<PlatformPreviewData>[]): void {
+    for (const output of outputs) {
+        switch (output.type) {
+            case 'drag_over':
+                renderDropIndicator(output.drop.previewData?.indicatorY ?? null);
+                break;
+            case 'command_ready':
+                console.log('apply command in your editor', output.command);
+                break;
+            case 'cancelled':
+            case 'dropped':
+                renderDropIndicator(null);
+                break;
+            case 'lifecycle':
+                console.log('drag lifecycle', output.event.type);
+                break;
+        }
+    }
+}
 
 function resolveDropSnapshot(
     _selection: BlockSelection,
@@ -80,7 +108,7 @@ function resolveDropSnapshot(
 function resolveDropCommit(
     selection: BlockSelection,
     drop: DragDropSnapshot<PlatformPreviewData>
-): DropCommitResolution<PlatformPreviewData> {
+): DropResolution<PlatformPreviewData> {
     if (!drop.target) {
         return { type: 'cancel', drop, reason: drop.rejectReason ?? 'no_target' };
     }
