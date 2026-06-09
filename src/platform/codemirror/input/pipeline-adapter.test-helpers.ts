@@ -10,6 +10,7 @@ import type { DragDropSnapshot } from '../../../drag/pipeline/pipeline-drop';
 import type { DragLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
 import type { PointerDropCommitResolution } from './pointer-hit-test';
 import type { PipelineOutputExecutor, PipelineAdapterDeps } from './pipeline-adapter';
+import { DRAG_HANDLE_CLASS, LINE_HANDLE_CLASS } from '../../../shared/dom-selectors';
 
 type RectLike = {
     left: number;
@@ -84,6 +85,10 @@ export function createPipelineAdapterDeps(deps: PipelineAdapterTestDeps): Pipeli
 
     return {
         ...deps,
+        getVisibleHandleForBlockStart: deps.getVisibleHandleForBlockStart
+            ?? ((blockStart) => document.querySelector<HTMLElement>(
+                `.${DRAG_HANDLE_CLASS}.${LINE_HANDLE_CLASS}[data-block-start="${blockStart}"]`
+            )),
         resolveDropSnapshotAtPoint,
         buildBlockCommandAtPoint,
         pipelineOutputExecutor,
@@ -242,7 +247,7 @@ export function appendHandleForBlockStart(
         gutter.appendChild(marker);
     }
     const handle = document.createElement('div');
-    handle.className = 'dnd-drag-handle';
+    handle.className = `${DRAG_HANDLE_CLASS} ${LINE_HANDLE_CLASS}`;
     handle.setAttribute('data-block-start', String(blockStart));
     handle.setAttribute('data-block-end', String(blockEnd ?? blockStart));
     Object.defineProperty(handle, 'getBoundingClientRect', {

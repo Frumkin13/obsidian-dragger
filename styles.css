@@ -35,6 +35,7 @@
 }
 
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter .cm-gutterElement.dnd-handle-gutter-marker {
+    position: relative;
     display: block;
     box-sizing: border-box;
     width: 0;
@@ -243,6 +244,8 @@ body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-edi
 
 .dnd-mobile-selection-resize-handle {
     position: absolute;
+    left: var(--dnd-selection-resize-handle-left, var(--dnd-handle-horizontal-offset-px, 0px));
+    transform: translateX(-50%);
     width: 64px;
     height: 36px;
     display: none;
@@ -258,6 +261,14 @@ body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-edi
     user-select: none;
     font-size: 24px;
     line-height: 1;
+}
+
+.dnd-mobile-selection-resize-handle-top {
+    top: -18px;
+}
+
+.dnd-mobile-selection-resize-handle-bottom {
+    bottom: -18px;
 }
 
 .dnd-mobile-selection-resize-handle.is-active {

@@ -1062,6 +1062,7 @@ describe('PipelineAdapter Range Selection', () => {
     it('shows mobile resize handles for mobile selection mode', () => {
         document.body.classList.add('is-mobile');
         const view = createViewStub(8);
+        appendHandleForBlockStart(view, 0);
         appendHandleForBlockStart(view, 1);
 
         const sourceBlock = createBlock('- item', 1, 1);
@@ -2604,6 +2605,12 @@ describe('PipelineAdapter Range Selection', () => {
         const bottomResizeHandles = Array.from(view.dom.querySelectorAll<HTMLElement>('.dnd-mobile-selection-resize-handle-bottom.is-active'));
         expect(topResizeHandles.map((handle) => handle.getAttribute('data-dnd-mobile-selection-start-line'))).toEqual(['1', '6']);
         expect(bottomResizeHandles.map((handle) => handle.getAttribute('data-dnd-mobile-selection-start-line'))).toEqual(['1', '6']);
+        expect(topResizeHandles.map((handle) => handle.parentElement?.classList.contains('dnd-handle-gutter-marker'))).toEqual([true, true]);
+        expect(bottomResizeHandles.map((handle) => handle.parentElement?.classList.contains('dnd-handle-gutter-marker'))).toEqual([true, true]);
+        expect(topResizeHandles.some((handle) => view.contentDOM.contains(handle))).toBe(false);
+        expect(bottomResizeHandles.some((handle) => view.contentDOM.contains(handle))).toBe(false);
+        expect(topResizeHandles.every((handle) => handle.style.getPropertyValue('--dnd-selection-resize-handle-left') !== '')).toBe(true);
+        expect(bottomResizeHandles.every((handle) => handle.style.getPropertyValue('--dnd-selection-resize-handle-left') !== '')).toBe(true);
         expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
         expect(dispatchTouchMove(window).defaultPrevented).toBe(false);
 

@@ -3,6 +3,7 @@ import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const inputRoot = join(process.cwd(), 'src', 'platform', 'codemirror', 'input');
+const previewRoot = join(process.cwd(), 'src', 'platform', 'codemirror', 'preview');
 
 function collectProductionTsFiles(dir: string): string[] {
     const files: string[] = [];
@@ -22,6 +23,13 @@ function collectProductionTsFiles(dir: string): string[] {
 
 function readInputProductionFiles(): Array<{ rel: string; text: string }> {
     return collectProductionTsFiles(inputRoot).map((path) => ({
+        rel: relative(process.cwd(), path).replace(/\\/g, '/'),
+        text: readFileSync(path, 'utf8'),
+    }));
+}
+
+function readPreviewProductionFiles(): Array<{ rel: string; text: string }> {
+    return collectProductionTsFiles(previewRoot).map((path) => ({
         rel: relative(process.cwd(), path).replace(/\\/g, '/'),
         text: readFileSync(path, 'utf8'),
     }));
@@ -104,6 +112,15 @@ describe('CodeMirror input PRD contracts', () => {
                 const match = /private handleDocumentFocusIn[\s\S]*?\n    }\n/.exec(file.text);
                 return !!match && /clearRangeSelection\s*\(/.test(match[0]);
             })
+            .map((file) => file.rel);
+
+        expect(offenders).toEqual([]);
+    });
+
+    it('renders mobile resize handles from gutter boundary hosts instead of viewport overlay coordinates', () => {
+        const forbidden = /\b(?:RangeSelectionOverlayRenderer|viewportXToEditorLocalX|viewportYToEditorLocalY|safeCoordsAtPos)\b/;
+        const offenders = readPreviewProductionFiles()
+            .filter((file) => forbidden.test(file.text))
             .map((file) => file.rel);
 
         expect(offenders).toEqual([]);

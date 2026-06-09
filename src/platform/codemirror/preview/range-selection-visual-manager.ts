@@ -1,9 +1,6 @@
 ﻿import { EditorView } from '@codemirror/view';
-import { safeCoordsAtPos } from '../../dom/element-probe';
 import {
     CODEMIRROR_GUTTER_ELEMENT_SELECTOR,
-    DRAG_HANDLE_CLASS,
-    EMBED_HANDLE_CLASS,
     HANDLE_CORE_CLASS,
     HANDLE_GUTTER_MARKER_CLASS,
     MOBILE_SELECTION_RESIZE_HANDLE_BOTTOM_CLASS,
@@ -195,83 +192,35 @@ export function resolveRangeAnchorSpan(options: ResolveRangeAnchorSpanOptions): 
     });
 }
 
-function getEditorAxisScale(rectSize: number, offsetSize: number): number {
-    if (rectSize <= 0 || offsetSize <= 0) return 1;
-    return rectSize / offsetSize;
-}
-
-function viewportXToEditorLocalX(view: EditorView, viewportX: number): number {
-    const rect = view.dom.getBoundingClientRect();
-    const scaleX = getEditorAxisScale(rect.width, view.dom.offsetWidth);
-    return (viewportX - rect.left) / scaleX - view.dom.clientLeft;
-}
-
-function viewportYToEditorLocalY(view: EditorView, viewportY: number): number {
-    const rect = view.dom.getBoundingClientRect();
-    const scaleY = getEditorAxisScale(rect.height, view.dom.offsetHeight);
-    return (viewportY - rect.top) / scaleY - view.dom.clientTop;
-}
-
-class RangeSelectionOverlayRenderer {
+class RangeSelectionBoundaryHandleRenderer {
     private readonly resizeHandleEls = new Map<string, HTMLElement>();
 
     constructor(
-        private readonly view: EditorView
+        private readonly view: EditorView,
+        private readonly resolveVisibleHandleForBlockStart: (blockStart: number) => HTMLElement | null
     ) { }
 
     render(
         blocks: SelectedBlockRange[],
         options?: { showMobileResizeHandles?: boolean }
     ): void {
-        const hostOriginCache = new WeakMap<HTMLElement, { x: number; y: number }>();
-        const getHostOrigin = (host: HTMLElement): { x: number; y: number } => {
-            const cached = hostOriginCache.get(host);
-            if (cached) return cached;
-            const hostRect = host.getBoundingClientRect();
-            const origin = {
-                x: viewportXToEditorLocalX(this.view, hostRect.left),
-                y: viewportYToEditorLocalY(this.view, hostRect.top),
-            };
-            hostOriginCache.set(host, origin);
-            return origin;
-        };
-        const viewportXToHostLocalX = (host: HTMLElement, viewportX: number): number => (
-            viewportXToEditorLocalX(this.view, viewportX) - getHostOrigin(host).x
-        );
-        const viewportYToHostLocalY = (host: HTMLElement, viewportY: number): number => (
-            viewportYToEditorLocalY(this.view, viewportY) - getHostOrigin(host).y
-        );
-
         if (!options?.showMobileResizeHandles || !this.isMobileEnvironment()) {
             this.clear();
             return;
         }
 
-        const resizeBlocks = groupSelectedBlocksIntoSegments(this.view.state.doc.lines, blocks)
-            .map((segment) => ({
-                startLineNumber: segment.startLineNumber,
-                endLineNumber: segment.endLineNumber,
-            }));
+        const resizeBlocks = groupSelectedBlocksIntoSegments(this.view.state.doc.lines, blocks);
         const nextKeys = new Set<string>();
         for (const block of resizeBlocks) {
-            const anchors = this.resolveMobileResizeAnchors(block);
-            if (!anchors) continue;
+            const topHost = this.resolveResizeHandleHost(block.startBlockLineNumber);
+            const bottomHost = this.resolveResizeHandleHost(block.endBlockLineNumber);
+            if (!topHost || !bottomHost) continue;
             const topKey = this.resizeHandleKey(block, 'top');
             const bottomKey = this.resizeHandleKey(block, 'bottom');
             nextKeys.add(topKey);
             nextKeys.add(bottomKey);
-            this.renderResizeHandle(
-                this.getOrCreateResizeHandle(topKey, 'top', block),
-                anchors.top,
-                viewportXToHostLocalX,
-                viewportYToHostLocalY
-            );
-            this.renderResizeHandle(
-                this.getOrCreateResizeHandle(bottomKey, 'bottom', block),
-                anchors.bottom,
-                viewportXToHostLocalX,
-                viewportYToHostLocalY
-            );
+            this.renderResizeHandle(this.getOrCreateResizeHandle(topKey, 'top', block), topHost);
+            this.renderResizeHandle(this.getOrCreateResizeHandle(bottomKey, 'bottom', block), bottomHost);
         }
         this.removeStaleResizeHandles(nextKeys);
     }
@@ -290,51 +239,36 @@ class RangeSelectionOverlayRenderer {
 
     private renderResizeHandle(
         handleEl: HTMLElement,
-        anchor: { y: number; x: number; host: HTMLElement },
-        viewportXToHostLocalX: (host: HTMLElement, viewportX: number) => number,
-        viewportYToHostLocalY: (host: HTMLElement, viewportY: number) => number
+        host: HTMLElement
     ): void {
-        if (handleEl.parentElement !== anchor.host) {
-            anchor.host.appendChild(handleEl);
+        if (handleEl.parentElement !== host) {
+            host.appendChild(handleEl);
         }
-        const left = viewportXToHostLocalX(anchor.host, anchor.x) - 32;
-        const top = viewportYToHostLocalY(anchor.host, anchor.y) - 18;
+        this.syncResizeHandleInlineOffset(handleEl, host);
         handleEl.classList.add('is-active');
-        handleEl.setCssStyles({
-            left: `${left.toFixed(2)}px`,
-            top: `${top.toFixed(2)}px`,
-        });
     }
 
-    private resolveMobileResizeAnchors(block: SelectedBlockRange): {
-        top: { y: number; x: number; host: HTMLElement };
-        bottom: { y: number; x: number; host: HTMLElement };
-    } | null {
-        const doc = this.view.state.doc;
-        if (block.startLineNumber < 1 || block.endLineNumber > doc.lines) return null;
-
-        const firstLine = doc.line(block.startLineNumber);
-        const lastLine = doc.line(block.endLineNumber);
-        const topCoords = safeCoordsAtPos(this.view, firstLine.from, 1);
-        const bottomCoords = safeCoordsAtPos(this.view, lastLine.to, -1)
-            ?? safeCoordsAtPos(this.view, lastLine.from, 1);
-        if (!topCoords || !bottomCoords) return null;
-
-        const x = this.resolveSelectionCenterX();
-        const host = this.view.dom;
-        return {
-            top: { y: topCoords.top, x, host },
-            bottom: { y: bottomCoords.bottom, x, host },
-        };
-    }
-
-    private resolveSelectionCenterX(): number {
+    private syncResizeHandleInlineOffset(handleEl: HTMLElement, host: HTMLElement): void {
         const contentRect = this.view.contentDOM.getBoundingClientRect();
-        if (Number.isFinite(contentRect.left) && Number.isFinite(contentRect.right) && contentRect.right > contentRect.left) {
-            return (contentRect.left + contentRect.right) / 2;
+        const hostRect = host.getBoundingClientRect();
+        if (!Number.isFinite(contentRect.left) || !Number.isFinite(contentRect.right) || contentRect.right <= contentRect.left) {
+            handleEl.style.removeProperty('--dnd-selection-resize-handle-left');
+            return;
         }
-        const editorRect = this.view.dom.getBoundingClientRect();
-        return (editorRect.left + editorRect.right) / 2;
+        if (!Number.isFinite(hostRect.left)) {
+            handleEl.style.removeProperty('--dnd-selection-resize-handle-left');
+            return;
+        }
+        const contentCenterX = (contentRect.left + contentRect.right) / 2;
+        const hostLocalCenterX = contentCenterX - hostRect.left;
+        handleEl.style.setProperty('--dnd-selection-resize-handle-left', `${hostLocalCenterX.toFixed(2)}px`);
+    }
+
+    private resolveResizeHandleHost(blockLineNumber: number): HTMLElement | null {
+        const handle = this.resolveVisibleHandleForBlockStart(blockLineNumber - 1);
+        if (!handle) return null;
+        return handle.closest<HTMLElement>(`${CODEMIRROR_GUTTER_ELEMENT_SELECTOR}.${HANDLE_GUTTER_MARKER_CLASS}`)
+            ?? handle.closest<HTMLElement>(`.${HANDLE_GUTTER_MARKER_CLASS}`);
     }
 
     private createResizeHandle(position: 'top' | 'bottom'): HTMLElement {
@@ -421,7 +355,7 @@ export class RangeSelectionVisualManager {
     private static readonly selectedCheckboxClass = 'dnd-selection-checkbox';
     private readonly handleElements = new Set<HTMLElement>();
     private readonly sourceLineElements = new Set<HTMLElement>();
-    private readonly overlayRenderer: RangeSelectionOverlayRenderer;
+    private readonly boundaryHandleRenderer: RangeSelectionBoundaryHandleRenderer;
     private handleAnchorSnapshot: AnchorSnapshot = emptyAnchorSnapshot();
     private refreshRafHandle: number | null = null;
     private scrollContainer: HTMLElement | null = null;
@@ -433,8 +367,9 @@ export class RangeSelectionVisualManager {
         private readonly onRefreshRequested: () => void,
         private readonly resolveVisibleHandleForBlockStart: (blockStart: number) => HTMLElement | null
     ) {
-        this.overlayRenderer = new RangeSelectionOverlayRenderer(
-            this.view
+        this.boundaryHandleRenderer = new RangeSelectionBoundaryHandleRenderer(
+            this.view,
+            this.resolveVisibleHandleForBlockStart
         );
 
         this.onScroll = () => this.scheduleRefresh();
@@ -473,7 +408,7 @@ export class RangeSelectionVisualManager {
             RANGE_SELECTED_HANDLE_CLASS
         );
         this.syncSourceLineElements(nextSourceLineElements);
-        this.overlayRenderer.render(normalizedBlocks, {
+        this.boundaryHandleRenderer.render(normalizedBlocks, {
             showMobileResizeHandles: options?.showMobileResizeHandles,
         });
     }
@@ -487,7 +422,7 @@ export class RangeSelectionVisualManager {
         this.handleElements.clear();
         this.handleAnchorSnapshot = emptyAnchorSnapshot();
         this.currentVisualOptions = {};
-        this.overlayRenderer.clear();
+        this.boundaryHandleRenderer.clear();
     }
 
     scheduleRefresh(): void {
@@ -506,7 +441,7 @@ export class RangeSelectionVisualManager {
 
     destroy(): void {
         this.clear();
-        this.overlayRenderer.destroy();
+        this.boundaryHandleRenderer.destroy();
         this.cancelScheduledRefresh();
         this.unbindScrollListener();
     }
@@ -606,13 +541,7 @@ export class RangeSelectionVisualManager {
     }
 
     private resolveHandleElementForBlockStart(blockStart: number): HTMLElement | null {
-        const mapped = this.resolveVisibleHandleForBlockStart(blockStart);
-        if (mapped) return mapped;
-
-        const selector = `.${DRAG_HANDLE_CLASS}[data-block-start="${blockStart}"]`;
-        const handles = Array.from(this.view.dom.querySelectorAll<HTMLElement>(selector));
-        if (handles.length === 0) return null;
-        return handles.find((handle) => !handle.classList.contains(EMBED_HANDLE_CLASS)) ?? handles[0] ?? null;
+        return this.resolveVisibleHandleForBlockStart(blockStart);
     }
 
     resolveRangeAnchorSpan(segment: BlockSelectionSegment): RangeAnchorSpan | null {
