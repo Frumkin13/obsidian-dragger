@@ -373,7 +373,7 @@ body[data-dnd-list-drop-highlight="off"] .dnd-drop-highlight {
 
 .dnd-block-type-menu-row {
     display: grid;
-    grid-template-columns: 24px 1fr 18px;
+    grid-template-columns: 22px 1fr 16px;
     align-items: center;
     gap: 6px;
     width: 100%;
@@ -394,8 +394,8 @@ body[data-dnd-list-drop-highlight="off"] .dnd-drop-highlight {
 .dnd-block-type-menu-row-icon svg,
 .dnd-block-type-menu-row-chevron svg,
 .dnd-block-type-action-button svg {
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
 }
 
 .dnd-block-type-menu-row-label {
