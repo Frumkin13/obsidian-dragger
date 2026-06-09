@@ -40,15 +40,15 @@ Restart Obsidian and enable the plugin.
 Dragger also publishes a platform-agnostic npm core. It does not import Obsidian, CodeMirror, DOM events, or editor dispatch APIs.
 
 ```bash
-npm install dragger
+npm install md-dragger
 ```
 
 Stable entry points:
 
 ```ts
-import { createDragPipeline } from 'dragger/drag';
-import { createMoveCommand, planBlockCommandTransaction } from 'dragger/domain';
-import { getLineMap, parseLineWithQuote } from 'dragger/markdown';
+import { createDragPipeline } from 'md-dragger/drag';
+import { createMoveCommand, planBlockCommandTransaction } from 'md-dragger/domain';
+import { getLineMap, parseLineWithQuote } from 'md-dragger/markdown';
 ```
 
 For another editor platform, adapt host events into core values:

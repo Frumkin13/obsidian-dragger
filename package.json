@@ -1,5 +1,5 @@
 {
-    "name": "dragger",
+    "name": "md-dragger",
     "version": "1.3.0",
     "description": "Drag and drop any block to rearrange content in Obsidian",
     "main": "./dist/npm/index.cjs",

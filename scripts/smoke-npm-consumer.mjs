@@ -6,6 +6,7 @@ import path from "node:path";
 const root = process.cwd();
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "dragger-npm-consumer-"));
 const npmCli = process.env.npm_execpath;
+const packageName = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).name;
 
 function run(command, args, options = {}) {
     execFileSync(command, args, {
@@ -53,9 +54,9 @@ try {
     }, null, 2));
 
     fs.writeFileSync(path.join(tempDir, "esm.mjs"), `
-import { createDragPipeline } from "dragger/drag";
-import { BlockType } from "dragger/domain";
-import { parseLineWithQuote } from "dragger/markdown";
+import { createDragPipeline } from "${packageName}/drag";
+import { BlockType } from "${packageName}/domain";
+import { parseLineWithQuote } from "${packageName}/markdown";
 const block = { type: BlockType.Paragraph, startLine: 0, endLine: 0, from: 0, to: 5, indentLevel: 0, content: "alpha" };
 const selection = { anchorBlock: block, focusBlock: block, ranges: [{ startLine: 0, endLine: 0 }] };
 const pipeline = createDragPipeline();
@@ -67,9 +68,9 @@ console.log("esm ok");
 `);
 
     fs.writeFileSync(path.join(tempDir, "cjs.cjs"), `
-const { createDragPipeline } = require("dragger/drag");
-const { BlockType } = require("dragger/domain");
-const { parseLineWithQuote } = require("dragger/markdown");
+const { createDragPipeline } = require("${packageName}/drag");
+const { BlockType } = require("${packageName}/domain");
+const { parseLineWithQuote } = require("${packageName}/markdown");
 const block = { type: BlockType.Paragraph, startLine: 0, endLine: 0, from: 0, to: 5, indentLevel: 0, content: "alpha" };
 const selection = { anchorBlock: block, focusBlock: block, ranges: [{ startLine: 0, endLine: 0 }] };
 const pipeline = createDragPipeline();
@@ -81,8 +82,8 @@ console.log("cjs ok");
 `);
 
     fs.writeFileSync(path.join(tempDir, "typecheck.ts"), `
-import { createDragPipeline, type DragDropSnapshot, type DropResolution, type PipelineOutput } from "dragger/drag";
-import { BlockType, createMoveCommand, createSingleBlockSelection } from "dragger/domain";
+import { createDragPipeline, type DragDropSnapshot, type DropResolution, type PipelineOutput } from "${packageName}/drag";
+import { BlockType, createMoveCommand, createSingleBlockSelection } from "${packageName}/domain";
 
 type PreviewData = { marker: string };
 const block = { type: BlockType.Paragraph, startLine: 0, endLine: 0, from: 0, to: 5, indentLevel: 0, content: "alpha" };
@@ -131,7 +132,7 @@ if (!outputs.some((output) => output.type === "command_ready")) throw new Error(
 } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
     for (const file of fs.readdirSync(root)) {
-        if (/^dragger-\d+\.\d+\.\d+\.tgz$/.test(file)) {
+        if (new RegExp(`^${packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-\\d+\\.\\d+\\.\\d+\\.tgz$`).test(file)) {
             fs.rmSync(path.join(root, file), { force: true });
         }
     }

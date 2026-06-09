@@ -40,15 +40,15 @@
 Dragger 同时发布平台无关的 npm core。这个 core 不导入 Obsidian、CodeMirror、DOM event 或编辑器 dispatch API。
 
 ```bash
-npm install dragger
+npm install md-dragger
 ```
 
 稳定入口：
 
 ```ts
-import { IDLE_PIPELINE_STATE, reducePipeline } from 'dragger/drag';
-import { createMoveCommand, planBlockCommandTransaction } from 'dragger/domain';
-import { getLineMap, parseLineWithQuote } from 'dragger/markdown';
+import { IDLE_PIPELINE_STATE, reducePipeline } from 'md-dragger/drag';
+import { createMoveCommand, planBlockCommandTransaction } from 'md-dragger/domain';
+import { getLineMap, parseLineWithQuote } from 'md-dragger/markdown';
 ```
 
 接入其他编辑器平台时，平台层只需要把宿主环境翻译成 core 值：

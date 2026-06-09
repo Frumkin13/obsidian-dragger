@@ -3,13 +3,13 @@ import {
     type DragDropSnapshot,
     type DropResolution,
     type PipelineOutput,
-} from 'dragger/drag';
+} from 'md-dragger/drag';
 import {
     BlockType,
     createMoveCommand,
     createSingleBlockSelection,
     type BlockSelection,
-} from 'dragger/domain';
+} from 'md-dragger/domain';
 
 type PlatformPreviewData = {
     indicatorY: number;
