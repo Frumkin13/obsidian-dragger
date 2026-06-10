@@ -15,7 +15,19 @@ export type DragCancelReason =
     | 'session_interrupted'
     | 'selection_invalid'
     | 'guard_unavailable'
-    | string;
+    | 'no_target'
+    | 'no_anchor'
+    | 'table_cell'
+    | 'self_range_blocked'
+    | 'self_embedding'
+    | 'container_policy'
+    | 'inside_list'
+    | 'inside_quote_run'
+    | 'quote_boundary'
+    | 'callout_after'
+    | 'table_before'
+    | 'hr_before'
+    | 'cross_document_disabled';
 
 export type SelectionSeed = {
     selection: BlockSelection;

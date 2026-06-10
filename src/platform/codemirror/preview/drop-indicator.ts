@@ -32,19 +32,19 @@ export class DropIndicatorManager {
         private readonly options?: DropIndicatorManagerOptions
     ) {
         DropIndicatorManager.instances.add(this);
-        this.indicatorEl = document.createElement('div');
+        this.indicatorEl = activeDocument.createElement('div');
         this.indicatorEl.className = `${DROP_INDICATOR_CLASS} ${HIDDEN_CLASS}`;
-        document.body.appendChild(this.indicatorEl);
+        activeDocument.body.appendChild(this.indicatorEl);
 
-        this.highlightEl = document.createElement('div');
+        this.highlightEl = activeDocument.createElement('div');
         this.highlightEl.className = `${DROP_HIGHLIGHT_CLASS} ${HIDDEN_CLASS}`;
-        document.body.appendChild(this.highlightEl);
+        activeDocument.body.appendChild(this.highlightEl);
     }
 
     scheduleRender(validation: DropValidationResult, selection: BlockSelection | null, pointerType: string | null): void {
         this.pendingDragInfo = { validation, selection, pointerType };
         if (this.rafId !== null) return;
-        this.rafId = requestAnimationFrame(() => {
+        this.rafId = activeWindow.requestAnimationFrame(() => {
             this.rafId = null;
             const pending = this.pendingDragInfo;
             if (!pending) return;
@@ -54,7 +54,7 @@ export class DropIndicatorManager {
 
     hide(): void {
         if (this.rafId !== null) {
-            cancelAnimationFrame(this.rafId);
+            activeWindow.cancelAnimationFrame(this.rafId);
             this.rafId = null;
         }
         this.pendingDragInfo = null;

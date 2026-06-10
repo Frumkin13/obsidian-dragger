@@ -16,7 +16,7 @@ export function collectEmbedRoots(
     options?: { normalizeToEmbedRoot?: boolean }
 ): HTMLElement[] {
     const root = view.dom;
-    if (!(root instanceof HTMLElement)) return [];
+    if (!(root instanceof (activeWindow as typeof window).HTMLElement)) return [];
     const normalizeToEmbedRoot = options?.normalizeToEmbedRoot !== false;
     const seen = new Set<HTMLElement>();
     const result: HTMLElement[] = [];
@@ -38,14 +38,14 @@ export function findEmbedElementAtPoint(
     options?: FindEmbedElementAtPointOptions,
 ): HTMLElement | null {
     const root = view.dom;
-    if (!(root instanceof HTMLElement)) return null;
+    if (!(root instanceof (activeWindow as typeof window).HTMLElement)) return null;
 
     const requireDirectWithinRoot = options?.requireDirectWithinRoot !== false;
     const normalizeToEmbedRoot = options?.normalizeToEmbedRoot !== false;
 
-    if (typeof document.elementFromPoint === 'function') {
-        const rawEl = document.elementFromPoint(clientX, clientY);
-        const el = rawEl instanceof HTMLElement ? rawEl : null;
+    if (typeof activeDocument.elementFromPoint === 'function') {
+        const rawEl = activeDocument.elementFromPoint(clientX, clientY);
+        const el = rawEl instanceof (activeWindow as typeof window).HTMLElement ? rawEl : null;
         if (el) {
             const direct = el.closest<HTMLElement>(EMBED_BLOCK_SELECTOR);
             if (direct) {

@@ -1,3 +1,5 @@
+import type { InsertionRuleRejectReason } from '../rules/insertion-rules';
+
 export type CommandRejectReason =
     | 'empty_selection'
     | 'container_policy'
@@ -6,13 +8,14 @@ export type CommandRejectReason =
     | 'no_insert_text'
     | 'insertion_inside_deleted_range'
     | 'missing_move_planner_deps'
-    | 'unsupported_command';
+    | 'unsupported_command'
+    | InsertionRuleRejectReason;
 
 export type CommandReject = {
     type: 'reject';
-    reason: CommandRejectReason | string;
+    reason: CommandRejectReason;
 };
 
-export function rejectCommand(reason: CommandRejectReason | string): CommandReject {
+export function rejectCommand(reason: CommandRejectReason): CommandReject {
     return { type: 'reject', reason };
 }

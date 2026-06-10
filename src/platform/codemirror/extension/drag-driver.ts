@@ -54,6 +54,7 @@ import { openBlockTypeMenu } from '../../../plugin/block-type-menu';
 import { buildMoveCommandDecision } from '../command/move-command-decision';
 import type { BlockCommand } from '../../../domain/command/block-command';
 import type { DragDropSnapshot } from '../../../drag/pipeline/pipeline-drop';
+import type { DragCancelReason } from '../../../drag/pipeline/pipeline-event';
 
 type CodeMirrorDragDropSnapshot = DragDropSnapshot<DropValidationResult>;
 
@@ -332,7 +333,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         } | {
             type: 'cancel';
             drop: CodeMirrorDragDropSnapshot;
-            reason: string;
+            reason: DragCancelReason;
         } {
             this.ensureDragPerfSession();
             const sourceView = getActiveBlockSelectionView();

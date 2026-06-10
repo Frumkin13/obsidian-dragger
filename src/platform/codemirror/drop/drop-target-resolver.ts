@@ -2,7 +2,7 @@
 import { BlockInfo, BlockType } from '../../../domain/block/block-types';
 import type { DropTarget } from '../../../domain/command/drop-target';
 import { validateInPlaceDrop } from '../../../domain/rules/drop-validation';
-import { InsertionSlotContext } from '../../../domain/rules/insertion-rules';
+import { InsertionRuleRejectReason, InsertionSlotContext } from '../../../domain/rules/insertion-rules';
 import { getLineMap, LineMap } from '../../../domain/markdown/line-map';
 import { getCoordsAtPos } from '../selection/rect-calculator';
 import { DocLike, ListContext, ParsedLine } from '../../../domain/markdown/document-types';
@@ -38,7 +38,7 @@ export interface DropTargetResolverDeps {
         options: { lineMap?: LineMap; tabSize: number }
     ) => {
         slotContext: InsertionSlotContext;
-        decision: { allowDrop: boolean; rejectReason?: string | null };
+        decision: { allowDrop: boolean; rejectReason?: InsertionRuleRejectReason | null };
     };
     getListContext: (doc: DocLike, lineNumber: number) => ListContext;
     getIndentUnitWidth: (sample: string) => number;
@@ -303,7 +303,7 @@ export class DropTargetResolver {
         }
         return {
             slotContext: containerRule.slotContext,
-            rejectReason: (containerRule.decision.rejectReason ?? 'container_policy') as DropRejectReason,
+            rejectReason: containerRule.decision.rejectReason ?? 'container_policy',
         };
     }
 

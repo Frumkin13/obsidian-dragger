@@ -9,7 +9,7 @@ import { resolveDeleteRange, resolveInsertionChange } from '../mutation/document
 import { normalizeCompositeRanges, type CompositeLineRange } from '../selection/selection-ranges';
 import { createBlockSelection, type BlockSelection } from '../selection/block-selection';
 import type { BlockTransaction } from './block-transaction';
-import { rejectCommand, type CommandReject } from './command-reject';
+import { rejectCommand, type CommandReject, type CommandRejectReason } from './command-reject';
 
 export type MoveSourceSegment = {
     startLineNumber: number;
@@ -38,7 +38,7 @@ export interface MoveBlocksPlannerDeps {
         options: { lineMap?: ReturnType<typeof getLineMap>; tabSize: number }
     ) => {
         slotContext: InsertionSlotContext;
-        decision: { allowDrop: boolean; rejectReason?: string | null };
+        decision: { allowDrop: boolean; rejectReason?: CommandRejectReason | null };
     };
     parseLineWithQuote: (line: string) => ParsedLine;
     getListContext: (doc: DocLike, lineNumber: number) => ListContext;

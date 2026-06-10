@@ -12,16 +12,16 @@ import {
 
 export type DragDropSnapshot<TPreview = unknown> = {
     target: DropTarget | null;
-    rejectReason?: string | null;
+    rejectReason?: DragCancelReason | null;
     previewData?: TPreview;
 };
 
 export type DropResolution<TPreview = unknown> =
     | { type: 'command'; command: BlockCommand; drop: DragDropSnapshot<TPreview> }
     | { type: 'platform_commit'; drop: DragDropSnapshot<TPreview> }
-    | { type: 'cancel'; drop: DragDropSnapshot<TPreview>; reason?: string | null };
+    | { type: 'cancel'; drop: DragDropSnapshot<TPreview>; reason?: DragCancelReason | null };
 
-export function createRejectedDropSnapshot(rejectReason: string): DragDropSnapshot {
+export function createRejectedDropSnapshot(rejectReason: DragCancelReason): DragDropSnapshot {
     return {
         target: null,
         rejectReason,

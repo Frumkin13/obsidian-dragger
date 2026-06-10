@@ -1,12 +1,12 @@
 ﻿import type { BlockSelection } from '../../../domain/selection/block-selection';
 import { createMoveCommand, type MoveBlockCommand } from '../../../domain/command/move-command';
-import type { DragDocumentRelation, DragSelectionScope, DropAllowedResult, DropValidationResult } from '../drop/codemirror-drop-snapshot';
+import type { DragDocumentRelation, DragSelectionScope, DropAllowedResult, DropRejectReason, DropValidationResult } from '../drop/codemirror-drop-snapshot';
 
 export type MoveCommandDecision =
     | {
         type: 'cancel';
         targetLine: number | null;
-        rejectReason: string;
+        rejectReason: DropRejectReason | 'cross_document_disabled';
         validation: DropValidationResult;
     }
     | {

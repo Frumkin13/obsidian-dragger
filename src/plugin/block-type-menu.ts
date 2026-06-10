@@ -228,5 +228,5 @@ function showMenu(menu: Menu, view: EditorView, event: MouseEvent | PointerEvent
         return;
     }
 
-    menu.showAtPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+    menu.showAtPosition({ x: activeWindow.innerWidth / 2, y: activeWindow.innerHeight / 2 });
 }

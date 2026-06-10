@@ -93,7 +93,7 @@ function createLineMetaFromText(text: string, tabSize: number): LineMeta {
 }
 
 function createLineMetaArray(doc: DocLike, tabSize: number): LineMeta[] {
-    const lineMeta: LineMeta[] = new Array(doc.lines + 1);
+    const lineMeta = Array<LineMeta>(doc.lines + 1);
     lineMeta[0] = EMPTY_LINE_META;
     for (let i = 1; i <= doc.lines; i++) {
         lineMeta[i] = createLineMetaFromText(doc.line(i).text ?? '', tabSize);
@@ -325,7 +325,7 @@ function buildLineMapIncremental(
 ): LineMap | null {
     const oldDoc = previousLineMap.doc as DocLikeWithOffsets;
     const newDoc = nextState.doc as DocLikeWithOffsets;
-    const lineMeta: LineMeta[] = new Array(newDoc.lines + 1);
+    const lineMeta = Array<LineMeta>(newDoc.lines + 1);
     lineMeta[0] = EMPTY_LINE_META;
 
     let oldCursorLine = 1;

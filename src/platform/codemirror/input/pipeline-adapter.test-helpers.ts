@@ -306,7 +306,7 @@ export function dispatchTouchMove(target: EventTarget): TouchEvent {
 export function registerMouseHandlerTestHooks(): void {
     beforeEach(() => {
         if (!originalElementFromPoint && typeof document.elementFromPoint === 'function') {
-            const native = document.elementFromPoint.bind(document);
+            const native: Document['elementFromPoint'] = document.elementFromPoint.bind(document);
             originalElementFromPoint = (x: number, y: number) => native(x, y);
         }
         vi.useFakeTimers();

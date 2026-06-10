@@ -62,12 +62,12 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     async loadSettings() {
-        const saved = await this.loadData() ?? {};
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
-        const savedRecord = saved as Record<string, unknown>;
+        const saved = await this.loadData() as (Partial<DragNDropSettings> & Record<string, unknown>) | null;
+        const savedRecord: Record<string, unknown> = saved ?? {};
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, savedRecord as Partial<DragNDropSettings>);
         // Migrate legacy alwaysShowHandles boolean
-        if ('alwaysShowHandles' in saved && !('handleVisibility' in saved)) {
-            this.settings.handleVisibility = (saved as { alwaysShowHandles?: boolean }).alwaysShowHandles ? 'always' : 'hover';
+        if ('alwaysShowHandles' in savedRecord && !('handleVisibility' in savedRecord)) {
+            this.settings.handleVisibility = (savedRecord as { alwaysShowHandles?: boolean }).alwaysShowHandles ? 'always' : 'hover';
         }
         // Legacy migration: old "none" style implied both highlights were effectively off.
         if (savedRecord.selectionVisualStyle === 'none') {
@@ -97,7 +97,7 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     applySettings() {
-        const body = document.body;
+        const body = activeDocument.body;
         const visibility: HandleVisibilityMode = this.settings.handleVisibility ?? 'hover';
         body.classList.toggle('dnd-handles-always', visibility === 'always');
         body.classList.toggle('dnd-handles-hidden', visibility === 'hidden');
@@ -213,10 +213,11 @@ export default class DragNDropPlugin extends Plugin {
 
     private dismissActiveMobileInput(): void {
         if (!Platform.isMobile) return;
-        const active = document.activeElement;
-        if (!(active instanceof HTMLElement)) return;
-        const shouldBlur = active instanceof HTMLInputElement
-            || active instanceof HTMLTextAreaElement
+        const win = activeWindow as typeof window;
+        const active = activeDocument.activeElement;
+        if (!(active instanceof win.HTMLElement)) return;
+        const shouldBlur = active instanceof win.HTMLInputElement
+            || active instanceof win.HTMLTextAreaElement
             || active.isContentEditable
             || !!active.closest('.cm-content');
         if (!shouldBlur) return;
