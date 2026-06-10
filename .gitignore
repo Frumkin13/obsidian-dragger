@@ -24,7 +24,7 @@ Thumbs.db
 *.md
 !README.md
 !README.zh-CN.md
-!docs/
+!docs/release_notes/*.md
 !docs/*.md
 
 # Local env
