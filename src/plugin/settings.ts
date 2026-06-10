@@ -172,7 +172,6 @@ export class DragNDropSettingTab extends PluginSettingTab {
             .setDesc(i.handleSizeDesc)
             .addSlider((slider) => slider
                 .setLimits(MIN_HANDLE_SIZE_PX, MAX_HANDLE_SIZE_PX, 2)
-                .setDynamicTooltip()
                 .setValue(this.plugin.settings.handleSize)
                 .onChange(async (value) => {
                     this.plugin.settings.handleSize = value;
@@ -184,7 +183,6 @@ export class DragNDropSettingTab extends PluginSettingTab {
             .setDesc(i.handleOffsetDesc)
             .addSlider((slider) => slider
                 .setLimits(-80, 80, 1)
-                .setDynamicTooltip()
                 .setValue(this.plugin.settings.handleHorizontalOffsetPx)
                 .onChange(async (value) => {
                     this.plugin.settings.handleHorizontalOffsetPx = value;
