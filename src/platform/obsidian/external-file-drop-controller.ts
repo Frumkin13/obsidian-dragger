@@ -186,8 +186,7 @@ export class ExternalFileDropController {
 
         for (const candidate of candidates) {
             const normalized = normalizePath(candidate);
-            const file = this.plugin.app.vault.getFileByPath?.(normalized)
-                ?? this.plugin.app.vault.getAbstractFileByPath(normalized);
+            const file = this.plugin.app.vault.getAbstractFileByPath(normalized);
             if (isMarkdownFile(file)) return file;
         }
 

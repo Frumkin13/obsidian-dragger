@@ -1,7 +1,7 @@
 /* Dragger 插件样式 */
 
 .dnd-hidden {
-    display: none !important;
+    display: none;
 }
 
 /* 拖拽手柄 */
@@ -56,7 +56,7 @@
 }
 
 .dnd-drag-handle:hover {
-    opacity: 1 !important;
+    opacity: 1;
     color: var(--dnd-handle-color-hover, var(--dnd-handle-color, var(--text-accent)));
     filter: brightness(1.08);
 }
@@ -124,7 +124,7 @@
 }
 
 .dnd-drag-handle.dnd-range-selected-handle {
-    opacity: 1 !important;
+    opacity: 1;
     cursor: grab;
     color: var(--dnd-handle-color-hover, var(--dnd-handle-color, var(--interactive-accent)));
     filter: none;
@@ -232,14 +232,14 @@ body[data-dnd-drag-source-style="filled"],
 
 body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line,
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor[data-dnd-drag-source-highlight="off"] .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line {
-    background: transparent !important;
-    box-shadow: none !important;
+    background: transparent;
+    box-shadow: none;
 }
 
 body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .dnd-drag-source-embed,
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor[data-dnd-drag-source-highlight="off"] .dnd-drag-source-embed {
-    background: transparent !important;
-    box-shadow: none !important;
+    background: transparent;
+    box-shadow: none;
 }
 
 .dnd-mobile-selection-resize-handle {
@@ -290,16 +290,16 @@ body.dnd-handles-always .dnd-drag-handle.is-visible {
 
 /* 隐藏模式：完全不显示手柄 */
 body.dnd-handles-hidden .dnd-drag-handle {
-    display: none !important;
+    display: none;
 }
 
 /* 拖拽中的状态 */
 body.dnd-dragging {
-    cursor: grabbing !important;
+    cursor: grabbing;
 }
 
 body.dnd-dragging * {
-    cursor: grabbing !important;
+    cursor: grabbing;
 }
 
 body.dnd-dragging .cm-line:hover {
@@ -316,7 +316,7 @@ body.dnd-mobile-gesture-lock {
 .markdown-source-view.mod-cm6 .cm-editor.dnd-mobile-gesture-lock,
 .markdown-source-view.mod-cm6 .cm-editor.dnd-mobile-gesture-lock .cm-scroller,
 .markdown-source-view.mod-cm6 .cm-editor.dnd-mobile-gesture-lock .cm-content {
-    touch-action: none !important;
+    touch-action: none;
     overscroll-behavior: none;
 }
 
@@ -349,23 +349,20 @@ body.dnd-mobile-gesture-lock {
 }
 
 body[data-dnd-list-drop-highlight="off"] .dnd-drop-highlight {
-    display: none !important;
-}
-
-.menu-item:has(.dnd-block-type-menu-row),
-.menu-item:has(.dnd-block-type-action-row) {
-    padding: 0;
-    background: transparent !important;
-    box-shadow: none !important;
-}
-
-.menu-item:has(.dnd-block-type-menu-row) .menu-item-icon,
-.menu-item:has(.dnd-block-type-action-row) .menu-item-icon {
     display: none;
 }
 
-.menu-item:has(.dnd-block-type-menu-row) .menu-item-title,
-.menu-item:has(.dnd-block-type-action-row) .menu-item-title {
+.dnd-custom-menu-item {
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.dnd-custom-menu-item .menu-item-icon {
+    display: none;
+}
+
+.dnd-custom-menu-item .menu-item-title {
     margin: 0;
     padding: 0;
     width: 100%;

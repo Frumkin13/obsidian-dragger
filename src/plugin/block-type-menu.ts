@@ -206,6 +206,17 @@ async function executeMenuAction(menu: Menu, action: BlockMenuAction): Promise<v
     menu.hide();
 }
 
+function markMenuItems(): void {
+    const rows = activeDocument.querySelectorAll('.dnd-block-type-menu-row, .dnd-block-type-action-row');
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const menuItem = row.closest('.menu-item');
+        if (menuItem && !menuItem.classList.contains('dnd-custom-menu-item')) {
+            menuItem.classList.add('dnd-custom-menu-item');
+        }
+    }
+}
+
 function showNestedMenu(menu: Menu, trigger: HTMLElement): void {
     const rect = trigger.getBoundingClientRect();
     menu.showAtPosition({
@@ -214,19 +225,23 @@ function showNestedMenu(menu: Menu, trigger: HTMLElement): void {
         width: rect.width,
         overlap: true,
     });
+    markMenuItems();
 }
 
 function showMenu(menu: Menu, view: EditorView, event: MouseEvent | PointerEvent | null): void {
     if (event) {
         menu.showAtMouseEvent(event);
+        markMenuItems();
         return;
     }
 
     const coords = view.coordsAtPos(view.state.selection.main.head);
     if (coords) {
         menu.showAtPosition({ x: coords.left, y: coords.bottom });
+        markMenuItems();
         return;
     }
 
     menu.showAtPosition({ x: activeWindow.innerWidth / 2, y: activeWindow.innerHeight / 2 });
+    markMenuItems();
 }
