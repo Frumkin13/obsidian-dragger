@@ -7,7 +7,7 @@ function getRenderedMainLineElementAtPoint(
 ): HTMLElement | null {
     if (typeof activeDocument.elementFromPoint !== 'function') return null;
     const rawEl = activeDocument.elementFromPoint(clientX, clientY);
-    const el = rawEl instanceof (activeWindow as typeof window).HTMLElement ? rawEl : null;
+    const el = rawEl?.instanceOf(HTMLElement) ? rawEl : null;
     if (!el) return null;
     const lineEl = el.closest<HTMLElement>('.cm-line');
     if (!lineEl) return null;

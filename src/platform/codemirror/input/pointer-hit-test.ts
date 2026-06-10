@@ -4,6 +4,7 @@ import type { BlockCommand } from '../../../domain/command/block-command';
 import type { BlockSelection } from '../../../domain/selection/block-selection';
 import { buildRangeSelectionBoundaryFromBlock, type RangeSelectionBoundary } from '../../../domain/selection/range-selection';
 import type { DragDropSnapshot, DropResolution } from '../../../drag/pipeline/pipeline-drop';
+import { isHTMLElement } from '../../dom/dom-utils';
 
 export type PointerDropCommitResolution = DropResolution;
 
@@ -146,7 +147,7 @@ export type InteractionInput = PointerInput | KeyboardInput | FocusInput | Visib
 export function readPointerInput(kind: PointerInputKind, event: PointerEvent): PointerInput {
     return {
         kind,
-        target: event.target instanceof HTMLElement ? event.target : null,
+        target: isHTMLElement(event.target) ? event.target : null,
         button: event.button,
         buttons: event.buttons,
         pointerId: event.pointerId,
@@ -176,12 +177,12 @@ export function readVisibilityInput(event: Event): VisibilityInput {
     void event;
     return {
         kind: 'visibilitychange',
-        visibilityState: document.visibilityState,
+        visibilityState: activeDocument.visibilityState,
     };
 }
 
 export function isMobileEnvironment(): boolean {
-    const body = document.body;
+    const body = activeDocument.body;
     if (body?.classList.contains('is-mobile') || body?.classList.contains('is-phone') || body?.classList.contains('is-tablet')) {
         return true;
     }

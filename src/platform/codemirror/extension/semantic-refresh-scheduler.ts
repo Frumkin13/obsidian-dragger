@@ -32,7 +32,7 @@ export class SemanticRefreshScheduler {
         const delayMs = this.getSemanticRefreshDelayMs(this.view.state.doc.lines);
         this.semanticRefreshTimerHandle = window.setTimeout(() => {
             this.semanticRefreshTimerHandle = null;
-            if (document.body.classList.contains(DRAGGING_BODY_CLASS)) {
+            if (activeDocument.body.classList.contains(DRAGGING_BODY_CLASS)) {
                 this.markSemanticRefreshPending();
                 return;
             }

@@ -86,7 +86,7 @@ export function createPipelineAdapterDeps(deps: PipelineAdapterTestDeps): Pipeli
     return {
         ...deps,
         getVisibleHandleForBlockStart: deps.getVisibleHandleForBlockStart
-            ?? ((blockStart) => document.querySelector<HTMLElement>(
+            ?? ((blockStart) => activeDocument.querySelector<HTMLElement>(
                 `.${DRAG_HANDLE_CLASS}.${LINE_HANDLE_CLASS}[data-block-start="${blockStart}"]`
             )),
         resolveDropSnapshotAtPoint,
@@ -151,10 +151,10 @@ export function resolveBlockSelectionFromTestBlocks(params: {
 }
 
 export function createViewStub(lineCountOrLines: number | string[] = 1): EditorView {
-    const root = document.createElement('div');
-    const content = document.createElement('div');
+    const root = activeDocument.createElement('div');
+    const content = activeDocument.createElement('div');
     root.appendChild(content);
-    document.body.appendChild(root);
+    activeDocument.body.appendChild(root);
 
     const lineTexts = Array.isArray(lineCountOrLines)
         ? lineCountOrLines
@@ -164,7 +164,7 @@ export function createViewStub(lineCountOrLines: number | string[] = 1): EditorV
     });
     const lineElements: HTMLElement[] = [];
     for (const text of lineTexts) {
-        const lineEl = document.createElement('div');
+        const lineEl = activeDocument.createElement('div');
         lineEl.className = 'cm-line';
         lineEl.textContent = text;
         content.appendChild(lineEl);
@@ -221,7 +221,7 @@ export function ensureHandleGutter(view: EditorView): HTMLElement {
     editorRoot.classList.add('cm-editor');
     const existing = editorRoot.querySelector<HTMLElement>('.cm-dnd-handle-gutter');
     if (existing) return existing;
-    const gutter = document.createElement('div');
+    const gutter = activeDocument.createElement('div');
     gutter.className = 'cm-dnd-handle-gutter';
     editorRoot.appendChild(gutter);
     return gutter;
@@ -237,7 +237,7 @@ export function appendHandleForBlockStart(
     const gutter = ensureHandleGutter(view);
     let marker = gutter.querySelector<HTMLElement>(`.cm-gutterElement.dnd-handle-gutter-marker[data-line-number="${lineNumber}"]`);
     if (!marker) {
-        marker = document.createElement('div');
+        marker = activeDocument.createElement('div');
         marker.className = 'cm-gutterElement dnd-handle-gutter-marker';
         marker.setAttribute('data-line-number', String(lineNumber));
         Object.defineProperty(marker, 'getBoundingClientRect', {
@@ -246,7 +246,7 @@ export function appendHandleForBlockStart(
         });
         gutter.appendChild(marker);
     }
-    const handle = document.createElement('div');
+    const handle = activeDocument.createElement('div');
     handle.className = `${DRAG_HANDLE_CLASS} ${LINE_HANDLE_CLASS}`;
     handle.setAttribute('data-block-start', String(blockStart));
     handle.setAttribute('data-block-end', String(blockEnd ?? blockStart));
@@ -264,7 +264,7 @@ export function appendHandleGutterMarker(
     resolveTop?: () => number
 ): HTMLElement {
     const gutter = ensureHandleGutter(view);
-    const marker = document.createElement('div');
+    const marker = activeDocument.createElement('div');
     marker.className = 'cm-gutterElement dnd-handle-gutter-marker';
     marker.setAttribute('data-line-number', String(lineNumber));
     Object.defineProperty(marker, 'getBoundingClientRect', {
@@ -305,9 +305,9 @@ export function dispatchTouchMove(target: EventTarget): TouchEvent {
 
 export function registerMouseHandlerTestHooks(): void {
     beforeEach(() => {
-        if (!originalElementFromPoint && typeof document.elementFromPoint === 'function') {
-            const native: Document['elementFromPoint'] = document.elementFromPoint.bind(document);
-            originalElementFromPoint = (x: number, y: number) => native(x, y);
+        if (!originalElementFromPoint && typeof activeDocument.elementFromPoint === 'function') {
+            const nativeElementFromPoint = activeDocument.elementFromPoint.bind(activeDocument) as (x: number, y: number) => Element | null;
+            originalElementFromPoint = (x: number, y: number) => nativeElementFromPoint(x, y);
         }
         vi.useFakeTimers();
         Object.defineProperty(window, 'matchMedia', {
@@ -327,8 +327,8 @@ export function registerMouseHandlerTestHooks(): void {
     });
 
     afterEach(() => {
-        document.body.innerHTML = '';
-        document.body.className = '';
+        activeDocument.body.innerHTML = '';
+        activeDocument.body.className = '';
         vi.restoreAllMocks();
         vi.useRealTimers();
         Object.defineProperty(window, 'matchMedia', {
@@ -341,7 +341,7 @@ export function registerMouseHandlerTestHooks(): void {
             writable: true,
             value: originalVibrate,
         });
-        Object.defineProperty(document, 'elementFromPoint', {
+        Object.defineProperty(activeDocument, 'elementFromPoint', {
             configurable: true,
             writable: true,
             value: originalElementFromPoint,

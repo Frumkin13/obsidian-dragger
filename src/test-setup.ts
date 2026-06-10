@@ -1,12 +1,36 @@
-Object.defineProperty(globalThis, 'activeWindow', {
-    configurable: true,
-    get: () => window,
-});
+if (typeof window !== 'undefined') {
+    Object.defineProperty(window, 'activeWindow', {
+        configurable: true,
+        get: () => window,
+    });
 
-Object.defineProperty(globalThis, 'activeDocument', {
-    configurable: true,
-    get: () => document,
-});
+    Object.defineProperty(window, 'activeDocument', {
+        configurable: true,
+        get: () => window.document,
+    });
+
+    type InstanceOfConstructor = {
+        prototype: object;
+    };
+
+    if (typeof window.Node.prototype.instanceOf !== 'function') {
+        Object.defineProperty(window.Node.prototype, 'instanceOf', {
+            configurable: true,
+            value: function instanceOf(this: Node, type: InstanceOfConstructor): boolean {
+                return Boolean(Object.prototype.isPrototypeOf.call(type.prototype, this));
+            },
+        });
+    }
+
+    if (typeof window.UIEvent.prototype.instanceOf !== 'function') {
+        Object.defineProperty(window.UIEvent.prototype, 'instanceOf', {
+            configurable: true,
+            value: function instanceOf(this: UIEvent, type: InstanceOfConstructor): boolean {
+                return Boolean(Object.prototype.isPrototypeOf.call(type.prototype, this));
+            },
+        });
+    }
+}
 
 // Polyfill Obsidian's setCssStyles for jsdom test environment
 if (typeof HTMLElement !== 'undefined' && !HTMLElement.prototype.setCssStyles) {

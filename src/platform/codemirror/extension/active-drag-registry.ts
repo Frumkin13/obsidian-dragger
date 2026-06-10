@@ -12,7 +12,7 @@ export type ActiveBlockSelectionEntry = {
 
 export function beginDragSession(source: BlockSelection, view: EditorView): void {
     setActiveBlockSelection(view, source);
-    document.body.classList.add(DRAGGING_BODY_CLASS);
+    activeDocument.body.classList.add(DRAGGING_BODY_CLASS);
 }
 
 export function finishDragSession(view?: EditorView): void {
@@ -23,7 +23,7 @@ export function finishDragSession(view?: EditorView): void {
     }
 
     if (!getActiveBlockSelectionEntry()) {
-        document.body.classList.remove(DRAGGING_BODY_CLASS);
+        activeDocument.body.classList.remove(DRAGGING_BODY_CLASS);
     }
     hideDropVisuals();
 }
@@ -87,7 +87,7 @@ function removeWeakRef(set: Set<WeakRef<EditorView>>, target: EditorView): void 
     }
 }
 
-export function hideDropVisuals(scope: ParentNode = document): void {
+export function hideDropVisuals(scope: ParentNode = activeDocument): void {
     scope.querySelectorAll<HTMLElement>(DROP_INDICATOR_SELECTOR).forEach((el) => {
         el.classList.add(HIDDEN_CLASS);
     });

@@ -1,6 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { MOBILE_GESTURE_LOCK_CLASS } from '../../../shared/dom-selectors';
 import { DND_MOBILE_GESTURE_LOCK_COUNT_ATTR } from '../../../shared/dom-attrs';
+import { isHTMLElement } from '../../dom/dom-utils';
 import { MobileInputHitTest } from './mobile-input-hit-test';
 
 export type InputGuardMode =
@@ -86,7 +87,7 @@ export class InputGuardController {
     private setScrollSuppressed(shouldSuppress: boolean): void {
         if (shouldSuppress === this.scrollSuppressed) return;
 
-        const body = document.body;
+        const body = activeDocument.body;
         if (shouldSuppress) {
             const current = Number(body.getAttribute(DND_MOBILE_GESTURE_LOCK_COUNT_ATTR) || '0');
             const next = current + 1;
@@ -133,8 +134,8 @@ export class InputGuardController {
     }
 
     suppressMobileKeyboard(target?: EventTarget | null): void {
-        const rawActive = target instanceof HTMLElement ? target : document.activeElement;
-        const active = rawActive instanceof HTMLElement ? rawActive : null;
+        const rawActive = isHTMLElement(target) ? target : activeDocument.activeElement;
+        const active = isHTMLElement(rawActive) ? rawActive : null;
         if (!active) return;
         if (!this.shouldSuppressFocusTarget(active)) return;
 
@@ -151,8 +152,8 @@ export class InputGuardController {
     }
 
     shouldSuppressFocusTarget(target: HTMLElement): boolean {
-        const isInputControl = target instanceof HTMLInputElement
-            || target instanceof HTMLTextAreaElement
+        const isInputControl = target.instanceOf(HTMLInputElement)
+            || target.instanceOf(HTMLTextAreaElement)
             || target.isContentEditable;
         const isEditorContent = target.classList.contains('cm-content')
             || !!target.closest('.cm-content');
@@ -161,13 +162,13 @@ export class InputGuardController {
 
     private attachFocusGuard(): void {
         if (this.focusGuardAttached) return;
-        document.addEventListener('focusin', this.onDocumentFocusIn, true);
+        activeDocument.addEventListener('focusin', this.onDocumentFocusIn, true);
         this.focusGuardAttached = true;
     }
 
     private detachFocusGuard(): void {
         if (!this.focusGuardAttached) return;
-        document.removeEventListener('focusin', this.onDocumentFocusIn, true);
+        activeDocument.removeEventListener('focusin', this.onDocumentFocusIn, true);
         this.focusGuardAttached = false;
     }
 

@@ -100,7 +100,7 @@ export class ExternalFileDropController {
     private resolveDropTargetAtPoint(clientX: number, clientY: number): FileDropTarget | null {
         if (typeof activeDocument.elementFromPoint !== 'function') return null;
         const target = activeDocument.elementFromPoint(clientX, clientY);
-        return this.resolveDropTargetFromElement(target instanceof (activeWindow as typeof window).HTMLElement ? target : null);
+        return this.resolveDropTargetFromElement(target?.instanceOf(HTMLElement) ? target : null);
     }
 
     private resolveDropTargetFromElement(target: HTMLElement | null): FileDropTarget | null {
@@ -148,7 +148,7 @@ export class ExternalFileDropController {
         const rawDataHref = element.getAttribute('data-href');
         if (rawDataHref) return normalizeInternalLinkAttribute(rawDataHref);
 
-        if (element instanceof (activeWindow as typeof window).HTMLAnchorElement) {
+        if (element.instanceOf(HTMLAnchorElement)) {
             const rawHref = element.getAttribute('href');
             if (rawHref) return normalizeInternalLinkAttribute(rawHref);
         }

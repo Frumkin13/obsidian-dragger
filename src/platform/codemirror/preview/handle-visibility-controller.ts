@@ -7,6 +7,7 @@ import {
 } from '../../../shared/dom-selectors';
 import { getMainContentLineElementForLine } from '../../dom/line-dom';
 import { resolveLineNumberFromDomNodes } from '../../dom/element-probe';
+import { isHTMLElement } from '../../dom/dom-utils';
 import { mergeLineRanges, isLineNumberInRanges } from '../../../domain/markdown/line-range';
 import { collectEmbedRoots } from '../../dom/embed-probe';
 import { addSourceLineClasses, removeSourceLineClasses } from './source-line-visual';
@@ -116,7 +117,7 @@ export class HandleVisibilityController {
     }
 
     resolveVisibleHandleFromTarget(target: EventTarget | null): HTMLElement | null {
-        if (!(target instanceof HTMLElement)) return null;
+        if (!isHTMLElement(target)) return null;
 
         const directHandle = target.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`);
         if (!directHandle) return null;
@@ -188,7 +189,7 @@ export class HandleVisibilityController {
 
     private applyGrabbedEmbedVisualState(): void {
         const root = this.view.dom;
-        if (!(root instanceof HTMLElement)) return;
+        if (!root?.instanceOf(HTMLElement)) return;
         for (const embed of collectEmbedRoots(this.view, { normalizeToEmbedRoot: true })) {
             const lineNumber = this.resolveEmbedLineNumber(embed);
             if (lineNumber === null) continue;

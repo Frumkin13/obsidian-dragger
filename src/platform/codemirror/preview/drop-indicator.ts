@@ -44,7 +44,7 @@ export class DropIndicatorManager {
     scheduleRender(validation: DropValidationResult, selection: BlockSelection | null, pointerType: string | null): void {
         this.pendingDragInfo = { validation, selection, pointerType };
         if (this.rafId !== null) return;
-        this.rafId = activeWindow.requestAnimationFrame(() => {
+        this.rafId = window.requestAnimationFrame(() => {
             this.rafId = null;
             const pending = this.pendingDragInfo;
             if (!pending) return;
@@ -54,7 +54,7 @@ export class DropIndicatorManager {
 
     hide(): void {
         if (this.rafId !== null) {
-            activeWindow.cancelAnimationFrame(this.rafId);
+            window.cancelAnimationFrame(this.rafId);
             this.rafId = null;
         }
         this.pendingDragInfo = null;

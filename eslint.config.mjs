@@ -2,6 +2,7 @@ import tseslint from 'typescript-eslint';
 import obsidianmd from 'eslint-plugin-obsidianmd';
 
 export default tseslint.config(
+    ...obsidianmd.configs.recommended,
     {
         ignores: [
             'node_modules/**',
@@ -12,7 +13,6 @@ export default tseslint.config(
             '*.js',
             '*.cjs',
             '*.mjs',
-            '*.json',
             '*.md',
         ],
     },
@@ -29,7 +29,6 @@ export default tseslint.config(
         },
         plugins: {
             '@typescript-eslint': tseslint.plugin,
-            obsidianmd,
         },
         rules: {
             '@typescript-eslint/no-explicit-any': 'error',
@@ -37,8 +36,6 @@ export default tseslint.config(
             '@typescript-eslint/unbound-method': 'error',
             '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
             'no-console': ['error', { allow: ['warn', 'error', 'debug'] }],
-            'obsidianmd/no-static-styles-assignment': 'error',
-            'obsidianmd/ui/sentence-case': 'error',
         },
     }
     ,

@@ -12,7 +12,7 @@ export class MobileInputHitTest {
     constructor(private readonly view: EditorView) {}
 
     isMobileEnvironment(): boolean {
-        const body = document.body;
+        const body = activeDocument.body;
         if (body?.classList.contains('is-mobile') || body?.classList.contains('is-phone') || body?.classList.contains('is-tablet')) {
             return true;
         }

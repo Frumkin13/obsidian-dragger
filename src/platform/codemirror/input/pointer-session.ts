@@ -63,7 +63,7 @@ export class PointerSession {
         window.addEventListener('pointerup', this.onPointerUp, { passive: false, capture: true });
         window.addEventListener('pointercancel', this.onPointerCancel, { passive: false, capture: true });
         window.addEventListener('blur', this.onWindowBlur);
-        document.addEventListener('visibilitychange', this.onDocumentVisibilityChange);
+        activeDocument.addEventListener('visibilitychange', this.onDocumentVisibilityChange);
         this.attachTouchBlocker();
         this.pointerListenersAttached = true;
     }
@@ -74,7 +74,7 @@ export class PointerSession {
         window.removeEventListener('pointerup', this.onPointerUp, true);
         window.removeEventListener('pointercancel', this.onPointerCancel, true);
         window.removeEventListener('blur', this.onWindowBlur);
-        document.removeEventListener('visibilitychange', this.onDocumentVisibilityChange);
+        activeDocument.removeEventListener('visibilitychange', this.onDocumentVisibilityChange);
         this.detachTouchBlocker();
         this.pointerListenersAttached = false;
     }
@@ -127,14 +127,14 @@ export class PointerSession {
 
     private attachTouchBlocker(): void {
         if (this.touchBlockerAttached) return;
-        document.addEventListener('touchmove', this.onTouchMove, { passive: false, capture: true });
+        activeDocument.addEventListener('touchmove', this.onTouchMove, { passive: false, capture: true });
         window.addEventListener('touchmove', this.onTouchMove, { passive: false, capture: true });
         this.touchBlockerAttached = true;
     }
 
     private detachTouchBlocker(): void {
         if (!this.touchBlockerAttached) return;
-        document.removeEventListener('touchmove', this.onTouchMove, true);
+        activeDocument.removeEventListener('touchmove', this.onTouchMove, true);
         window.removeEventListener('touchmove', this.onTouchMove, true);
         this.touchBlockerAttached = false;
     }

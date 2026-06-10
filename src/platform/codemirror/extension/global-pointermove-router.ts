@@ -25,7 +25,7 @@ function resolveClientFromTarget(target: EventTarget | null): GlobalPointerMoveC
 
     let current: Node | null = target;
     while (current) {
-        if (current instanceof HTMLElement) {
+        if (current.instanceOf(HTMLElement)) {
             const client = clientsByRoot.get(current);
             if (client) return client;
         }
@@ -66,13 +66,13 @@ function handleDocumentPointerMove(event: PointerEvent): void {
 
 function ensureListening(): void {
     if (isListening) return;
-    document.addEventListener('pointermove', handleDocumentPointerMove, { passive: true });
+    activeDocument.addEventListener('pointermove', handleDocumentPointerMove, { passive: true });
     isListening = true;
 }
 
 function stopListeningIfIdle(): void {
     if (!isListening || clients.size > 0) return;
-    document.removeEventListener('pointermove', handleDocumentPointerMove);
+    activeDocument.removeEventListener('pointermove', handleDocumentPointerMove);
     isListening = false;
 }
 
@@ -98,7 +98,7 @@ export function resetGlobalPointerMoveRouterForTests(): void {
     clients.clear();
     clientsByRoot.clear();
     if (isListening) {
-        document.removeEventListener('pointermove', handleDocumentPointerMove);
+        activeDocument.removeEventListener('pointermove', handleDocumentPointerMove);
         isListening = false;
     }
 }

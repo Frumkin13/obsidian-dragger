@@ -407,10 +407,10 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         }
 
         private handleDocumentPointerMove(e: PointerEvent): void {
-            if (document.body.classList.contains(MOBILE_GESTURE_LOCK_CLASS)) {
+            if (activeDocument.body.classList.contains(MOBILE_GESTURE_LOCK_CLASS)) {
                 return;
             }
-            if (document.body.classList.contains(DRAGGING_BODY_CLASS)) {
+            if (activeDocument.body.classList.contains(DRAGGING_BODY_CLASS)) {
                 this.handleVisibility.setActiveVisibleHandle(null);
                 return;
             }

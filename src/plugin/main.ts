@@ -216,8 +216,8 @@ export default class DragNDropPlugin extends Plugin {
         const win = activeWindow as typeof window;
         const active = activeDocument.activeElement;
         if (!(active instanceof win.HTMLElement)) return;
-        const shouldBlur = active instanceof win.HTMLInputElement
-            || active instanceof win.HTMLTextAreaElement
+        const shouldBlur = active.instanceOf(win.HTMLInputElement)
+            || active.instanceOf(win.HTMLTextAreaElement)
             || active.isContentEditable
             || !!active.closest('.cm-content');
         if (!shouldBlur) return;

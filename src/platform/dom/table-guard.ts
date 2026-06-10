@@ -15,7 +15,7 @@ export function isElementInsideRenderedTableCell(view: EditorView, el: HTMLEleme
 
 export function isPointInsideRenderedTableCell(view: EditorView, x: number, y: number): boolean {
     const rawEl = activeDocument.elementFromPoint(x, y);
-    const el = rawEl instanceof (activeWindow as typeof window).HTMLElement ? rawEl : null;
+    const el = rawEl?.instanceOf(HTMLElement) ? rawEl : null;
     return isElementInsideRenderedTableCell(view, el);
 }
 
@@ -29,7 +29,7 @@ export function isPosInsideRenderedTableCell(
 
     try {
         const domAt = view.domAtPos(safePos);
-        const node = domAt.node instanceof (activeWindow as typeof window).HTMLElement
+        const node = domAt.node.instanceOf(HTMLElement)
             ? domAt.node
             : domAt.node.parentElement;
         if (isElementInsideRenderedTableCell(view, node)) return true;

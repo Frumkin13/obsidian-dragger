@@ -272,7 +272,7 @@ class RangeSelectionBoundaryHandleRenderer {
     }
 
     private createResizeHandle(position: 'top' | 'bottom'): HTMLElement {
-        const handle = document.createElement('div');
+        const handle = activeDocument.createElement('div');
         handle.className = `${MOBILE_SELECTION_RESIZE_HANDLE_CLASS} ${position === 'top'
             ? MOBILE_SELECTION_RESIZE_HANDLE_TOP_CLASS
             : MOBILE_SELECTION_RESIZE_HANDLE_BOTTOM_CLASS}`;
@@ -309,7 +309,7 @@ class RangeSelectionBoundaryHandleRenderer {
     }
 
     private isMobileEnvironment(): boolean {
-        const body = document.body;
+        const body = activeDocument.body;
         if (body.classList.contains('is-mobile') || body.classList.contains('is-phone') || body.classList.contains('is-tablet')) {
             return true;
         }
@@ -499,7 +499,7 @@ export class RangeSelectionVisualManager {
             existing.checked = true;
             return;
         }
-        const checkbox = document.createElement('input');
+        const checkbox = activeDocument.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.checked = true;
         checkbox.tabIndex = -1;

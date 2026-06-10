@@ -83,7 +83,7 @@ function autoScrollDrag(
 
 function scheduleDragAutoScroll(host: PointerMoveHost, dragState: { autoScrollFrameId: number | null }): void {
     if (dragState.autoScrollFrameId !== null) return;
-    dragState.autoScrollFrameId = activeWindow.requestAnimationFrame(() => {
+    dragState.autoScrollFrameId = window.requestAnimationFrame(() => {
         if (host.pipelineState.type !== 'dragging' || !host.activeDragSession) return;
         const state = host.activeDragSession;
         state.autoScrollFrameId = null;
@@ -200,7 +200,7 @@ function resolveHandleRangeBoundaryAtPoint(
         return null;
     }
     const hit = activeDocument.elementFromPoint(clientX, clientY);
-    if (!(hit instanceof (activeWindow as typeof window).HTMLElement)) return null;
+    if (!hit?.instanceOf(HTMLElement)) return null;
 
     const handle = hit.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`);
     if (!handle || handle.classList.contains(EMBED_HANDLE_CLASS)) return null;

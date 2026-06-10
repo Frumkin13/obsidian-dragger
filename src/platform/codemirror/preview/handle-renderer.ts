@@ -12,12 +12,12 @@ export function resolveHandleBlockAtLine(state: EditorState, lineNumber: number)
 }
 
 export function createLineDragHandleElement(block: Pick<BlockInfo, 'startLine' | 'endLine'>): HTMLElement {
-    const handle = document.createElement('div');
+    const handle = activeDocument.createElement('div');
     handle.className = `${DRAG_HANDLE_CLASS} ${LINE_HANDLE_CLASS} dnd-handle-gutter-bound`;
     handle.setAttribute('data-block-start', String(block.startLine));
     handle.setAttribute('data-block-end', String(block.endLine));
 
-    const core = document.createElement('span');
+    const core = activeDocument.createElement('span');
     core.className = HANDLE_CORE_CLASS;
     core.setAttribute('aria-hidden', 'true');
     handle.appendChild(core);

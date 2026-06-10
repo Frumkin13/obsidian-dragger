@@ -110,7 +110,7 @@ function addNestedConversionMenu(
 
 function addMenuRow(menu: Menu, row: BlockTypeMenuRow): void {
     const trigger = createMenuRowTrigger(row);
-    const fragment = document.createDocumentFragment();
+    const fragment = activeDocument.createDocumentFragment();
     fragment.appendChild(trigger);
     menu.addItem((item) => item
         .setTitle(fragment)
@@ -120,21 +120,21 @@ function addMenuRow(menu: Menu, row: BlockTypeMenuRow): void {
 }
 
 function createMenuRowTrigger(row: BlockTypeMenuRow): HTMLDivElement {
-    const trigger = document.createElement('div');
+    const trigger = activeDocument.createElement('div');
     trigger.className = 'clickable-icon dnd-block-type-menu-row';
     trigger.setAttribute('role', 'button');
     trigger.tabIndex = 0;
     trigger.setAttribute('aria-label', row.label);
 
-    const icon = document.createElement('span');
+    const icon = activeDocument.createElement('span');
     icon.className = 'dnd-block-type-menu-row-icon';
     setIcon(icon, row.icon);
 
-    const label = document.createElement('span');
+    const label = activeDocument.createElement('span');
     label.className = 'dnd-block-type-menu-row-label';
     label.textContent = row.label;
 
-    const chevron = document.createElement('span');
+    const chevron = activeDocument.createElement('span');
     chevron.className = 'dnd-block-type-menu-row-chevron';
     if (row.chevron) {
         setIcon(chevron, 'chevron-right');
@@ -156,13 +156,13 @@ function createMenuRowTrigger(row: BlockTypeMenuRow): HTMLDivElement {
 }
 
 function addActionRow(menu: Menu, actions: BlockMenuAction[]): void {
-    const row = document.createElement('div');
+    const row = activeDocument.createElement('div');
     row.className = 'dnd-block-type-action-row';
     for (const action of actions) {
         row.appendChild(createActionButton(menu, action));
     }
 
-    const fragment = document.createDocumentFragment();
+    const fragment = activeDocument.createDocumentFragment();
     fragment.appendChild(row);
     menu.addItem((item) => item
         .setTitle(fragment)
@@ -172,7 +172,7 @@ function addActionRow(menu: Menu, actions: BlockMenuAction[]): void {
 }
 
 function createActionButton(menu: Menu, action: BlockMenuAction): HTMLDivElement {
-    const button = document.createElement('div');
+    const button = activeDocument.createElement('div');
     button.className = 'clickable-icon dnd-block-type-action-button';
     button.setAttribute('role', 'button');
     button.tabIndex = 0;
